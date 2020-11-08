@@ -64,7 +64,7 @@ impl SecretKey {
 
 
 #[derive(Clone, Debug)]
-pub struct PublicKey(G1Projective);
+pub struct PublicKey(pub G1Projective); // TODO: remove pub
 
 impl From<G1Projective> for PublicKey {
     fn from(pk: G1Projective) -> PublicKey {
