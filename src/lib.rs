@@ -1,17 +1,32 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
+#![feature(iterator_fold_self)]
+
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
+use ark_ff::FftField;
+use ark_std::ops::Mul;
+use ark_poly::DensePolynomial;
+use ark_ff::Field;
+
+
+
+
+pub fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
+    DensePolynomial::from_coefficients_vec(
+        p.coeffs.iter().map(|c| s * c).collect()
+    )
+}
 
 #[cfg(test)]
 pub mod tests {
-    use ark_ff::{test_rng, UniformRand, One, Zero, Field};
-    use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, DensePolynomial};
+    use ark_ff::{test_rng, UniformRand, One, Zero, Field, PrimeField};
+    use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, DenseOrSparsePolynomial, DensePolynomial};
     use ark_poly::GeneralEvaluationDomain::Radix2;
-    use ark_poly_commit::kzg10::{KZG10, Powers};
-    use ark_poly_commit::{Polynomial, Error};
+    use ark_poly_commit::kzg10::{KZG10, Powers, Randomness};
+    use ark_poly_commit::{Polynomial, Error, PCRandomness};
     use ark_bw6_761::{BW6_761, Fr};
-    use ark_ec::{PairingEngine, ProjectiveCurve};
+    use ark_ec::{PairingEngine, AffineCurve, ProjectiveCurve};
     use ark_ec::short_weierstrass_jacobian::GroupAffine;
 
     use ark_std::ops::{Sub};
@@ -23,6 +38,7 @@ pub mod tests {
     use bitvec::vec::BitVec;
     use rand::Rng;
     use ark_bls12_377::{G1Projective, G1Affine};
+    use ark_ec::msm::VariableBaseMSM;
 
     #[test]
     fn test_larger_domain() {
@@ -254,22 +270,94 @@ pub mod tests {
             w.coeffs.iter().map(|c| omega_inv.unwrap() * c).collect(),
         );
 
-        let (q, r) = ww.divide_by_vanishing_poly(subdomain).unwrap();
+        let (q_poly, r) = ww.divide_by_vanishing_poly(subdomain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
-        assert_eq!(q.degree(), 3*n-3);
+        assert_eq!(q_poly.degree(), 3*n-3);
 
-        // let pp = KZG10::<BW6_761>::setup(n, false, rng).unwrap();
-        //
-        // let powers = Powers {
-        //     powers_of_g: ark_std::borrow::Cow::Owned(pp.powers_of_g),
-        //     powers_of_gamma_g: ark_std::borrow::Cow::default(),
-        // };
 
-        // let (comm, _) = KZG10::<BW6_761>::commit(&powers, &p, None, None).unwrap();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        let pp = KZG10::<BW6_761>::setup(3*n-3, false, rng).unwrap();
+        let (ck, vk) = KZG10::<BW6_761>::trim(&pp, 3*n-3).unwrap();
+        assert_eq!(b_poly.degree(), n-1);
+        assert_eq!(acc_x_poly.degree(), n-1);
+        assert_eq!(acc_y_poly.degree(), n-1);
+        assert_eq!(pks_x_poly.degree(), n-1);
+        assert_eq!(pks_y_poly.degree(), n-1);
+
+
+
+
+        let (pks_x_comm, _) = KZG10::<BW6_761>::commit(&ck, &pks_x_poly, None, None).unwrap();
+        let (pks_y_comm, _) = KZG10::<BW6_761>::commit(&ck, &pks_y_poly, None, None).unwrap();
+        let (b_comm, _) = KZG10::<BW6_761>::commit(&ck, &b_poly, None, None).unwrap();
+        let (acc_x_comm, _) = KZG10::<BW6_761>::commit(&ck, &acc_x_poly, None, None).unwrap();
+        let (acc_y_comm, _) = KZG10::<BW6_761>::commit(&ck, &acc_y_poly, None, None).unwrap();
+        let (q_comm, _) = KZG10::<BW6_761>::commit(&ck, &q_poly, None, None).unwrap();
+
+
+
 
         let zeta  =  Fr::rand(rng);
 
+        let proof = KZG10::<BW6_761>::open(&ck, &q_poly, zeta, &Randomness::empty()).unwrap();
+        assert!(KZG10::<BW6_761>::check(&vk, &q_comm, zeta, q_poly.evaluate(zeta), &proof).is_ok());
+
+
+        use crate::mul;
+        let nu = ark_bw6_761::Fr::rand(rng);
+
+        let mut powers_of_nu= vec![Fr::one()];
+        let mut cur = nu;
+        for _ in 0..5 {
+            powers_of_nu.push(cur);
+            cur *= &nu;
+        }
+        let constraint_polynomials1 = vec![&pks_x_poly, &pks_y_poly, &b_poly, &acc_x_poly, &acc_y_poly, &q_poly];
+        assert_eq!(powers_of_nu.len(), constraint_polynomials1.len());
+
+        let lin1_poly: DensePolynomial<Fr> = constraint_polynomials1.iter()
+            .zip(powers_of_nu.clone())
+            .map(|(p, c)| mul(c, p))
+            .fold(DensePolynomial::zero(), |a, b| &a + &b);
+        assert_eq!(lin1_poly.degree(), q_poly.degree());
+        let lin1_poly_at_zeta = lin1_poly.evaluate(zeta);
+
+
+
+        let zeta_selector = DensePolynomial::from_coefficients_vec(vec![-zeta, Fr::one()]);
+        let (lin1_witness_poly, r) = DenseOrSparsePolynomial::from(&lin1_poly).divide_with_q_and_r(&zeta_selector.into()).unwrap();
+        assert_eq!(r.degree(), 0);
+        assert_eq!(r.coeffs[0], lin1_poly_at_zeta);
+
+        let lin1_proof = KZG10::<BW6_761>::open(&ck, &lin1_poly, zeta, &Randomness::empty()).unwrap().w;
+
+
+
         struct Proof {
+            b_comm: ark_bw6_761::G1Affine,
+            acc_x_comm: ark_bw6_761::G1Affine,
+            acc_y_comm: ark_bw6_761::G1Affine,
+            q_comm: ark_bw6_761::G1Affine,
+
+            lin1_proof: ark_bw6_761::G1Affine,
+
             pub b_zeta: Fr,
             pub pks_x_zeta: Fr,
             pub pks_y_zeta: Fr,
@@ -288,9 +376,16 @@ pub mod tests {
         let acc_y_zeta = acc_y_poly.evaluate(zeta);
         let acc_x_zeta_w = acc_x_poly.evaluate(zeta * omega.unwrap());
         let acc_y_zeta_w = acc_y_poly.evaluate(zeta * omega.unwrap());
-        let q_zeta = q.evaluate(zeta);
+        let q_zeta = q_poly.evaluate(zeta);
 
         let proof = Proof {
+            b_comm: b_comm.0,
+            acc_x_comm: acc_x_comm.0,
+            acc_y_comm: acc_y_comm.0,
+            q_comm: q_comm.0,
+
+            lin1_proof,
+
             b_zeta,
             pks_x_zeta,
             pks_y_zeta,
@@ -301,7 +396,34 @@ pub mod tests {
             q_zeta
         };
 
-        // Verifier needs to evaluate a1
+        let constraint_commitments = [pks_x_comm, pks_y_comm, b_comm, acc_x_comm, acc_y_comm, q_comm];
+        let constraint_evaluations1 = [pks_x_zeta, pks_y_zeta, b_zeta, acc_x_zeta, acc_y_zeta, q_zeta];
+
+        let lin1_in_zeta: ark_bw6_761::Fr = constraint_evaluations1.iter()
+            .zip(powers_of_nu.clone()).map(|(x, nu)| nu * x).sum();
+        assert_eq!(lin1_in_zeta, lin1_poly_at_zeta);
+
+        let lin1_poly_committed = constraint_commitments.iter()
+            .zip(powers_of_nu.clone())
+            .map(|(x, nu)| x.0.mul(nu.into_repr()))
+            .fold_first(|a, b| a + b).unwrap().into_affine();
+        // assert_eq!(lin1_poly_committed, lin1_poly);
+
+
+        assert!(KZG10::<BW6_761>::check(&vk, &ark_poly_commit::kzg10::Commitment(lin1_poly_committed), zeta, lin1_in_zeta,
+                                        &ark_poly_commit::kzg10::Proof{ w: proof.lin1_proof, random_v: None}).is_ok());
+
+
+        let powers_of_nu_as_bi = powers_of_nu.iter().map(PrimeField::into_repr).collect::<Vec<_>>();
+
+        let lin1 = VariableBaseMSM::multi_scalar_mul(
+            &[proof.b_comm, proof.acc_x_comm, proof.acc_y_comm, proof.q_comm],
+            &powers_of_nu_as_bi,
+        );
+        let lin2 = VariableBaseMSM::multi_scalar_mul(
+            &[proof.acc_x_comm, proof.acc_y_comm],
+            &powers_of_nu_as_bi[0..2]);
+
         {
             let b = proof.b_zeta;
             let x1 = proof.acc_x_zeta;
