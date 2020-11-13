@@ -573,6 +573,54 @@ pub mod tests {
     }
 
     #[test]
+    fn test_bitmask() {
+        let rng = &mut test_rng();
+        let n = 1024;
+        let domain = Radix2EvaluationDomain::new(n).unwrap();
+        let zeta = F::rand(rng);
+        let b: BitVec = (0..n).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
+
+        let mut bf = b.iter()
+            .map(|b| if *b { F::one() } else { F::zero() })
+            .collect::<Vec<_>>();
+        let b_poly = Evaluations::from_vec_and_domain(bf, domain).interpolate();
+        let b_zeta = b_poly.evaluate(zeta);
+
+        let evaluate_bitmask_1 = start_timer!(|| "evaluate a bitmask");
+        let coeffs = domain.evaluate_all_lagrange_coefficients(zeta);
+        let b_zeta2 = b.iter().zip(coeffs)
+            .filter(|(b, _c)| **b)
+            .map(|(_b, c)| c).sum();
+        end_timer!(evaluate_bitmask_1);
+
+        assert_eq!(b_zeta, b_zeta2);
+
+        let evaluate_bitmask_2 = start_timer!(|| "evaluate a bitmask - bis");
+        let mut zeta_n = zeta;
+        for _ in 0..domain.log_size_of_group {
+            zeta_n.square_in_place();
+        }
+        zeta_n -= F::one();
+        zeta_n *= domain.size_inv;
+
+        let mut coeffs = Vec::with_capacity(b.count_ones());
+        let mut acc = zeta;
+        for b in b {
+            if b {
+                coeffs.push(acc - F::one());
+            }
+            acc *= domain.group_gen_inv
+        }
+        batch_inversion(&mut coeffs);
+        let sum: F = coeffs.iter().sum();
+        let b_zeta3 = zeta_n * sum;
+
+        end_timer!(evaluate_bitmask_2);
+
+        assert_eq!(b_zeta, b_zeta3);
+    }
+
+    #[test]
     fn test_lagrange_evaluations() {
         let n = 16;
         let rng = &mut test_rng();
