@@ -347,8 +347,8 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, domain);
     let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, domain);
 
-    let a4 = &(&acc_minus_h_x * &L1) - &(&acc_minus_h_plus_apk_x * &Ln);
-    let a5 = &(&acc_minus_h_y * &L1) - &(&acc_minus_h_plus_apk_y * &Ln);
+    let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln);
+    let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln);
 
     let a1_poly = a1.interpolate();
     let a2_poly = a2.interpolate();
@@ -378,11 +378,11 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         powers_of_phi.push(curr);
     }
 
-    let w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
-    let mut w = &mul_by_x(&w) - &mul(pk.omega_inv, &w); // X w - omega_inv w = w (X - omega_inv)
-    w += &mul(powers_of_phi[1], &a3_poly);
-    w += &mul(powers_of_phi[2], &a4_poly);
-    w += &mul(powers_of_phi[3], &a5_poly);
+    let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
+    w = &mul_by_x(&w) - &mul(pk.omega_inv, &w); // X w - omega_inv w = w (X - omega_inv)
+    w = &w + &mul(powers_of_phi[1], &a3_poly);
+    w = &w + &mul(powers_of_phi[2], &a4_poly);
+    w = &w + &mul(powers_of_phi[3], &a5_poly);
 
     let (q_poly, r) = w.divide_by_vanishing_poly(subdomain).unwrap();
     assert_eq!(r, DensePolynomial::zero());
@@ -537,10 +537,13 @@ pub fn verify(
 
         let evals = &vk.lagrange_evaluations(proof.zeta);
         let apk = apk.0.into_affine();
-        let a4 = (x1 - vk.h.x) * evals.l_0 + (x1 - (vk.h + apk).x) * evals.l_minus_1;
+        let apk_plus_h = vk.h + apk;
+        let a4 = (x1 - vk.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
+        let a5 = (y1 - vk.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
-        // (a1 + proof.phi * a2) * (proof.zeta - vk.omega_inv) == proof.q_zeta * subdomain.evaluate_vanishing_polynomial(proof.zeta)
-        true
+        let s = proof.zeta - vk.omega_inv;
+        let f = proof.phi;
+        a1 * s + f * (a2 * s + f * (a3 + f * (a4 + f * a5))) == proof.q_zeta * evals.vanishing_polynomial
     }
 }
 
@@ -563,18 +566,25 @@ pub mod tests {
 
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
 
-        // let apk = b.iter()
-        //     .zip(signer_set.get_all())
-        //     .filter(|(b, _p)| **b)
-        //     .map(|(_b, p)| p.0)
-        //     .sum::<ark_bls12_377::G1Projective>();
-        //
-        // assert_eq!(apk, bls::PublicKey::aggregate(signer_set.get_by_mask(b)).0);
-
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let proof = prove(b, signer_set.get_all(), &params.to_pk());
         assert!(verify(&pks_x_comm, &pks_y_comm, apk, &proof, &params.to_vk()));
+    }
+
+    #[test]
+    fn test_lagrange_evaluations() {
+        let n = 16;
+        let rng = &mut test_rng();
+        let params = Params::new(n-1, rng);
+        assert_eq!(params.domain.size(), n);
+
+        let z = F::rand(rng);
+        let evals = params.to_vk().lagrange_evaluations(z);
+        assert_eq!(evals.vanishing_polynomial, params.domain.evaluate_vanishing_polynomial(z));
+        let coeffs =  params.domain.evaluate_all_lagrange_coefficients(z);
+        assert_eq!(evals.l_0, coeffs[0]);
+        assert_eq!(evals.l_minus_1, coeffs[n-1]);
     }
 
     #[test]
