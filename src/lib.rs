@@ -5,23 +5,22 @@
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
 
-
-use ark_std::ops::Mul;
-
-use ark_ff::{test_rng, UniformRand, One, Zero, Field, PrimeField, FftField, batch_inversion};
-use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, DenseOrSparsePolynomial, DensePolynomial};
+use ark_ff::{test_rng, UniformRand, One, Zero, Field, FftField, batch_inversion};
+use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Polynomial, UVPolynomial};
+use ark_poly::univariate::{DenseOrSparsePolynomial, DensePolynomial};
 use ark_poly::Radix2EvaluationDomain;
 use ark_poly_commit::kzg10::{KZG10, Powers, Randomness};
 use ark_poly_commit::{PCRandomness};
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::{AffineCurve, ProjectiveCurve, PairingEngine};
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 
 
 use bitvec::vec::BitVec;
 use rand::Rng;
-use ark_ec::msm::VariableBaseMSM;
 use ark_bw6_761::{BW6_761, Fr as F};
-use ark_std::iter;
+
+type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
+type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
 
 pub fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
@@ -97,7 +96,7 @@ impl Params {
         let n = domain.size();
 
         // deg(q) = 3n-3
-        let kzg_params = KZG10::<BW6_761>::setup(3*n-2, false, rng).unwrap();
+        let kzg_params = KZG_BW6::setup(3*n-2, false, rng).unwrap();
 
         Self {
             domain,
@@ -169,8 +168,8 @@ impl SignerSet {
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
         let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
 
-        let (pks_x_comm, _) = KZG10::<BW6_761>::commit(ck, &pks_x_poly, None, None).unwrap();
-        let (pks_y_comm, _) = KZG10::<BW6_761>::commit(ck, &pks_y_poly, None, None).unwrap();
+        let (pks_x_comm, _) = KZG_BW6::commit(ck, &pks_x_poly, None, None).unwrap();
+        let (pks_y_comm, _) = KZG_BW6::commit(ck, &pks_y_poly, None, None).unwrap();
         (pks_x_comm.0, pks_y_comm.0)
     }
 
@@ -267,9 +266,9 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, subdomain).interpolate();
     let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, subdomain).interpolate();
 
-    let b_comm = KZG10::<BW6_761>::commit(&pk.kzg_ck, &b_poly, None, None).unwrap().0.0;
-    let acc_x_comm = KZG10::<BW6_761>::commit(&pk.kzg_ck, &acc_x_poly, None, None).unwrap().0.0;
-    let acc_y_comm = KZG10::<BW6_761>::commit(&pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
+    let b_comm = KZG_BW6::commit(&pk.kzg_ck, &b_poly, None, None).unwrap().0.0;
+    let acc_x_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_x_poly, None, None).unwrap().0.0;
+    let acc_y_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
 
     let phi =  F::rand(rng);
 
@@ -389,19 +388,19 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(q_poly.degree(), 3*n-3);
 
     assert_eq!(pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
-    let q_comm = KZG10::<BW6_761>::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
+    let q_comm = KZG_BW6::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
 
     let zeta  =  F::rand(rng);
     let zeta_omega = zeta * pk.omega;
 
-    let b_zeta = b_poly.evaluate(zeta);
-    let pks_x_zeta = pks_x_poly.evaluate(zeta);
-    let pks_y_zeta = pks_y_poly.evaluate(zeta);
-    let acc_x_zeta = acc_x_poly.evaluate(zeta);
-    let acc_y_zeta = acc_y_poly.evaluate(zeta);
-    let q_zeta = q_poly.evaluate(zeta);
-    let acc_x_zeta_omega = acc_x_poly.evaluate(zeta_omega);
-    let acc_y_zeta_omega = acc_y_poly.evaluate(zeta_omega);
+    let b_zeta = b_poly.evaluate(&zeta);
+    let pks_x_zeta = pks_x_poly.evaluate(&zeta);
+    let pks_y_zeta = pks_y_poly.evaluate(&zeta);
+    let acc_x_zeta = acc_x_poly.evaluate(&zeta);
+    let acc_y_zeta = acc_y_poly.evaluate(&zeta);
+    let q_zeta = q_poly.evaluate(&zeta);
+    let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
+    let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
     let nu = F::rand(rng);
     let mut curr = nu;
@@ -412,13 +411,13 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     }
 
     let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
-    let w2_proof = KZG10::<BW6_761>::open(&pk.kzg_ck, &w2, zeta_omega, &Randomness::empty()).unwrap().w;
+    let w2_proof = KZG_BW6::open(&pk.kzg_ck, &w2, zeta_omega, &Randomness::empty()).unwrap().w;
 
     let mut w1 = &w2 + &mul(powers_of_nu[1], &pks_x_poly);
     w1 = &w1 + &mul(powers_of_nu[2], &pks_y_poly);
     w1 = &w1 + &mul(powers_of_nu[3], &b_poly);
     w1 = &w1 + &mul(powers_of_nu[4], &q_poly);
-    let w1_proof = KZG10::<BW6_761>::open(&pk.kzg_ck, &w1, zeta, &Randomness::empty()).unwrap().w;
+    let w1_proof = KZG_BW6::open(&pk.kzg_ck, &w1, zeta, &Randomness::empty()).unwrap().w;
 
     Proof {
         b_comm,
@@ -491,9 +490,7 @@ pub fn verify(
     let w2_zeta_omega = proof.acc_x_zeta_omega + powers_of_nu[0] * proof.acc_y_zeta_omega;
     let zeta_omega = proof.zeta * vk.omega;
     let w2_proof = &ark_poly_commit::kzg10::Proof { w: proof.w2_proof, random_v: None };
-    assert!(KZG10::<BW6_761>::check(&vk.kzg_vk, w2_comm_wrapper, zeta_omega, w2_zeta_omega, w2_proof).unwrap());
-
-    use std::ops::AddAssign;
+    assert!(KZG_BW6::check(&vk.kzg_vk, w2_comm_wrapper, zeta_omega, w2_zeta_omega, w2_proof).unwrap());
 
     let mut w1_comm = w2_comm;
     w1_comm += &pks_x_comm.mul(powers_of_nu[1]);
@@ -510,7 +507,7 @@ pub fn verify(
         + powers_of_nu[4] * proof.q_zeta;
 
     let w1_proof = &ark_poly_commit::kzg10::Proof { w: proof.w1_proof, random_v: None };
-    assert!(KZG10::<BW6_761>::check(&vk.kzg_vk, w1_comm_wrapper, proof.zeta, w1_zeta, w1_proof).unwrap());
+    assert!(KZG_BW6::check(&vk.kzg_vk, w1_comm_wrapper, proof.zeta, w1_zeta, w1_proof).unwrap());
 
     return {
         let b = proof.b_zeta;
@@ -550,6 +547,7 @@ pub fn verify(
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use std::time::Instant;
 
     #[test]
     fn test_pks_commitment() {
@@ -574,39 +572,39 @@ pub mod tests {
 
     #[test]
     fn test_bitmask() {
+        use std::convert::TryInto;
+
         let rng = &mut test_rng();
-        let n = 1024;
-        let domain = Radix2EvaluationDomain::new(n).unwrap();
+        let n = 2u32.pow(16);
+        let domain = Radix2EvaluationDomain::new(n.try_into().unwrap()).unwrap();
         let zeta = F::rand(rng);
         let b: BitVec = (0..n).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
-
         let mut bf = b.iter()
             .map(|b| if *b { F::one() } else { F::zero() })
             .collect::<Vec<_>>();
         let b_poly = Evaluations::from_vec_and_domain(bf, domain).interpolate();
-        let b_zeta = b_poly.evaluate(zeta);
+        let b_zeta = b_poly.evaluate(&zeta);
 
-        let evaluate_bitmask_1 = start_timer!(|| "evaluate a bitmask");
+        let timer = Instant::now();
         let coeffs = domain.evaluate_all_lagrange_coefficients(zeta);
         let b_zeta2 = b.iter().zip(coeffs)
             .filter(|(b, _c)| **b)
             .map(|(_b, c)| c).sum();
-        end_timer!(evaluate_bitmask_1);
+        println!("evaluate_all_lagrange_coefficients = {}", timer.elapsed().as_millis());
 
         assert_eq!(b_zeta, b_zeta2);
 
-        let evaluate_bitmask_2 = start_timer!(|| "evaluate a bitmask - bis");
+        let timer = Instant::now();
         let mut zeta_n = zeta;
         for _ in 0..domain.log_size_of_group {
             zeta_n.square_in_place();
         }
         zeta_n -= F::one();
-        zeta_n *= domain.size_inv;
-
+        zeta_n *= &domain.size_inv;
         let mut coeffs = Vec::with_capacity(b.count_ones());
         let mut acc = zeta;
-        for b in b {
-            if b {
+        for b in &b {
+            if *b {
                 coeffs.push(acc - F::one());
             }
             acc *= domain.group_gen_inv
@@ -614,8 +612,7 @@ pub mod tests {
         batch_inversion(&mut coeffs);
         let sum: F = coeffs.iter().sum();
         let b_zeta3 = zeta_n * sum;
-
-        end_timer!(evaluate_bitmask_2);
+        println!("barycentric1 = {}", timer.elapsed().as_millis());
 
         assert_eq!(b_zeta, b_zeta3);
     }
@@ -689,9 +686,9 @@ pub mod tests {
 
         if let ark_poly::GeneralEvaluationDomain::Radix2(d) = d {
             let omega = d.group_gen;
-            assert_eq!(p.evaluate(omega), p_shifted.evaluate(F::one()));
+            assert_eq!(p.evaluate(&omega), p_shifted.evaluate(&F::one()));
             let x  =  F::rand(rng);
-            assert_eq!(p.evaluate(x * omega), p_shifted.evaluate(x));
+            assert_eq!(p.evaluate(&(x * omega)), p_shifted.evaluate(&x));
         } else {
             assert_eq!(0, 1);
         }
