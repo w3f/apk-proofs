@@ -18,6 +18,8 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_bw6_761::{BW6_761, Fr as F};
+use std::time::Instant;
+use ark_ec::msm::VariableBaseMSM;
 
 type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
@@ -482,23 +484,33 @@ pub fn verify(
         powers_of_nu.push(curr);
     }
 
-
+    let timer = Instant::now();
     let mut w2_comm = proof.acc_y_comm.mul(powers_of_nu[0]);
     w2_comm.add_assign_mixed(&proof.acc_x_comm);
-
-    let w2_comm_wrapper = &ark_poly_commit::kzg10::Commitment(w2_comm.into_affine());
-    let w2_zeta_omega = proof.acc_x_zeta_omega + powers_of_nu[0] * proof.acc_y_zeta_omega;
-    let zeta_omega = proof.zeta * vk.omega;
-    let w2_proof = &ark_poly_commit::kzg10::Proof { w: proof.w2_proof, random_v: None };
-    assert!(KZG_BW6::check(&vk.kzg_vk, w2_comm_wrapper, zeta_omega, w2_zeta_omega, w2_proof).unwrap());
 
     let mut w1_comm = w2_comm;
     w1_comm += &pks_x_comm.mul(powers_of_nu[1]);
     w1_comm += &pks_y_comm.mul(powers_of_nu[2]);
     w1_comm += &proof.b_comm.mul(powers_of_nu[3]);
     w1_comm += &proof.q_comm.mul(powers_of_nu[4]);
-    let w1_comm_wrapper = &ark_poly_commit::kzg10::Commitment(w1_comm.into_affine());
+    println!("{}μs = 4 add-assign-mul in BW6::G1", timer.elapsed().as_micros());
 
+    use ark_ff::PrimeField;
+
+    let mut curr = nu;
+    let mut scalars = vec![F::one().into_repr(), nu.into_repr()];
+    for _ in 0..4 {
+        curr *= &nu;
+        scalars.push(curr.into_repr());
+    }
+    let bases = vec![proof.acc_x_comm, proof.acc_y_comm, *pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm];
+    assert_eq!(scalars.len(), bases.len());
+    let timer = Instant::now();
+    let g = VariableBaseMSM::multi_scalar_mul(&bases, &scalars);
+    println!("{}μs = 6-base multiexp in BW6::G1", timer.elapsed().as_micros());
+    assert_eq!(g, w1_comm);
+
+    let timer = Instant::now();
     let w1_zeta = proof.acc_x_zeta
         + powers_of_nu[0] * proof.acc_y_zeta
         + powers_of_nu[1] * proof.pks_x_zeta
@@ -506,8 +518,18 @@ pub fn verify(
         + powers_of_nu[3] * proof.b_zeta
         + powers_of_nu[4] * proof.q_zeta;
 
+    let zeta_omega = proof.zeta * vk.omega;
+    let w2_zeta_omega = proof.acc_x_zeta_omega + powers_of_nu[0] * proof.acc_y_zeta_omega;
+    println!("{}μs = opening points evaluation", timer.elapsed().as_micros());
+
+    let timer = Instant::now();
+    let w1_comm_wrapper = &ark_poly_commit::kzg10::Commitment(w1_comm.into_affine());
     let w1_proof = &ark_poly_commit::kzg10::Proof { w: proof.w1_proof, random_v: None };
+    let w2_comm_wrapper = &ark_poly_commit::kzg10::Commitment(w2_comm.into_affine());
+    let w2_proof = &ark_poly_commit::kzg10::Proof { w: proof.w2_proof, random_v: None };
+    assert!(KZG_BW6::check(&vk.kzg_vk, w2_comm_wrapper, zeta_omega, w2_zeta_omega, w2_proof).unwrap());
     assert!(KZG_BW6::check(&vk.kzg_vk, w1_comm_wrapper, proof.zeta, w1_zeta, w1_proof).unwrap());
+    println!("{}μs = 2 KZG opennings w/o batching", timer.elapsed().as_micros());
 
     return {
         let b = proof.b_zeta;
@@ -590,7 +612,7 @@ pub mod tests {
         let b_zeta2 = b.iter().zip(coeffs)
             .filter(|(b, _c)| **b)
             .map(|(_b, c)| c).sum();
-        println!("evaluate_all_lagrange_coefficients = {}", timer.elapsed().as_millis());
+        println!("{}μs - computing b(z) using domain::evaluate_all_lagrange_coefficients for n={}", timer.elapsed().as_millis(), n);
 
         assert_eq!(b_zeta, b_zeta2);
 
@@ -612,7 +634,7 @@ pub mod tests {
         batch_inversion(&mut coeffs);
         let sum: F = coeffs.iter().sum();
         let b_zeta3 = zeta_n * sum;
-        println!("barycentric1 = {}", timer.elapsed().as_millis());
+        println!("{}μs - computing b(z) using barycentric evaluation for n={}", timer.elapsed().as_millis(), n);
 
         assert_eq!(b_zeta, b_zeta3);
     }
