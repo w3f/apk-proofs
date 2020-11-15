@@ -2,6 +2,7 @@
 
 #![feature(iterator_fold_self)]
 
+pub mod utils;
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
 
@@ -612,7 +613,7 @@ pub mod tests {
         let b_zeta2 = b.iter().zip(coeffs)
             .filter(|(b, _c)| **b)
             .map(|(_b, c)| c).sum();
-        println!("{}μs - computing b(z) using domain::evaluate_all_lagrange_coefficients for n={}", timer.elapsed().as_millis(), n);
+        println!("{}μs - computing b(z) using domain::evaluate_all_lagrange_coefficients for n={}", timer.elapsed().as_micros(), n);
 
         assert_eq!(b_zeta, b_zeta2);
 
@@ -634,7 +635,7 @@ pub mod tests {
         batch_inversion(&mut coeffs);
         let sum: F = coeffs.iter().sum();
         let b_zeta3 = zeta_n * sum;
-        println!("{}μs - computing b(z) using barycentric evaluation for n={}", timer.elapsed().as_millis(), n);
+        println!("{}μs - computing b(z) using barycentric evaluation for n={}", timer.elapsed().as_micros(), n);
 
         assert_eq!(b_zeta, b_zeta3);
     }

@@ -15,7 +15,14 @@ ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", default-feature
 ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit", default-features = false }
+ark-poly-commit = { path = "../../swasilyev/poly-commit", default-features = false }
 
 bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
 rand = "0.7"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "bench"
+harness = false
