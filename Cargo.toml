@@ -19,3 +19,10 @@ ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit", default-
 
 bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
 rand = "0.7"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "bench"
+harness = false
