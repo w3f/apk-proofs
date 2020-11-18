@@ -4,38 +4,39 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 
 extern crate apk_proofs;
 
-
-fn mul_then_add<G: AffineCurve>(
-    bases: &[G],
-    scalars: &[<G::ScalarField as PrimeField>::BigInt],
-) -> G::Projective {
-    bases.iter().zip(scalars).map(|(b, s)| b.mul(*s)).sum()
-}
-
 fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
-
-    use ark_ec::msm::VariableBaseMSM;
 
     let rng = &mut test_rng();
 
-    let scalars = (0..n)
-        .map(|_| G::ScalarField::rand(rng).into_repr())
-        .collect::<Vec<_>>();
-    let bases = (0..n)
-        .map(|_| G::Projective::rand(rng).into_affine())
-        .collect::<Vec<_>>();
+    let nu = G::ScalarField::rand(rng);
+    let scalars = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
+    let bases = (0..n).map(|_| G::Projective::rand(rng).into_affine()).collect::<Vec<_>>();
 
-    let scalars_clone = scalars.clone();
-    let bases_clone = bases.clone();
-    c.bench_function("ark_ec::msm::VariableBaseMSM", move |b| {
-        b.iter(|| VariableBaseMSM::multi_scalar_mul(black_box(&bases_clone), black_box(&scalars_clone)))
-    });
+    {
+        let (scalars, bases) = (scalars.clone(), bases.clone());
+        c.bench_function("ark_ec::msm::VariableBaseMSM", move |b| {
+            b.iter(|| ark_ec::msm::VariableBaseMSM::multi_scalar_mul(black_box(&bases), black_box(&scalars)))
+        });
+    }
 
-    let scalars_clone = scalars.clone();
-    let bases_clone = bases.clone();
-    c.bench_function("naive mul + add_assign", move |b| {
-        b.iter(|| mul_then_add(black_box(&bases_clone), black_box(&scalars_clone)))
-    });
+    {
+        let (scalars, bases) = (scalars.clone(), bases.clone());
+        c.bench_function("naive mul then add", move |b| {
+            b.iter(|| apk_proofs::utils::mul_then_add(black_box(&bases), black_box(&scalars)))
+        });
+    }
+
+    let nu: u128 = rand::random();
+    let nu = G::ScalarField::from(nu);
+
+    {
+        let bases = bases.clone();
+        let nu = nu.into_repr();
+
+        c.bench_function("128-bit Horner", move |b| {
+            b.iter(|| apk_proofs::utils::horner(black_box(&bases), black_box(nu)))
+        });
+    }
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
