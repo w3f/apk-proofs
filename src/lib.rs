@@ -493,22 +493,7 @@ pub fn verify(
     w1_comm += &pks_y_comm.mul(powers_of_nu[2]);
     w1_comm += &proof.b_comm.mul(powers_of_nu[3]);
     w1_comm += &proof.q_comm.mul(powers_of_nu[4]);
-    println!("{}μs = 4 add-assign-mul in BW6::G1", timer.elapsed().as_micros());
-
-    use ark_ff::PrimeField;
-
-    let mut curr = nu;
-    let mut scalars = vec![F::one().into_repr(), nu.into_repr()];
-    for _ in 0..4 {
-        curr *= &nu;
-        scalars.push(curr.into_repr());
-    }
-    let bases = vec![proof.acc_x_comm, proof.acc_y_comm, *pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm];
-    assert_eq!(scalars.len(), bases.len());
-    let timer = Instant::now();
-    let g = VariableBaseMSM::multi_scalar_mul(&bases, &scalars);
-    println!("{}μs = 6-base multiexp in BW6::G1", timer.elapsed().as_micros());
-    assert_eq!(g, w1_comm);
+    println!("{}μs = multiexp", timer.elapsed().as_micros());
 
     let timer = Instant::now();
     let w1_zeta = proof.acc_x_zeta
