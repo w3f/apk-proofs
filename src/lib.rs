@@ -1,12 +1,12 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
-#![feature(iterator_fold_self)]
+// #![feature(iterator_fold_self)]
 
 pub mod utils;
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
 
-use ark_ff::{test_rng, UniformRand, One, Zero, Field, FftField, batch_inversion};
+use ark_ff::{test_rng, UniformRand, One, Zero, Field, PrimeField, FftField, batch_inversion};
 use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly::univariate::{DenseOrSparsePolynomial, DensePolynomial};
 use ark_poly::Radix2EvaluationDomain;
@@ -405,7 +405,9 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
     let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
-    let nu = F::rand(rng);
+    let nu: u128 = rand::random();
+    let nu = F::from(nu);
+
     let mut curr = nu;
     let mut powers_of_nu = vec![curr];
     for _ in 0..5 {
@@ -416,10 +418,10 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
     let w2_proof = KZG_BW6::open(&pk.kzg_ck, &w2, zeta_omega, &Randomness::empty()).unwrap().w;
 
-    let mut w1 = &w2 + &mul(powers_of_nu[1], &pks_x_poly);
-    w1 = &w1 + &mul(powers_of_nu[2], &pks_y_poly);
-    w1 = &w1 + &mul(powers_of_nu[3], &b_poly);
-    w1 = &w1 + &mul(powers_of_nu[4], &q_poly);
+    let mut w1 = &pks_x_poly + &mul(powers_of_nu[0], &pks_y_poly);
+    w1 = &w1 + &mul(powers_of_nu[1], &b_poly);
+    w1 = &w1 + &mul(powers_of_nu[2], &q_poly);
+    w1 = &w1 + &mul(powers_of_nu[3], &w2);
     let w1_proof = KZG_BW6::open(&pk.kzg_ck, &w1, zeta, &Randomness::empty()).unwrap().w;
 
     Proof {
@@ -478,59 +480,31 @@ pub fn verify(
     vk: &VerifierKey) -> bool
 {
     let nu= proof.nu;
-    let mut curr = nu;
-    let mut powers_of_nu = vec![curr];
-    for _ in 0..5 {
-        curr *= &nu;
-        powers_of_nu.push(curr);
-    }
 
     let timer = Instant::now();
-    let mut w2_comm = proof.acc_y_comm.mul(powers_of_nu[0]);
-    w2_comm.add_assign_mixed(&proof.acc_x_comm);
-
-    let mut w1_comm = w2_comm;
-    w1_comm += &pks_x_comm.mul(powers_of_nu[1]);
-    w1_comm += &pks_y_comm.mul(powers_of_nu[2]);
-    w1_comm += &proof.b_comm.mul(powers_of_nu[3]);
-    w1_comm += &proof.q_comm.mul(powers_of_nu[4]);
-    println!("{}μs = 4 add-assign-mul in BW6::G1", timer.elapsed().as_micros());
-
-    use ark_ff::PrimeField;
-
-    let mut curr = nu;
-    let mut scalars = vec![F::one().into_repr(), nu.into_repr()];
-    for _ in 0..4 {
-        curr *= &nu;
-        scalars.push(curr.into_repr());
-    }
-    let bases = vec![proof.acc_x_comm, proof.acc_y_comm, *pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm];
-    assert_eq!(scalars.len(), bases.len());
-    let timer = Instant::now();
-    let g = VariableBaseMSM::multi_scalar_mul(&bases, &scalars);
-    println!("{}μs = 6-base multiexp in BW6::G1", timer.elapsed().as_micros());
-    assert_eq!(g, w1_comm);
+    let nu_repr = nu.into_repr();
+    let w2_comm = utils::horner(&[proof.acc_x_comm, proof.acc_y_comm], nu_repr).into_affine();
+    let w1_comm = utils::horner(&[*pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr).into_affine();
+    println!("{}μs = multiexp", timer.elapsed().as_micros());
 
     let timer = Instant::now();
-    let w1_zeta = proof.acc_x_zeta
-        + powers_of_nu[0] * proof.acc_y_zeta
-        + powers_of_nu[1] * proof.pks_x_zeta
-        + powers_of_nu[2] * proof.pks_y_zeta
-        + powers_of_nu[3] * proof.b_zeta
-        + powers_of_nu[4] * proof.q_zeta;
-
+    let w1_zeta = utils::horner_field(&[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta], nu);
     let zeta_omega = proof.zeta * vk.omega;
-    let w2_zeta_omega = proof.acc_x_zeta_omega + powers_of_nu[0] * proof.acc_y_zeta_omega;
+    let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
     println!("{}μs = opening points evaluation", timer.elapsed().as_micros());
 
     let timer = Instant::now();
-    let w1_comm_wrapper = &ark_poly_commit::kzg10::Commitment(w1_comm.into_affine());
-    let w1_proof = &ark_poly_commit::kzg10::Proof { w: proof.w1_proof, random_v: None };
-    let w2_comm_wrapper = &ark_poly_commit::kzg10::Commitment(w2_comm.into_affine());
-    let w2_proof = &ark_poly_commit::kzg10::Proof { w: proof.w2_proof, random_v: None };
-    assert!(KZG_BW6::check(&vk.kzg_vk, w2_comm_wrapper, zeta_omega, w2_zeta_omega, w2_proof).unwrap());
-    assert!(KZG_BW6::check(&vk.kzg_vk, w1_comm_wrapper, proof.zeta, w1_zeta, w1_proof).unwrap());
-    println!("{}μs = 2 KZG opennings w/o batching", timer.elapsed().as_micros());
+    let w1_comm_wrapper = ark_poly_commit::kzg10::Commitment(w1_comm);
+    let w1_proof = ark_poly_commit::kzg10::Proof { w: proof.w1_proof, random_v: None };
+    let w2_comm_wrapper = ark_poly_commit::kzg10::Commitment(w2_comm);
+    let w2_proof = ark_poly_commit::kzg10::Proof { w: proof.w2_proof, random_v: None };
+    assert!(KZG_BW6::batch_check(&vk.kzg_vk,
+                                 &[w1_comm_wrapper, w2_comm_wrapper],
+                                 &[proof.zeta, zeta_omega],
+                                 &[w1_zeta, w2_zeta_omega],
+                                 &[w1_proof, w2_proof],
+                                 &mut test_rng()).unwrap());
+    println!("{}μs = batched KZG openning", timer.elapsed().as_micros());
 
     return {
         let b = proof.b_zeta;

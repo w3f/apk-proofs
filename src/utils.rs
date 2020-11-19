@@ -31,10 +31,34 @@ pub fn barycentric_eval_at<F: FftField>(z: F, evals: &Vec<F>, domain: Radix2Eval
     z_n * s
 }
 
+use ark_ff::{Field, PrimeField, Zero};
+use ark_ec::{AffineCurve, ProjectiveCurve};
+
+pub fn mul_then_add<G: AffineCurve>(
+    bases: &[G],
+    scalars: &[<G::ScalarField as PrimeField>::BigInt],
+) -> G::Projective {
+    bases.iter().zip(scalars).map(|(b, s)| b.mul(*s)).sum()
+}
+
+pub fn horner<G: AffineCurve>(
+    bases: &[G],
+    nu: <G::ScalarField as PrimeField>::BigInt,
+) -> G::Projective {
+    bases.iter().rev().fold(G::Projective::zero(), |acc, b| acc.mul(nu).add_mixed(b))
+}
+
+pub fn horner_field<F: Field>(
+    bases: &[F],
+    nu: F,
+) -> F {
+    bases.iter().rev().fold(F::zero(), |acc, b| nu * acc + b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand};
+    use ark_ff::{test_rng, UniformRand, Field};
     use ark_poly::{Evaluations, Polynomial};
 
     #[test]
@@ -47,5 +71,19 @@ mod tests {
         let poly = Evaluations::from_vec_and_domain(evals.clone(), domain).interpolate();
         let poly_at_z = poly.evaluate(&z);
         assert_eq!(barycentric_eval_at(z, &evals, domain), poly_at_z);
+    }
+
+    #[test]
+    pub fn test_horner() {
+        let n = 10;
+
+        let rng = &mut test_rng();
+
+        let nu = ark_bw6_761::Fr::rand(rng);
+        let bases = (0..n).map(|_| ark_bw6_761::G1Projective::rand(rng).into_affine()).collect::<Vec<_>>();
+
+        let powers = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
+
+        assert_eq!(horner(&bases, nu.into_repr()), mul_then_add(&bases, &powers));
     }
 }
