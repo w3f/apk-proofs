@@ -1,4 +1,4 @@
-use ark_ff::{PrimeField, Zero};
+use ark_ff::{Field, PrimeField, Zero};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 
 pub fn mul_then_add<G: AffineCurve>(
@@ -14,6 +14,14 @@ pub fn horner<G: AffineCurve>(
 ) -> G::Projective {
     bases.iter().rev().fold(G::Projective::zero(), |acc, b| acc.mul(nu).add_mixed(b))
 }
+
+pub fn horner_field<F: Field>(
+    bases: &[F],
+    nu: F,
+) -> F {
+    bases.iter().rev().fold(F::zero(), |acc, b| nu * acc + b)
+}
+
 
 #[cfg(test)]
 mod tests {
