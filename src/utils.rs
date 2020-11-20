@@ -31,8 +31,35 @@ pub fn barycentric_eval_at<F: FftField>(z: F, evals: &Vec<F>, domain: Radix2Eval
     z_n * s
 }
 
+pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &BitVec, domain: Radix2EvaluationDomain<F>) -> F {
+    let n = domain.size();
+    // let timer_z_n =  std::time::Instant::now();
+    let mut z_n = z; // z^n, n=2^d - domain size, so squarings only
+    for _ in 0..domain.log_size_of_group {
+        z_n.square_in_place();
+    }
+    // println!("{}μs z^n for log_n={}", timer_z_n.elapsed().as_micros(), domain.log_size_of_group);
+    z_n -= F::one();
+    z_n *= &domain.size_inv; // (z^n-1)/n
+
+    let mut li_inv = Vec::with_capacity(evals.count_ones());
+    let mut acc = z;
+    for b in evals {
+        if *b {
+            li_inv.push(acc - F::one());
+        }
+        acc *= domain.group_gen_inv;
+    }
+
+    batch_inversion(&mut li_inv);
+    let s: F = li_inv.iter().sum();
+    z_n * s
+}
+
+
 use ark_ff::{Field, PrimeField, Zero};
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use bitvec::vec::BitVec;
 
 pub fn mul_then_add<G: AffineCurve>(
     bases: &[G],
