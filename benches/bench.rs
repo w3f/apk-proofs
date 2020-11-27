@@ -1,11 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ark_ff::{Field, PrimeField, Zero, test_rng, UniformRand};
+use ark_ff::{Field, PrimeField, test_rng, UniformRand};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 
 extern crate apk_proofs;
 
 fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
-
     let rng = &mut test_rng();
 
     let nu = G::ScalarField::rand(rng);
@@ -26,8 +25,7 @@ fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
         });
     }
 
-    let nu: u128 = rand::random();
-    let nu = G::ScalarField::from(nu);
+    let nu: G::ScalarField = u128::rand(rng).into();
 
     {
         let bases = bases.clone();
@@ -39,8 +37,24 @@ fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
     }
 }
 
+fn bw6_subgroup_check(c: &mut Criterion) {
+    let rng = &mut test_rng();
+
+    let p = ark_bw6_761::G1Projective::rand(rng);
+    let p_affine = p.into_affine();
+
+    c.bench_function("subgroup check: mul by group order", move |b| {
+        b.iter(|| (black_box(&p_affine)).is_in_correct_subgroup_assuming_on_curve())
+    });
+
+    c.bench_function("subgroup check: GLV", move |b| {
+        b.iter(|| apk_proofs::endo::subgroup_check(black_box(&p)))
+    });
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
+    bw6_subgroup_check(c);
 }
 
 criterion_group!(benches, criterion_benchmark);
