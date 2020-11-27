@@ -394,7 +394,7 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
     let q_comm = KZG_BW6::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
 
-    let zeta  =  F::rand(rng);
+    let zeta: F = u128::rand(rng).into();
     let zeta_omega = zeta * pk.omega;
 
     let b_zeta = b_poly.evaluate(&zeta);
@@ -406,8 +406,7 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
     let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
-    let nu: u128 = rand::random();
-    let nu = F::from(nu);
+    let nu: F = u128::rand(rng).into();
 
     let mut curr = nu;
     let mut powers_of_nu = vec![curr];
