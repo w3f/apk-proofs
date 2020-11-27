@@ -508,13 +508,18 @@ pub fn verify(
     let mut rhs = proof.w2_proof.mul(r);  //128-bit mul
     rhs.add_assign_mixed(&proof.w1_proof);
 
-    let to_affine = G1Projective::batch_normalization_into_affine(&[lhs, -rhs]);
-    let (lhs, rhs) = (to_affine[0], to_affine[1]);
+    let to_affine = G1Projective::batch_normalization_into_affine(&[lhs, -rhs]); // Basically, not required, BW6 Miller's loop is in projective afair
+    let (lhs_affine, rhs_affine) = (to_affine[0], to_affine[1]);
     assert!(BW6_761::product_of_pairings(&[
-        (lhs.into(), vk.kzg_vk.prepared_h.clone()),
-        (rhs.into(), vk.kzg_vk.prepared_beta_h.clone()),
+        (lhs_affine.into(), vk.kzg_vk.prepared_h.clone()),
+        (rhs_affine.into(), vk.kzg_vk.prepared_beta_h.clone()),
     ]).is_one());
     println!("{}μs = batched KZG openning", timer.elapsed().as_micros());
+
+    let timer = Instant::now();
+    endo::subgroup_check(&lhs);
+    endo::subgroup_check(&rhs);
+    println!("{}μs = 2-point subgroup check", timer.elapsed().as_micros());
 
     return {
         let b = proof.b_zeta;
