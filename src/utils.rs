@@ -86,19 +86,30 @@ pub fn horner_field<F: Field>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand, Field};
+    use ark_ff::{test_rng, UniformRand, Field, One};
     use ark_poly::{Evaluations, Polynomial};
+    use rand::Rng;
 
     #[test]
-    pub fn test_barycentric_eval_at() {
+    pub fn test_barycentric_eval() {
         let rng = &mut test_rng();
         let n = 2u32.pow(16);
         let domain = Radix2EvaluationDomain::new(std::convert::TryInto::try_into(n).unwrap()).unwrap();
-        let evals = (0..n).map(|_| ark_bw6_761::Fr::rand(rng)).collect::<Vec<_>>();
         let z = ark_bw6_761::Fr::rand(rng);
+
+        let evals = (0..n).map(|_| ark_bw6_761::Fr::rand(rng)).collect::<Vec<_>>();
         let poly = Evaluations::from_vec_and_domain(evals.clone(), domain).interpolate();
         let poly_at_z = poly.evaluate(&z);
         assert_eq!(barycentric_eval_at(z, &evals, domain), poly_at_z);
+
+        let bits: BitVec = (0..n).map(|_| rng.gen::<bool>()).collect();
+        let bits_as_field_elements = bits.iter()
+            .map(|b| if *b { ark_bw6_761::Fr::one() } else { ark_bw6_761::Fr::zero() })
+            .collect::<Vec<_>>();
+        let bits_poly = Evaluations::from_vec_and_domain(bits_as_field_elements.clone(), domain).interpolate();
+        let bits_poly_at_z = bits_poly.evaluate(&z);
+        assert_eq!(barycentric_eval_at(z, &bits_as_field_elements, domain), bits_poly_at_z);
+        assert_eq!(barycentric_eval_binary_at(z, &bits, domain), bits_poly_at_z);
     }
 
     #[test]
