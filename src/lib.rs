@@ -125,7 +125,7 @@ impl Params {
     }
 }
 
-struct SignerSet(Vec<PublicKey>);
+pub struct SignerSet(Vec<PublicKey>);
 
 impl SignerSet {
     pub fn size(&self) -> usize {
@@ -229,7 +229,7 @@ mod tests {
         println!("{}μs = proving\n", proving.elapsed().as_micros());
 
         let verification = Instant::now();
-        let valid = verify(&pks_x_comm, &pks_y_comm, apk, &b, &proof, &params.to_vk());
+        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk());
         println!("{}μs = verification", verification.elapsed().as_micros());
 
         assert!(valid);

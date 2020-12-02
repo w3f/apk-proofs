@@ -11,7 +11,7 @@ use crate::{endo, Proof, PublicKey, utils, VerifierKey};
 pub fn verify(
     pks_x_comm: &ark_bw6_761::G1Affine,
     pks_y_comm: &ark_bw6_761::G1Affine,
-    apk: PublicKey,
+    apk: &PublicKey,
     bitmask: &BitVec,
     proof: &Proof,
     vk: &VerifierKey) -> bool
@@ -22,20 +22,20 @@ pub fn verify(
 
     let timer = Instant::now();
     let b_at_zeta = utils::barycentric_eval_binary_at(proof.zeta, &bitmask, vk.domain);
-    println!("  {}μs = accountability", timer.elapsed().as_micros());
+    // println!("  {}μs = accountability", timer.elapsed().as_micros());
     assert_eq!(b_at_zeta, proof.b_zeta); // accountability
 
     let timer = Instant::now();
     let nu_repr = nu.into_repr();
     let w2_comm = utils::horner(&[proof.acc_x_comm, proof.acc_y_comm], nu_repr).into_affine();
     let w1_comm = utils::horner(&[*pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr);
-    println!("  {}μs = multiexp", timer.elapsed().as_micros());
+    // println!("  {}μs = multiexp", timer.elapsed().as_micros());
 
     let timer = Instant::now();
     let w1_zeta = utils::horner_field(&[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta], nu);
     let zeta_omega = proof.zeta * vk.domain.group_gen;
     let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
-    println!("  {}μs = opening points evaluation", timer.elapsed().as_micros());
+    // println!("  {}μs = opening points evaluation", timer.elapsed().as_micros());
 
     let r: F = u128::rand(rng).into();
 
@@ -55,12 +55,12 @@ pub fn verify(
         (lhs_affine.into(), vk.kzg_vk.prepared_h.clone()),
         (rhs_affine.into(), vk.kzg_vk.prepared_beta_h.clone()),
     ]).is_one());
-    println!("  {}μs = batched KZG openning", timer.elapsed().as_micros());
+    // println!("  {}μs = batched KZG openning", timer.elapsed().as_micros());
 
     let timer = Instant::now();
     endo::subgroup_check(&lhs);
     endo::subgroup_check(&rhs);
-    println!("  {}μs = 2-point subgroup check", timer.elapsed().as_micros());
+    // println!("  {}μs = 2-point subgroup check", timer.elapsed().as_micros());
 
     return {
         let b = proof.b_zeta;

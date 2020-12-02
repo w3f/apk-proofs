@@ -77,10 +77,41 @@ fn bw6_subgroup_check(c: &mut Criterion) {
     });
 }
 
+fn apk_verification(c: &mut Criterion) {
+    use ark_poly::{GeneralEvaluationDomain, EvaluationDomain};
+    use apk_proofs::Params;
+    use bitvec::vec::BitVec;
+    use rand::Rng;
+
+    let num_pks = 1000;
+
+    let rng = &mut test_rng();
+
+    let signer_set = apk_proofs::SignerSet::random(num_pks, rng);
+    let params = Params::new(signer_set.size(), rng);
+    let pks_domain_size = GeneralEvaluationDomain::<ark_bw6_761::Fr>::compute_size_of_domain(num_pks).unwrap();
+    let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
+    let bitmask: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
+    let apk = apk_proofs::bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
+    let proof = apk_proofs::prove(&bitmask, signer_set.get_all(), &params.to_pk());
+    let vk = params.to_vk();
+    c.bench_function("apk verification", move |b| {
+        b.iter(|| apk_proofs::verify(
+            black_box(&pks_x_comm),
+            black_box(&pks_y_comm),
+            black_box(&apk),
+            black_box(&bitmask),
+            black_box(&proof),
+            black_box(&vk)
+        ))
+    });
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
     barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
     bw6_subgroup_check(c);
+    apk_verification(c);
 }
 
 criterion_group!(benches, criterion_benchmark);
