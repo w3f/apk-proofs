@@ -1,12 +1,13 @@
 use ark_ff::{FftField, batch_inversion};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 
-// Evaluates a polynomial given as evaluations over a radix-2 domain (aka in Lagrange basis) in a point
-// f = sum evals_i * Li
-// Li(z) = (z^n -1)/n  *  w^i /(z-w^i),    li(z) := w^i /(z-w^i)
-// f(z) = fi Li(z) = (z^n -1)/n sum(fi * li)
-// to get li's we compute li_inv = (z-w^i)/w^i = z/w^i - 1, so we accumulate z/w^i with n multiplications,
-// batch inversion costs 1 inv + 3n multiplication, and n more muls is required for li * wi,
+// Evaluates a polynomial represented as evaluations over a radix-2 domain (aka in Lagrange basis) at a point.
+// f = sum(fi * Li), where Li is the i-th Lagrange basis polynomial, and fi = f(w^i)
+// Li(z) = (z^n -1)/n * li(z), where li(z) := w^i /(z-w^i), see https://hackmd.io/xTta-c--SFyOv9Kl3Q9Jjw
+// Then f(z) = sum(fi * Li(z)) = (z^n -1)/n sum(fi * li(z))
+// To avoid inversions when computing li(z) we instead compute li_inv = (z-w^i)/w^i = z/w^i - 1 = z * w_inv^i - 1
+// using n multiplications to accumulate z * w_inv^i and then perform batch inversion.
+// Batch inversion costs 1 inv + 3n muls, and n more muls is required for fi * li(z),
 // resulting in around 1 inv + 5n muls
 pub fn barycentric_eval_at<F: FftField>(z: F, evals: &Vec<F>, domain: Radix2EvaluationDomain<F>) -> F {
     let n = domain.size();
