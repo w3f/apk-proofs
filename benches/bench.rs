@@ -51,8 +51,7 @@ fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
         });
     }
 
-    let nu: u128 = rand::random();
-    let nu = G::ScalarField::from(nu);
+    let nu: G::ScalarField = u128::rand(rng).into();
 
     {
         let bases = bases.clone();
