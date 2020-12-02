@@ -2,6 +2,7 @@
 
 // #![feature(iterator_fold_self)]
 
+pub mod endo;
 pub mod utils;
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
@@ -21,6 +22,7 @@ use rand::Rng;
 use ark_bw6_761::{BW6_761, Fr as F};
 use std::time::Instant;
 use ark_ec::msm::VariableBaseMSM;
+use ark_bw6_761::g1::G1Projective;
 
 type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
@@ -385,7 +387,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
     let q_comm = KZG_BW6::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
 
-    let zeta  =  F::rand(rng);
+    let zeta: F = u128::rand(rng).into();
     let zeta_omega = zeta * pk.domain.group_gen;
 
     let b_zeta = b_poly.evaluate(&zeta);
@@ -397,8 +399,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
     let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
-    let nu: u128 = rand::random();
-    let nu = F::from(nu);
+    let nu: F = u128::rand(rng).into();
 
     let mut curr = nu;
     let mut powers_of_nu = vec![curr];
@@ -472,6 +473,8 @@ pub fn verify(
     proof: &Proof,
     vk: &VerifierKey) -> bool
 {
+    let rng = &mut test_rng(); //TODO: method parameter
+
     let nu= proof.nu;
 
     let timer = Instant::now();
@@ -482,7 +485,7 @@ pub fn verify(
     let timer = Instant::now();
     let nu_repr = nu.into_repr();
     let w2_comm = utils::horner(&[proof.acc_x_comm, proof.acc_y_comm], nu_repr).into_affine();
-    let w1_comm = utils::horner(&[*pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr).into_affine();
+    let w1_comm = utils::horner(&[*pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr);
     println!("{}μs = multiexp", timer.elapsed().as_micros());
 
     let timer = Instant::now();
@@ -491,18 +494,30 @@ pub fn verify(
     let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
     println!("{}μs = opening points evaluation", timer.elapsed().as_micros());
 
+    let r: F = u128::rand(rng).into();
+
     let timer = Instant::now();
-    let w1_comm_wrapper = ark_poly_commit::kzg10::Commitment(w1_comm);
-    let w1_proof = ark_poly_commit::kzg10::Proof { w: proof.w1_proof, random_v: None };
-    let w2_comm_wrapper = ark_poly_commit::kzg10::Commitment(w2_comm);
-    let w2_proof = ark_poly_commit::kzg10::Proof { w: proof.w2_proof, random_v: None };
-    assert!(KZG_BW6::batch_check(&vk.kzg_vk,
-                                 &[w1_comm_wrapper, w2_comm_wrapper],
-                                 &[proof.zeta, zeta_omega],
-                                 &[w1_zeta, w2_zeta_omega],
-                                 &[w1_proof, w2_proof],
-                                 &mut test_rng()).unwrap());
+
+    let c = w1_comm + w2_comm.mul(r); //128-bit mul //TODO: w2_comm is affine
+    let v = vk.kzg_vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
+    let z = proof.w1_proof.mul(proof.zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
+    let lhs = c - v + z;
+
+    let mut rhs = proof.w2_proof.mul(r);  //128-bit mul
+    rhs.add_assign_mixed(&proof.w1_proof);
+
+    let to_affine = G1Projective::batch_normalization_into_affine(&[lhs, -rhs]); // Basically, not required, BW6 Miller's loop is in projective afair
+    let (lhs_affine, rhs_affine) = (to_affine[0], to_affine[1]);
+    assert!(BW6_761::product_of_pairings(&[
+        (lhs_affine.into(), vk.kzg_vk.prepared_h.clone()),
+        (rhs_affine.into(), vk.kzg_vk.prepared_beta_h.clone()),
+    ]).is_one());
     println!("{}μs = batched KZG openning", timer.elapsed().as_micros());
+
+    let timer = Instant::now();
+    endo::subgroup_check(&lhs);
+    endo::subgroup_check(&rhs);
+    println!("{}μs = 2-point subgroup check", timer.elapsed().as_micros());
 
     return {
         let b = proof.b_zeta;
