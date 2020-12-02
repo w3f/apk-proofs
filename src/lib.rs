@@ -204,24 +204,35 @@ mod tests {
     use ark_ff::{test_rng, UniformRand};
 
     #[test]
-    fn test_pks_commitment() {
-        let num_pks = 10;
+    fn test_apk_proof() {
+        let num_pks = 1000;
 
         let rng = &mut test_rng();
 
         let signer_set = SignerSet::random(num_pks, rng);
 
+        let parameter_generation = Instant::now();
         let params = Params::new(signer_set.size(), rng);
+        println!("{}μs = parameter generation", parameter_generation.elapsed().as_micros());
 
         let pks_domain_size = GeneralEvaluationDomain::<F>::compute_size_of_domain(num_pks).unwrap();
+
+        let signer_set_commitment = Instant::now();
         let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
+        println!("{}μs = signer set commitment", signer_set_commitment.elapsed().as_micros());
 
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
-
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
+        let proving = Instant::now();
         let proof = prove(&b, signer_set.get_all(), &params.to_pk());
-        assert!(verify(&pks_x_comm, &pks_y_comm, apk, &b, &proof, &params.to_vk()));
+        println!("{}μs = proving\n", proving.elapsed().as_micros());
+
+        let verification = Instant::now();
+        let valid = verify(&pks_x_comm, &pks_y_comm, apk, &b, &proof, &params.to_vk());
+        println!("{}μs = verification", verification.elapsed().as_micros());
+
+        assert!(valid);
     }
 
     #[test]
