@@ -1,6 +1,6 @@
-use ark_ff::{field_new, Zero, One, BitIteratorBE};
+use ark_ff::{field_new, Zero, BitIteratorBE};
 use ark_ff::biginteger::{BigInteger384, BigInteger768};
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::ProjectiveCurve;
 use ark_ec::bls12::Bls12Parameters;
 use ark_bw6_761::{Fq, Fr, G1Affine, G1Projective};
 use std::ops::AddAssign;
@@ -84,6 +84,7 @@ pub fn subgroup_check(p: &G1Projective) -> bool {
 mod tests {
     use super::*;
     use ark_ff::{test_rng, UniformRand, Field, One};
+    use ark_ec::AffineCurve;
     use ark_ec::models::short_weierstrass_jacobian::GroupAffine;
 
     #[test]
