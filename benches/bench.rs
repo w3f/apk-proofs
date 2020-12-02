@@ -4,6 +4,31 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 
 extern crate apk_proofs;
 
+fn barycentric_evaluation<F: Field>(c: &mut Criterion, n: u32) {
+    use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain, Polynomial};
+
+    let rng = &mut test_rng();
+    let n = std::convert::TryInto::try_into(n).unwrap();
+    let domain = Radix2EvaluationDomain::new(n).unwrap();
+    let evals = (0..n).map(|_| ark_bw6_761::Fr::rand(rng)).collect::<Vec<_>>();
+    let evals2 = evals.clone();
+    let z = ark_bw6_761::Fr::rand(rng);
+
+    c.bench_function("barycentric_evaluation", move |b| {
+        b.iter(|| {
+            apk_proofs::utils::barycentric_eval_at(black_box(z), black_box(&evals), black_box(domain))
+        })
+    });
+
+    let evals = Evaluations::from_vec_and_domain(evals2, domain);
+    c.bench_function("interpolate + evaluate", move |b| {
+        b.iter(|| {
+            black_box(&evals).interpolate_by_ref().evaluate(black_box(&z));
+        })
+    });
+}
+
+
 fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
     let rng = &mut test_rng();
 
@@ -54,6 +79,7 @@ fn bw6_subgroup_check(c: &mut Criterion) {
 
 fn criterion_benchmark(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
+    barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
     bw6_subgroup_check(c);
 }
 
