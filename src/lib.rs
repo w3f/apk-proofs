@@ -51,18 +51,14 @@ pub struct Params {
 pub struct ProverKey<'a> {
     domain_size: usize,
     kzg_ck: Powers<'a, BW6_761>,
-    omega: F,
-    omega_inv: F,
+    domain: Radix2EvaluationDomain<F>,
     h: ark_bls12_377::G1Affine,
 }
 
 pub struct VerifierKey {
     domain_size: u64,
     kzg_vk: ark_poly_commit::kzg10::VerifierKey<BW6_761>,
-    omega: F,
-    omega_inv: F,
-    log_size: u32,
-    size_inv: F,
+    domain: Radix2EvaluationDomain<F>,
     h: ark_bls12_377::G1Affine,
 }
 
@@ -75,14 +71,14 @@ pub struct LagrangeEvaluations {
 impl VerifierKey {
     pub fn lagrange_evaluations(&self, zeta: F) -> LagrangeEvaluations {
         let mut zeta_n = zeta;
-        for _ in 0..self.log_size {
+        for _ in 0..self.domain.log_size_of_group {
             zeta_n.square_in_place();
         }
         assert_eq!(zeta_n, zeta.pow([self.domain_size]));
         let zeta_n_minus_one= zeta_n - F::one();
-        let zeta_n_minus_one_div_n = zeta_n_minus_one * self.size_inv;
+        let zeta_n_minus_one_div_n = zeta_n_minus_one * self.domain.size_inv;
 
-        let mut inv = [zeta - F::one(), self.omega * zeta - F::one()];
+        let mut inv = [zeta - F::one(), self.domain.group_gen * zeta - F::one()];
         batch_inversion(&mut inv);
         LagrangeEvaluations {
             vanishing_polynomial: zeta_n_minus_one,
@@ -122,8 +118,7 @@ impl Params {
         ProverKey {
             domain_size: n,
             kzg_ck: self.get_ck(3*n-2),
-            omega: self.domain.group_gen,
-            omega_inv: self.domain.group_gen_inv,
+            domain: self.domain,
             h: self.h
         }
     }
@@ -140,10 +135,7 @@ impl Params {
         VerifierKey {
             domain_size: self.domain.size,
             kzg_vk: vk,
-            omega: self.domain.group_gen,
-            omega_inv: self.domain.group_gen_inv,
-            log_size: self.domain.log_size_of_group,
-            size_inv: self.domain.size_inv,
+            domain: self.domain,
             h: self.h
         }
     }
@@ -195,7 +187,7 @@ impl SignerSet {
     }
 }
 
-pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
+pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let m = pks.len();
 
     assert_eq!(b.len(), m);
@@ -364,8 +356,8 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(a4_poly.degree(), 2*(n-1));
     assert_eq!(a5_poly.degree(), 2*(n-1));
 
-    let a1_poly_ = &mul_by_x(&a1_poly) - &mul(pk.omega_inv, &a1_poly);
-    let a2_poly_ = &mul_by_x(&a2_poly) - &mul(pk.omega_inv, &a2_poly);
+    let a1_poly_ = &mul_by_x(&a1_poly) - &mul(pk.domain.group_gen_inv, &a1_poly);
+    let a2_poly_ = &mul_by_x(&a2_poly) - &mul(pk.domain.group_gen_inv, &a2_poly);
     assert_eq!(a1_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a2_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a3_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
@@ -381,7 +373,7 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     }
 
     let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
-    w = &mul_by_x(&w) - &mul(pk.omega_inv, &w); // X w - omega_inv w = w (X - omega_inv)
+    w = &mul_by_x(&w) - &mul(pk.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
     w = &w + &mul(powers_of_phi[1], &a3_poly);
     w = &w + &mul(powers_of_phi[2], &a4_poly);
     w = &w + &mul(powers_of_phi[3], &a5_poly);
@@ -394,7 +386,7 @@ pub fn prove(b: BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let q_comm = KZG_BW6::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
 
     let zeta  =  F::rand(rng);
-    let zeta_omega = zeta * pk.omega;
+    let zeta_omega = zeta * pk.domain.group_gen;
 
     let b_zeta = b_poly.evaluate(&zeta);
     let pks_x_zeta = pks_x_poly.evaluate(&zeta);
@@ -476,10 +468,16 @@ pub fn verify(
     pks_x_comm: &ark_bw6_761::G1Affine,
     pks_y_comm: &ark_bw6_761::G1Affine,
     apk: PublicKey,
+    bitmask: &BitVec,
     proof: &Proof,
     vk: &VerifierKey) -> bool
 {
     let nu= proof.nu;
+
+    let timer = Instant::now();
+    let b_at_zeta = utils::barycentric_eval_binary_at(proof.zeta, &bitmask, vk.domain);
+    println!("{}μs = accountability", timer.elapsed().as_micros());
+    assert_eq!(b_at_zeta, proof.b_zeta); // accountability
 
     let timer = Instant::now();
     let nu_repr = nu.into_repr();
@@ -489,7 +487,7 @@ pub fn verify(
 
     let timer = Instant::now();
     let w1_zeta = utils::horner_field(&[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta], nu);
-    let zeta_omega = proof.zeta * vk.omega;
+    let zeta_omega = proof.zeta * vk.domain.group_gen;
     let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
     println!("{}μs = opening points evaluation", timer.elapsed().as_micros());
 
@@ -535,7 +533,7 @@ pub fn verify(
         let a4 = (x1 - vk.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
         let a5 = (y1 - vk.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
-        let s = proof.zeta - vk.omega_inv;
+        let s = proof.zeta - vk.domain.group_gen_inv;
         let f = proof.phi;
         a1 * s + f * (a2 * s + f * (a3 + f * (a4 + f * a5))) == proof.q_zeta * evals.vanishing_polynomial
     }
@@ -563,8 +561,8 @@ pub mod tests {
 
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
-        let proof = prove(b, signer_set.get_all(), &params.to_pk());
-        assert!(verify(&pks_x_comm, &pks_y_comm, apk, &proof, &params.to_vk()));
+        let proof = prove(&b, signer_set.get_all(), &params.to_pk());
+        assert!(verify(&pks_x_comm, &pks_y_comm, apk, &b, &proof, &params.to_vk()));
     }
 
     #[test]
@@ -587,7 +585,7 @@ pub mod tests {
         let b_zeta2 = b.iter().zip(coeffs)
             .filter(|(b, _c)| **b)
             .map(|(_b, c)| c).sum();
-        println!("{}μs - computing b(z) using domain::evaluate_all_lagrange_coefficients for n={}", timer.elapsed().as_millis(), n);
+        println!("{}μs - computing b(z) using domain::evaluate_all_lagrange_coefficients for n={}", timer.elapsed().as_micros(), n);
 
         assert_eq!(b_zeta, b_zeta2);
 
@@ -609,7 +607,7 @@ pub mod tests {
         batch_inversion(&mut coeffs);
         let sum: F = coeffs.iter().sum();
         let b_zeta3 = zeta_n * sum;
-        println!("{}μs - computing b(z) using barycentric evaluation for n={}", timer.elapsed().as_millis(), n);
+        println!("{}μs - computing b(z) using barycentric evaluation for n={}", timer.elapsed().as_micros(), n);
 
         assert_eq!(b_zeta, b_zeta3);
     }
