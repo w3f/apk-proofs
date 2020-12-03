@@ -1,0 +1,18 @@
+[package]
+name = "bls-mipp"
+version = "0.1.0"
+authors = ["swasilyev <swasilyev@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
+ark-inner-products = { path = "../../arkworks-rs/ripp/inner_products" }
+ark-ip-proofs = { path = "../../arkworks-rs/ripp/ip_proofs" }
+ark-dh-commitments = { path = "../../arkworks-rs/ripp/dh_commitments" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
+blake2 = { version = "0.9" }
+bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
+rand = "0.7"
