@@ -8,9 +8,9 @@ edition = "2018"
 
 [dependencies]
 ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
-ark-inner-products = { path = "../../arkworks-rs/ripp/inner_products" }
-ark-ip-proofs = { path = "../../arkworks-rs/ripp/ip_proofs" }
-ark-dh-commitments = { path = "../../arkworks-rs/ripp/dh_commitments" }
+ark-inner-products = { git = "https://github.com/arkworks-rs/ripp" }
+ark-ip-proofs = { git = "https://github.com/arkworks-rs/ripp" }
+ark-dh-commitments = { git = "https://github.com/arkworks-rs/ripp" }
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
 blake2 = { version = "0.9" }
