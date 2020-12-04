@@ -7,12 +7,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
-ark-inner-products = { git = "https://github.com/arkworks-rs/ripp" }
-ark-ip-proofs = { git = "https://github.com/arkworks-rs/ripp" }
-ark-dh-commitments = { git = "https://github.com/arkworks-rs/ripp" }
+ark-inner-products = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
+ark-ip-proofs = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
+ark-dh-commitments = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
+
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
+ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
+
 blake2 = { version = "0.9" }
-bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
 rand = "0.7"
