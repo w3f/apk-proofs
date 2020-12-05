@@ -202,18 +202,21 @@ mod tests {
     use super::*;
     use std::time::Instant;
     use ark_ff::{test_rng, UniformRand};
+    use bench_utils::{end_timer, start_timer};
 
     #[test]
-    fn test_apk_proof() {
-        let num_pks = 1000;
+    fn apk_proof() {
+        let num_pks = 1023;
 
         let rng = &mut test_rng();
 
         let signer_set = SignerSet::random(num_pks, rng);
 
-        let parameter_generation = Instant::now();
+        // let parameter_generation = Instant::now();
+        let setup = start_timer!(|| "BW6 setup");
         let params = Params::new(signer_set.size(), rng);
-        println!("{}μs = parameter generation", parameter_generation.elapsed().as_micros());
+        end_timer!(setup);
+        // println!("{}μs = parameter generation", parameter_generation.elapsed().as_micros());
 
         let pks_domain_size = GeneralEvaluationDomain::<F>::compute_size_of_domain(num_pks).unwrap();
 
@@ -224,13 +227,17 @@ mod tests {
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
-        let proving = Instant::now();
+        // let proving = Instant::now();
+        let prove_ = start_timer!(|| "BW6 prove");
         let proof = prove(&b, signer_set.get_all(), &params.to_pk());
-        println!("{}μs = proving\n", proving.elapsed().as_micros());
+        end_timer!(prove_);
+        // println!("{}μs = proving\n", proving.elapsed().as_micros());
 
-        let verification = Instant::now();
+        // let verification = Instant::now();
+        let verify_ = start_timer!(|| "BW6 verify");
         let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk());
-        println!("{}μs = verification", verification.elapsed().as_micros());
+        end_timer!(verify_);
+        // println!("{}μs = verification", verification.elapsed().as_micros());
 
         assert!(valid);
     }

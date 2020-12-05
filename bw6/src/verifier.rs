@@ -5,6 +5,7 @@ use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField, test_rng, UniformRand};
 
 use bitvec::vec::BitVec;
+use bench_utils::{end_timer, start_timer};
 
 use crate::{endo, Proof, PublicKey, utils, VerifierKey};
 
@@ -20,10 +21,13 @@ pub fn verify(
 
     let nu= proof.nu;
 
-    let timer = Instant::now();
+    // let timer = Instant::now();
+    let accountability = start_timer!(|| "accountability check");
     let b_at_zeta = utils::barycentric_eval_binary_at(proof.zeta, &bitmask, vk.domain);
-    // println!("  {}μs = accountability", timer.elapsed().as_micros());
     assert_eq!(b_at_zeta, proof.b_zeta); // accountability
+    end_timer!(accountability);
+    // println!("  {}μs = accountability", timer.elapsed().as_micros());
+
 
     let timer = Instant::now();
     let nu_repr = nu.into_repr();

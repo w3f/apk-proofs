@@ -17,6 +17,8 @@ ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = fal
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-poly-commit = { git = "https://github.com/swasilyev/poly-commit", branch = "kzg-fix", default-features = false }
 
+bench-utils = { git = "https://github.com/arkworks-rs/utils" }
+
 bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
 rand = "0.7"
 
@@ -26,3 +28,6 @@ criterion = "0.3"
 [[bench]]
 name = "bench"
 harness = false
+
+[features]
+print-trace = [ "bench-utils/print-trace" ]
