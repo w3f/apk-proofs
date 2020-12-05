@@ -15,5 +15,10 @@ ark-ff = { git = "https://github.com/arkworks-rs/algebra", features = [ "paralle
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
 ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
 
+bench-utils = { git = "https://github.com/arkworks-rs/utils" }
+
 blake2 = { version = "0.9" }
 rand = "0.7"
+
+[features]
+print-trace = [ "bench-utils/print-trace" ]
