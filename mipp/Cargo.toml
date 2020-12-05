@@ -11,8 +11,8 @@ ark-inner-products = { git = "https://github.com/w3f/ripp", branch = "tipa-verif
 ark-ip-proofs = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
 ark-dh-commitments = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
 
-ark-ff = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra", features = [ "parallel" ] }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
 
 bench-utils = { git = "https://github.com/arkworks-rs/utils" }
@@ -22,3 +22,4 @@ rand = "0.7"
 
 [features]
 print-trace = [ "bench-utils/print-trace" ]
+parallel = [ "ark-ff/parallel", "ark-ec/parallel" ]
