@@ -30,22 +30,22 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let m = pks.len();
 
-    assert_eq!(b.len(), m);
-    assert!(b.count_ones() > 0);
+    assert_eq!(b.len(), m); //the length of the bit vector must be equal to the total number of validators
+    assert!(b.count_ones() > 0); //at least one person should have signed
 
-    let rng = &mut test_rng();
+    let rng = &mut test_rng(); //rng for ??
 
     let apk = b.iter()
         .zip(pks.iter())
         .filter(|(b, _p)| **b)
         .map(|(_b, p)| p.0)
         .sum::<ark_bls12_377::G1Projective>()
-        .into_affine();
+        .into_affine(); //sum of all public keys participated in signing in affine because we are interested in field elements (x and y coordinate)
 
     let (pks_x, pks_y): (Vec<F>, Vec<F>) = pks.iter()
         .map(|p| p.0.into_affine())
         .map(|p| (p.x, p.y))
-        .unzip();
+        .unzip(); //extracting x and y coordinate of all public keys in affine form
 
     let h = pk.h;
     let mut acc = vec![h;m+1];
