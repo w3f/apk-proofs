@@ -37,8 +37,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
     let apk = b.iter()
         .zip(pks.iter())
-        .filter(|(b, _p)| **b)
-        .map(|(_b, p)| p.0)
+        .filter(|(bit, _p)| **bit)
+        .map(|(_bit, p)| p.0)
         .sum::<ark_bls12_377::G1Projective>()
         .into_affine(); //sum of all public keys participated in signing in affine because we are interested in field elements (x and y coordinate)
 
