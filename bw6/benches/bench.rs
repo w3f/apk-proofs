@@ -77,6 +77,23 @@ fn bw6_subgroup_check(c: &mut Criterion) {
     });
 }
 
+fn fixed_base_mul(c: &mut Criterion) {
+    let rng = &mut test_rng();
+
+    let exp = ark_bw6_761::Fr::rand(rng);
+    let base = ark_bw6_761::G1Projective::rand(rng);
+
+    let powers = apk_proofs::utils::base_to_the_powers_of_2(&base);
+
+    c.bench_function("var-base mul", move |b| {
+        b.iter(|| black_box(base).mul(black_box(exp.into_repr())))
+    });
+
+    c.bench_function("fixed-base mul", move |b| {
+        b.iter(|| apk_proofs::utils::fixed_base_mul(black_box(&powers), black_box(exp.into())))
+    });
+}
+
 fn apk_verification(c: &mut Criterion) {
     use ark_poly::{GeneralEvaluationDomain, EvaluationDomain};
     use apk_proofs::Params;
@@ -112,6 +129,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
     bw6_subgroup_check(c);
     apk_verification(c);
+    fixed_base_mul(c);
 }
 
 criterion_group!(benches, criterion_benchmark);

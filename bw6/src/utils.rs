@@ -83,6 +83,26 @@ pub fn horner_field<F: Field>(
     bases.iter().rev().fold(F::zero(), |acc, b| nu * acc + b)
 }
 
+pub fn base_to_the_powers_of_2<G: ProjectiveCurve>(base: &G) -> Vec<G> {
+    let n = G::ScalarField::size_in_bits();
+    let mut powers= Vec::with_capacity(n);
+    let mut g = base.clone();
+    powers.push(g.clone());
+    for _ in 1..n {
+        g.double_in_place();
+        powers.push(g.clone());
+    }
+    powers
+}
+
+pub fn fixed_base_mul<G: ProjectiveCurve>(base_to_the_powers_of_2: &[G], exp: <G::ScalarField as PrimeField>::BigInt) -> G {
+    ark_ff::BitIteratorLE::new(exp)
+        .zip(base_to_the_powers_of_2)
+        .filter(|(b, _)| *b)
+        .map(|(_, p)| p)
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -124,5 +144,16 @@ mod tests {
         let powers = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
 
         assert_eq!(horner(&bases, nu.into_repr()), mul_then_add(&bases, &powers));
+    }
+
+    #[test]
+    pub fn test_fixed_base_mul() {
+        let rng = &mut test_rng();
+
+        let exp = ark_bw6_761::Fr::rand(rng);
+        let base = ark_bw6_761::G1Projective::rand(rng);
+
+        let powers = base_to_the_powers_of_2(&base);
+        assert_eq!(base.mul(exp.into_repr()), fixed_base_mul(&powers, exp.into()));
     }
 }
