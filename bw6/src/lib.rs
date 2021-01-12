@@ -41,9 +41,13 @@ pub struct ProverKey<'a> {
 
 pub struct VerifierKey {
     domain_size: u64,
-    kzg_vk: ark_poly_commit::kzg10::VerifierKey<BW6_761>,
     domain: Radix2EvaluationDomain<F>,
     h: ark_bls12_377::G1Affine,
+
+    // KZG verifier key
+    g: <BW6_761 as PairingEngine>::G1Affine,
+    prepared_h: <BW6_761 as PairingEngine>::G2Prepared,
+    prepared_beta_h: <BW6_761 as PairingEngine>::G2Prepared,
 }
 
 pub struct LagrangeEvaluations {
@@ -108,19 +112,14 @@ impl Params {
     }
 
     pub fn to_vk(&self) -> VerifierKey {
-        let vk = ark_poly_commit::kzg10::VerifierKey {
-            g: self.kzg_params.powers_of_g[0],
-            gamma_g: self.kzg_params.powers_of_gamma_g[&0],
-            h: self.kzg_params.h,
-            beta_h: self.kzg_params.beta_h,
-            prepared_h: self.kzg_params.prepared_h.clone(),
-            prepared_beta_h: self.kzg_params.prepared_beta_h.clone(),
-        };
         VerifierKey {
             domain_size: self.domain.size,
-            kzg_vk: vk,
             domain: self.domain,
-            h: self.h
+            h: self.h,
+
+            g: self.kzg_params.powers_of_g[0],
+            prepared_h: self.kzg_params.prepared_h.clone(),
+            prepared_beta_h: self.kzg_params.prepared_beta_h.clone(),
         }
     }
 }
