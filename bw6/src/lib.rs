@@ -39,7 +39,7 @@ pub struct ProverKey<'a> {
     h: ark_bls12_377::G1Affine,
 }
 
-pub struct VerifierKey {
+pub struct PreparedVerifierKey {
     domain_size: u64,
     domain: Radix2EvaluationDomain<F>,
     h: ark_bls12_377::G1Affine,
@@ -56,7 +56,7 @@ pub struct LagrangeEvaluations {
     l_minus_1: F,
 }
 
-impl VerifierKey {
+impl PreparedVerifierKey {
     pub fn lagrange_evaluations(&self, zeta: F) -> LagrangeEvaluations {
         let mut zeta_n = zeta;
         for _ in 0..self.domain.log_size_of_group {
@@ -111,8 +111,8 @@ impl Params {
         }
     }
 
-    pub fn to_vk(&self) -> VerifierKey {
-        VerifierKey {
+    pub fn to_vk(&self) -> PreparedVerifierKey {
+        PreparedVerifierKey {
             domain_size: self.domain.size,
             domain: self.domain,
             h: self.h,

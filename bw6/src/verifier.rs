@@ -7,7 +7,7 @@ use ark_ff::{One, PrimeField, test_rng, UniformRand};
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, VerifierKey};
+use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey};
 
 pub fn verify(
     pks_x_comm: &ark_bw6_761::G1Affine,
@@ -15,7 +15,7 @@ pub fn verify(
     apk: &PublicKey,
     bitmask: &BitVec,
     proof: &Proof,
-    vk: &VerifierKey) -> bool
+    vk: &PreparedVerifierKey) -> bool
 {
     let rng = &mut test_rng(); //TODO: method parameter
 
