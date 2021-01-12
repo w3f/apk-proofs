@@ -2,7 +2,7 @@ use rand::Rng;
 use std::borrow::Borrow;
 use std::ops::Neg;
 
-use ark_ff::{One, UniformRand};
+use ark_ff::{One, UniformRand, PrimeField};
 use ark_ec::{AffineCurve, ProjectiveCurve, PairingEngine};
 use ark_bls12_377::{G2Projective, Fr, G1Projective, Bls12_377, G1Affine, Fq12};
 use ark_serialize::*;
@@ -57,7 +57,7 @@ impl SecretKey {
     }
 
     pub fn sign(&self, message: &G2Projective) -> Signature {
-        message.mul(*self.as_ref()).into()
+        message.mul(self.as_ref().into_repr()).into()
     }
 }
 
@@ -74,7 +74,7 @@ impl From<G1Projective> for PublicKey {
 
 impl From<&SecretKey> for PublicKey {
     fn from(sk: &SecretKey) -> PublicKey {
-        G1Projective::prime_subgroup_generator().mul(*sk.as_ref()).into()
+        G1Projective::prime_subgroup_generator().mul(sk.as_ref().into_repr()).into()
     }
 }
 

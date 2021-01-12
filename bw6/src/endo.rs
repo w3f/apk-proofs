@@ -67,7 +67,7 @@ pub fn subgroup_check(p: &G1Projective) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand, Field, One};
+    use ark_ff::{test_rng, UniformRand, Field, One, PrimeField};
     use ark_ec::AffineCurve;
     use ark_ec::models::short_weierstrass_jacobian::GroupAffine;
 
@@ -94,7 +94,7 @@ mod tests {
 
         let p = ark_bw6_761::G1Projective::rand(rng);
 
-        assert_eq!(glv_endomorphism_proj(&p), p.mul(LAMBDA));
+        assert_eq!(glv_endomorphism_proj(&p), p.mul(LAMBDA.into_repr()));
     }
 
     #[test]
