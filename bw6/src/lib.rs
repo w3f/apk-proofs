@@ -15,7 +15,7 @@ use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::kzg10::{KZG10, Powers};
-use ark_ec::{ProjectiveCurve, PairingEngine};
+use ark_ec::{ProjectiveCurve, PairingEngine, AffineCurve};
 
 use bitvec::vec::BitVec;
 use rand::Rng;
@@ -45,7 +45,7 @@ pub struct PreparedVerifierKey {
     h: ark_bls12_377::G1Affine,
 
     // KZG verifier key
-    g: <BW6_761 as PairingEngine>::G1Affine,
+    g_prepared_for_fixed_base_mul: Vec<<BW6_761 as PairingEngine>::G1Projective>,
     prepared_h: <BW6_761 as PairingEngine>::G2Prepared,
     prepared_beta_h: <BW6_761 as PairingEngine>::G2Prepared,
 }
@@ -117,7 +117,7 @@ impl Params {
             domain: self.domain,
             h: self.h,
 
-            g: self.kzg_params.powers_of_g[0],
+            g_prepared_for_fixed_base_mul: utils::base_to_the_powers_of_2(&self.kzg_params.powers_of_g[0].into_projective()),
             prepared_h: self.kzg_params.prepared_h.clone(),
             prepared_beta_h: self.kzg_params.prepared_beta_h.clone(),
         }

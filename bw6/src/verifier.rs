@@ -46,7 +46,7 @@ pub fn verify(
     let timer = Instant::now();
 
     let c = w1_comm + w2_comm.mul(r); //128-bit mul //TODO: w2_comm is affine
-    let v = vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
+    let v = utils::fixed_base_mul(&vk.g_prepared_for_fixed_base_mul, (w1_zeta + r * w2_zeta_omega).into());
     let z = proof.w1_proof.mul(proof.zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
     let lhs = c - v + z;
 
