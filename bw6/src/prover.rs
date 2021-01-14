@@ -11,18 +11,21 @@ use bitvec::vec::BitVec;
 
 use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
 
+//next function adds the value s to every coefficient of a polynomial
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
-        p.coeffs.iter().map(|c| s * c).collect()
+        p.coeffs.iter().map(|c| s * c).collect() //TO DO
     )
 }
 
-fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
+//next function multiplies a given polynomial with the indeterminate X
+fn mul_by_x<F: Field>(p: &DensePolateynomial<F>) -> DensePolynomial<F> {
     let mut px = vec![F::zero()];
     px.extend_from_slice(&p.coeffs);
-    DensePolynomial::from_coefficients_vec(px)
+    DensePolynomial::from_coefficients_vec(px) //TO DO: what is DensePolynomial?
 }
 
+//TO DO
 fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F, d: D) ->  Evaluations<F, D> {
     Evaluations::from_vec_and_domain(p.evals.iter().map(|x| c + x).collect(), d)
 }
@@ -39,8 +42,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         .zip(pks.iter())
         .filter(|(bit, _p)| **bit)
         .map(|(_bit, p)| p.0)
-        .sum::<ark_bls12_377::G1Projective>()
-        .into_affine(); //sum of all public keys participated in signing in affine because we are interested in field elements (x and y coordinate)
+        .sum::<ark_bls12_377::G1Projective>() //TO DO
+        .into_affine(); //sum of all public keys participated in signing in affine form because we are interested in field elements (x and y coordinate)
 
     let (pks_x, pks_y): (Vec<F>, Vec<F>) = pks.iter()
         .map(|p| p.0.into_affine())
@@ -59,41 +62,41 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
     let (mut acc_x, mut acc_y): (Vec<F>, Vec<F>) = acc.iter()
         .map(|p| (p.x, p.y))
-        .unzip();
-
+        .unzip(); //I think acc is a vector of affine coordinates of validator's public keys; so acc_x and acc_y are the vectors of x and y vector coordinates,respectively 
 
     assert_eq!(b.len(), m);
     assert_eq!(pks_x.len(), m);
     assert_eq!(pks_y.len(), m);
-    assert_eq!(acc_x.len(), m+1);
-    assert_eq!(acc_y.len(), m+1);
+    assert_eq!(acc_x.len(), m+1); //the length of the vector acc_x is m+1 as we append h_x in front of acc_x.
+    assert_eq!(acc_y.len(), m+1); //the length of the vector acc_y is m+1 as we append h_y in front of acc_y.
     assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
     assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk + h);
 
     let mut b = b.iter()
         .map(|b| if *b { F::one() } else { F::zero() })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>(); //TO DO: how does the funtion collect work here?; this transforms bitvector b to 
+        // corresponding vector of field elements zero and one. 
 
-    let n = pk.domain_size;
-    let subdomain = GeneralEvaluationDomain::<F>::new(n).unwrap();
+    let n = pk.domain_size; //TO DO: what exactly is pk? what is n? How big is n? Is it feasible?
+    let subdomain = GeneralEvaluationDomain::<F>::new(n).unwrap();//TO DO: what is this?
 
     // Extend the computation to the whole domain
     b.resize_with(n, || F::zero());
     // So we don't care about pks, but
     let apk_plus_h_x = acc_x[m];
     let apk_plus_h_y = acc_y[m];
-    acc_x.resize_with(n, || apk_plus_h_x);
+    acc_x.resize_with(n, || apk_plus_h_x); //resize vector acc_x to n components, filled in with component of index m
     acc_y.resize_with(n, || apk_plus_h_y);
 
     let mut acc_x_shifted = acc_x.clone();
-    let mut acc_y_shifted = acc_y.clone();
-    acc_x_shifted.rotate_left(1);
+    let mut acc_y_shifted = acc_y.clone();//TO DO Reminder what kind of copy this is?
+    acc_x_shifted.rotate_left(1); //removes the first component, i.e., h_x?
     acc_y_shifted.rotate_left(1);
 
     let mut l1 = vec![F::zero(); n];
     let mut ln = vec![F::zero(); n];
-    l1[0] = F::one();
-    ln[n-1] = F::one();
+    l1[0] = F::one(); //create Lagrange basis vectors l1 and
+    ln[n-1] = F::one(); //ln
 
     let b_poly = Evaluations::from_vec_and_domain(b, subdomain).interpolate();
     let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, subdomain).interpolate();
@@ -113,25 +116,22 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let ln_poly = Evaluations::from_vec_and_domain(ln, subdomain).interpolate();
 
     assert_eq!(b_poly.coeffs.len(), n);
-    assert_eq!(b_poly.degree(), n-1);
+    assert_eq!(b_poly.degree(), n-1);// TO DO : is this always true?
 
-    let domain = GeneralEvaluationDomain::<F>::new(4*n).unwrap();
+    let domain = GeneralEvaluationDomain::<F>::new(4*n).unwrap(); // TO DO: what is this?
     assert_eq!(domain.size(), 4*n);
 
-    let B = b_poly.evaluate_over_domain_by_ref(domain);
-    let x1 = acc_x_poly.evaluate_over_domain_by_ref(domain);
+    let B = b_poly.evaluate_over_domain_by_ref(domain); // TO DO:what is this?
+    let x1 = acc_x_poly.evaluate_over_domain_by_ref(domain);// TO DO: is this not deterministic?
     let y1 = acc_y_poly.evaluate_over_domain_by_ref(domain);
     let x2 = pks_x_poly.evaluate_over_domain_by_ref(domain);
     let y2 = pks_y_poly.evaluate_over_domain_by_ref(domain);
     let x3 = acc_x_shifted_poly.evaluate_over_domain(domain);
-    let y3 = acc_y_shifted_poly.evaluate_over_domain(domain);
+    let y3 = acc_y_shifted_poly.evaluate_over_domain(domain);// TO DO: what is the difference between evaluate_over_domain and evaluate_over_domain_by_ref ?
     let L1 = l1_poly.evaluate_over_domain(domain);
     let Ln = ln_poly.evaluate_over_domain(domain);
 
-    let nB = Evaluations::from_vec_and_domain(
-        B.evals.iter().map(|x| F::one() - x).collect(),
-        domain
-    );
+    let nB = Evaluations::from_vec_and_domain(B.evals.iter().map(|x| F::one() - x).collect(),domain);
 
     let mut a1 =
         &(
@@ -220,7 +220,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
     let (q_poly, r) = w.divide_by_vanishing_poly(subdomain).unwrap();
     assert_eq!(r, DensePolynomial::zero());
-    assert_eq!(q_poly.degree(), 3*n-3);
+    assert_eq!(q_poly.degree(), 3*n-3);// TO DO does this always hold?
 
     assert_eq!(pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
     let q_comm = KZG_BW6::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
