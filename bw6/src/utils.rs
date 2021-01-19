@@ -85,8 +85,9 @@ pub fn horner_field<F: Field>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand, Field, One};
+    use ark_ff::{Field, One};
     use ark_poly::{Evaluations, Polynomial};
+    use ark_std::{UniformRand, test_rng};
     use rand::Rng;
 
     #[test]

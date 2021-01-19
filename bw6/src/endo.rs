@@ -69,9 +69,9 @@ pub fn subgroup_check(p: &G1Projective) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand, Field, One, PrimeField};
+    use ark_ff::{Field, One, PrimeField};
     use ark_ec::AffineCurve;
-    use ark_ec::models::short_weierstrass_jacobian::GroupAffine;
+    use ark_std::{UniformRand, test_rng};
 
     #[test]
     pub fn test_omega() {

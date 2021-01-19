@@ -106,7 +106,7 @@ impl PublicKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::test_rng;
+    use ark_std::test_rng;
 
     #[test]
     fn test_apk() {

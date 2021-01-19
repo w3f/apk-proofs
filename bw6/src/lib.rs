@@ -201,7 +201,7 @@ pub struct Proof {
 mod tests {
     use super::*;
     use std::time::Instant;
-    use ark_ff::{test_rng, UniformRand};
+    use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
 
     #[test]

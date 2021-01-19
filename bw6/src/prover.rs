@@ -283,8 +283,6 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use super::*;
 
     #[test]
