@@ -1,37 +1,33 @@
-use ark_bls12_381::Bls12_381;
-use ark_dh_commitments::afgho16::AFGHOCommitmentG1;
-use ark_dh_commitments::identity::IdentityCommitment;
-use ark_dh_commitments::pedersen::PedersenCommitment;
-use ark_ec::PairingEngine;
-use ark_inner_products::MultiexponentiationInnerProduct;
-use ark_ip_proofs::tipa::structured_scalar_message::TIPAWithSSM;
-use ark_ip_proofs::tipa::TIPA;
-use blake2::Blake2b;
-
-type IP = MultiexponentiationInnerProduct<<Bls12_381 as PairingEngine>::G1Projective>;
-type GC1 = AFGHOCommitmentG1<Bls12_381>;
-type SC1 = PedersenCommitment<<Bls12_381 as PairingEngine>::G1Projective>;
-type IPC = IdentityCommitment<
-    <Bls12_381 as PairingEngine>::G1Projective,
-    <Bls12_381 as PairingEngine>::Fr,
->;
-
-type MIPP_SRS = TIPAWithSSM<IP, GC1, IPC, Bls12_381, Blake2b>;
-type TIPA_KZG = TIPA<IP, GC1, SC1, IPC, Bls12_381, Blake2b>;
-
-
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::{Bls12_381, Fr, G1Projective};
     use ark_dh_commitments::DoublyHomomorphicCommitment;
-    use ark_dh_commitments::identity::{HomomorphicPlaceholderValue, IdentityOutput};
-    use ark_ec::ProjectiveCurve;
-    use ark_ff::{One, test_rng, UniformRand, Zero, PrimeField};
-    use ark_inner_products::{InnerProduct, PairingInnerProduct};
-    use bench_utils::{end_timer, start_timer};
-    use rand::Rng;
+    use ark_dh_commitments::identity::{HomomorphicPlaceholderValue, IdentityOutput, IdentityCommitment};
+    use ark_ec::{ProjectiveCurve, PairingEngine};
+    use ark_ff::{One, Zero, PrimeField};
+    use ark_inner_products::{InnerProduct, PairingInnerProduct, MultiexponentiationInnerProduct};
+    use ark_dh_commitments::afgho16::AFGHOCommitmentG1;
+    use ark_dh_commitments::pedersen::PedersenCommitment;
+    use ark_ip_proofs::tipa::TIPA;
+    use ark_ip_proofs::tipa::structured_scalar_message::TIPAWithSSM;
 
-    use super::*;
+    use bench_utils::{end_timer, start_timer};
+    use ark_std::{UniformRand, test_rng};
+    use rand::Rng;
+    use blake2::Blake2b;
+
+    type IP = MultiexponentiationInnerProduct<<Bls12_381 as PairingEngine>::G1Projective>;
+    type GC1 = AFGHOCommitmentG1<Bls12_381>;
+    type SC1 = PedersenCommitment<<Bls12_381 as PairingEngine>::G1Projective>;
+    type IPC = IdentityCommitment<
+        <Bls12_381 as PairingEngine>::G1Projective,
+        <Bls12_381 as PairingEngine>::Fr,
+    >;
+
+    #[allow(non_camel_case_types)]
+    type MIPP_SRS = TIPAWithSSM<IP, GC1, IPC, Bls12_381, Blake2b>;
+    #[allow(non_camel_case_types)]
+    type TIPA_KZG = TIPA<IP, GC1, SC1, IPC, Bls12_381, Blake2b>;
 
     #[test]
     fn mipp_srs() {
