@@ -170,7 +170,10 @@ impl SignerSet {
     }
 }
 
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof {
     b_comm: ark_bw6_761::G1Affine,
     acc_x_comm: ark_bw6_761::G1Affine,
@@ -231,7 +234,10 @@ mod tests {
         let proof = prove(&b, signer_set.get_all(), &params.to_pk());
         end_timer!(prove_);
         // println!("{}μs = proving\n", proving.elapsed().as_micros());
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
 
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
         // let verification = Instant::now();
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk());
