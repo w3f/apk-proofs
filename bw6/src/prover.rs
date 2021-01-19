@@ -1,11 +1,12 @@
 use ark_bw6_761::Fr as F;
 use ark_ec::ProjectiveCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
-use ark_ff::{FftField, Field, One, test_rng, UniformRand, Zero};
+use ark_ff::{FftField, Field, One, Zero};
 use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::kzg10::Randomness;
 use ark_poly_commit::PCRandomness;
+use ark_std::{UniformRand, test_rng};
 
 use bitvec::vec::BitVec;
 

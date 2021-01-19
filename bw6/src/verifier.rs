@@ -2,7 +2,8 @@ use std::time::Instant;
 
 use ark_bw6_761::{BW6_761, Fr as F, G1Projective};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{One, PrimeField, test_rng, UniformRand};
+use ark_ff::{One, PrimeField};
+use ark_std::{UniformRand, test_rng};
 
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
