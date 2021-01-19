@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use ark_bw6_761::{BW6_761, Fr as F, G1Projective};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField};
@@ -22,50 +20,45 @@ pub fn verify(
 
     let nu= proof.nu;
 
-    // let timer = Instant::now();
-    let accountability = start_timer!(|| "accountability check");
+    let t_accountability = start_timer!(|| "accountability check");
     let b_at_zeta = utils::barycentric_eval_binary_at(proof.zeta, &bitmask, vk.domain);
     assert_eq!(b_at_zeta, proof.b_zeta); // accountability
-    end_timer!(accountability);
-    // println!("  {}μs = accountability", timer.elapsed().as_micros());
+    end_timer!(t_accountability);
 
 
-    let timer = Instant::now();
+    let t_multiexp = start_timer!(|| "multiexp");
     let nu_repr = nu.into_repr();
     let w2_comm = utils::horner(&[proof.acc_x_comm, proof.acc_y_comm], nu_repr).into_affine();
     let w1_comm = utils::horner(&[*pks_x_comm, *pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr);
-    // println!("  {}μs = multiexp", timer.elapsed().as_micros());
+    end_timer!(t_multiexp);
 
-    let timer = Instant::now();
+    let t_opening_points = start_timer!(|| "opening points evaluation");
     let w1_zeta = utils::horner_field(&[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta], nu);
     let zeta_omega = proof.zeta * vk.domain.group_gen;
     let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
-    // println!("  {}μs = opening points evaluation", timer.elapsed().as_micros());
+    end_timer!(t_opening_points);
 
     let r: F = u128::rand(rng).into();
 
-    let timer = Instant::now();
-
+    let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
     let c = w1_comm + w2_comm.mul(r); //128-bit mul //TODO: w2_comm is affine
     let v = vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
     let z = proof.w1_proof.mul(proof.zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
     let lhs = c - v + z;
-
     let mut rhs = proof.w2_proof.mul(r);  //128-bit mul
     rhs.add_assign_mixed(&proof.w1_proof);
-
     let to_affine = G1Projective::batch_normalization_into_affine(&[lhs, -rhs]); // Basically, not required, BW6 Miller's loop is in projective afair
     let (lhs_affine, rhs_affine) = (to_affine[0], to_affine[1]);
     assert!(BW6_761::product_of_pairings(&[
         (lhs_affine.into(), vk.prepared_h.clone()),
         (rhs_affine.into(), vk.prepared_beta_h.clone()),
     ]).is_one());
-    // println!("  {}μs = batched KZG openning", timer.elapsed().as_micros());
+    end_timer!(t_kzg_batch_opening);
 
-    let timer = Instant::now();
+    let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
     endo::subgroup_check(&lhs);
     endo::subgroup_check(&rhs);
-    // println!("  {}μs = 2-point subgroup check", timer.elapsed().as_micros());
+    end_timer!(t_lazy_subgroup_checks);
 
     return {
         let b = proof.b_zeta;
