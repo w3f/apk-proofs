@@ -16,7 +16,7 @@ ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = fa
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
 
-bench-utils = { git = "https://github.com/arkworks-rs/utils" }
+bench-utils = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 
 blake2 = { version = "0.9" }
 rand = "0.7"
