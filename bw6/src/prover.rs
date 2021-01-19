@@ -28,6 +28,7 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
     Evaluations::from_vec_and_domain(p.evals.iter().map(|x| c + x).collect(), d)
 }
 
+#[allow(non_snake_case)]
 pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let m = pks.len();
 
@@ -134,7 +135,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         domain
     );
 
-    let mut a1 =
+    let a1 =
         &(
             &B *
                 &(
@@ -155,7 +156,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
                 &nB * &(&y3 - &y1)
             );
 
-    let mut a2 =
+    let a2 =
         &(
             &B *
                 &(
@@ -171,7 +172,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
                 &nB * &(&x3 - &x1)
             );
 
-    let mut a3 = &B * &nB;
+    let a3 = &B * &nB;
 
 
 

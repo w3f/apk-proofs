@@ -21,8 +21,9 @@ use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_bw6_761::{BW6_761, Fr as F};
 
-type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
-type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
+type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
+#[allow(non_camel_case_types)]
+type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
 
 pub struct Params {
