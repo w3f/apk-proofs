@@ -10,6 +10,7 @@ pub mod endo;
 pub mod utils;
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
+mod bitmask;
 
 use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
