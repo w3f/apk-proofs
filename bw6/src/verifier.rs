@@ -7,7 +7,7 @@ use ark_ff::{One, PrimeField, test_rng, UniformRand};
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, VerifierKey};
+use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey};
 
 pub fn verify(
     pks_x_comm: &ark_bw6_761::G1Affine,
@@ -15,7 +15,7 @@ pub fn verify(
     apk: &PublicKey,
     bitmask: &BitVec,
     proof: &Proof,
-    vk: &VerifierKey) -> bool
+    vk: &PreparedVerifierKey) -> bool
 {
     let rng = &mut test_rng(); //TODO: method parameter
 
@@ -46,7 +46,7 @@ pub fn verify(
     let timer = Instant::now();
 
     let c = w1_comm + w2_comm.mul(r); //128-bit mul //TODO: w2_comm is affine
-    let v = vk.kzg_vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
+    let v = vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
     let z = proof.w1_proof.mul(proof.zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
     let lhs = c - v + z;
 
@@ -56,8 +56,8 @@ pub fn verify(
     let to_affine = G1Projective::batch_normalization_into_affine(&[lhs, -rhs]); // Basically, not required, BW6 Miller's loop is in projective afair
     let (lhs_affine, rhs_affine) = (to_affine[0], to_affine[1]);
     assert!(BW6_761::product_of_pairings(&[
-        (lhs_affine.into(), vk.kzg_vk.prepared_h.clone()),
-        (rhs_affine.into(), vk.kzg_vk.prepared_beta_h.clone()),
+        (lhs_affine.into(), vk.prepared_h.clone()),
+        (rhs_affine.into(), vk.prepared_beta_h.clone()),
     ]).is_one());
     // println!("  {}μs = batched KZG openning", timer.elapsed().as_micros());
 
