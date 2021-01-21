@@ -4,12 +4,19 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_ff::{FftField, Field, One, test_rng, UniformRand, Zero};
 use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::kzg10::Randomness;
+use ark_poly_commit::kzg10::{Randomness, Commitment};
 use ark_poly_commit::PCRandomness;
 
 use bitvec::vec::BitVec;
 
 use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
+use ark_bw6_761::{BW6_761};
+
+enum ProofScheme {
+    Unaccountable,
+    Accountable,
+    SuccinctAccountable,
+}
 
 //next function adds the value s to every coefficient of a polynomial
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
@@ -30,13 +37,13 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
     Evaluations::from_vec_and_domain(p.evals.iter().map(|x| c + x).collect(), d)
 }
 
-pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
+pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme) -> Proof {
     let m = pks.len();
 
     assert_eq!(b.len(), m); //the length of the bit vector must be equal to the total number of validators
     assert!(b.count_ones() > 0); //at least one person should have signed
 
-    let rng = &mut test_rng(); //rng for ??
+    let rng = &mut test_rng(); //Oana: rng for ??
 
     let apk = b.iter()
         .zip(pks.iter())
@@ -58,7 +65,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         } else {
             acc[i]
         }
-    }
+    } //Syed writing for Alstair: what happens to the padding of acc till nearest higher 2's power? The extension happens lower there maybe it is more readable if it is done immediately.
 
     let (mut acc_x, mut acc_y): (Vec<F>, Vec<F>) = acc.iter()
         .map(|p| (p.x, p.y))
@@ -91,13 +98,13 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let mut acc_x_shifted = acc_x.clone();
     let mut acc_y_shifted = acc_y.clone();//TO DO Reminder what kind of copy this is?
     acc_x_shifted.rotate_left(1); //removes the first component, i.e., h_x?
-    acc_y_shifted.rotate_left(1);
+    acc_y_shifted.rotate_left(1); //is it about multiplying by omega? or dividing by omega TODO: make sure the rotation is on correct direction
 
     let mut l1 = vec![F::zero(); n];
     let mut ln = vec![F::zero(); n];
     l1[0] = F::one(); //create Lagrange basis vectors l1 and
     ln[n-1] = F::one(); //ln
-
+    
     let b_poly = Evaluations::from_vec_and_domain(b, subdomain).interpolate();
     let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, subdomain).interpolate();
     let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, subdomain).interpolate();
@@ -108,15 +115,28 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_x_poly, None, None).unwrap().0.0;
     let acc_y_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
 
-    let phi =  F::rand(rng);
+    //succinct accountable variables
+    let mut r_accountable;
+    let mut c_accountable = vec![F::zero(); n];
+    let mut c_poly : DensePolynomial::<F>;
+    let mut c_comm : Commitment::<BW6_761>;
 
+    //c for accountable scheme
+    if let ProofScheme::SuccinctAccountable = scheme {
+	r_accountable = F::rand(rng); //TODO: make sure this is different than phi
+	for i in 0..n {
+	    c_accountable[i] = (F::one() + F::one())^(i % 256);
+	    c_accountable[i] *= r_accountable^(i /256);
+	}
+    }
+    
     let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
     let acc_y_shifted_poly = Evaluations::from_vec_and_domain(acc_y_shifted, subdomain).interpolate();
-    let l1_poly = Evaluations::from_vec_and_domain(l1, subdomain).interpolate();
+    let l1_poly = Evaluations::from_vec_and_domain(l1, subdomain).interpolate(); //Anything related to l1 and ln are always the same and we could have done a precomputation
     let ln_poly = Evaluations::from_vec_and_domain(ln, subdomain).interpolate();
 
     assert_eq!(b_poly.coeffs.len(), n);
-    assert_eq!(b_poly.degree(), n-1);// TO DO : is this always true?
+    assert_eq!(b_poly.degree(), n-1);// TO DO : is this always true? There are ways to get a lower degree. this assert doesn't need to hold. e.g. when b is constant
 
     let domain = GeneralEvaluationDomain::<F>::new(4*n).unwrap(); // TO DO: what is this?
     assert_eq!(domain.size(), 4*n);
@@ -172,17 +192,14 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
     let mut a3 = &B * &nB;
 
-
-
-
     let acc_minus_h_x = add_constant(&x1, -pk.h.x, domain);
     let acc_minus_h_y = add_constant(&y1, -pk.h.y, domain);
 
     let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, domain);
     let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, domain);
 
-    let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln);
-    let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln);
+    let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln); //a5 in Oana's writup
+    let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln); //a5 -> Oana's a6
 
     let a1_poly = a1.interpolate();
     let a2_poly = a2.interpolate();
@@ -190,7 +207,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let a4_poly = a4.interpolate();
     let a5_poly = a5.interpolate();
 
-    assert_eq!(a1_poly.degree(), 4*(n-1));
+    assert_eq!(a1_poly.degree(), 4*(n-1)); //we need to assert at most not equal
     assert_eq!(a2_poly.degree(), 3*(n-1));
     assert_eq!(a3_poly.degree(), 2*(n-1));
     assert_eq!(a4_poly.degree(), 2*(n-1));
@@ -204,19 +221,22 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(a4_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a5_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
 
-
-    let mut curr = phi;
-    let mut powers_of_phi = vec![curr];
+    let phi =  F::rand(rng); //TODO: put a comment on what is this random is being used for? here V
+    
+    let mut curr = phi; //random element of the field. this is going to be replace with Fiat Shamir
+    let mut powers_of_phi = vec![curr]; //random pow
     for _ in 0..3 {
         curr *= &phi;
         powers_of_phi.push(curr);
     }
 
+   
     let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
     w = &mul_by_x(&w) - &mul(pk.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
     w = &w + &mul(powers_of_phi[1], &a3_poly);
     w = &w + &mul(powers_of_phi[2], &a4_poly);
     w = &w + &mul(powers_of_phi[3], &a5_poly);
+
 
     let (q_poly, r) = w.divide_by_vanishing_poly(subdomain).unwrap();
     assert_eq!(r, DensePolynomial::zero());

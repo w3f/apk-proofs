@@ -24,6 +24,11 @@ use ark_bw6_761::{BW6_761, Fr as F};
 type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
 
+enum ProofScheme {
+    Unaccountable,
+    Accountable, 
+   SuccinctAccountable,
+}
 
 pub struct Params {
     domain: Radix2EvaluationDomain<F>,
@@ -228,7 +233,7 @@ mod tests {
 
         // let proving = Instant::now();
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(&b, signer_set.get_all(), &params.to_pk());
+        let proof = prove(&b, signer_set.get_all(), &params.to_pk(), ProofScheme::Accountable);
         end_timer!(prove_);
         // println!("{}μs = proving\n", proving.elapsed().as_micros());
 
