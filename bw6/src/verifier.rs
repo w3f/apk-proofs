@@ -3,16 +3,15 @@ use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField};
 use ark_std::{UniformRand, test_rng};
 
-use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey};
+use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, Bitmask};
 
 pub fn verify(
     pks_x_comm: &ark_bw6_761::G1Affine,
     pks_y_comm: &ark_bw6_761::G1Affine,
     apk: &PublicKey,
-    bitmask: &BitVec,
+    bitmask: &Bitmask,
     proof: &Proof,
     vk: &PreparedVerifierKey) -> bool
 {

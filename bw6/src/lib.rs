@@ -11,6 +11,7 @@ pub mod utils;
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
 mod bitmask;
+pub use bitmask::Bitmask;
 
 use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
@@ -18,7 +19,6 @@ use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::kzg10::{KZG10, Powers};
 use ark_ec::{ProjectiveCurve, PairingEngine};
 
-use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_bw6_761::{BW6_761, Fr as F};
 
@@ -167,8 +167,8 @@ impl SignerSet {
         return self.0.as_slice();
     }
 
-    pub fn get_by_mask(&self, b: &BitVec) -> Vec<&PublicKey> {
-        self.0.iter().zip(b.iter()).filter(|(_p, b)| **b).map(|(p, _b)| p).collect()
+    pub fn get_by_mask(&self, bitmask: &Bitmask) -> Vec<&PublicKey> {
+        self.0.iter().zip(bitmask.to_bits()).filter(|(_p, b)| *b).map(|(p, _b)| p).collect()
     }
 }
 
@@ -199,11 +199,15 @@ pub struct Proof {
 
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use std::time::Instant;
     use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
+
+    pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
+        (0..size).map(|_| rng.gen_bool(density)).collect()
+    }
 
     #[test]
     fn apk_proof() {
@@ -225,18 +229,19 @@ mod tests {
         let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
         println!("{}μs = signer set commitment", signer_set_commitment.elapsed().as_micros());
 
-        let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
+        let bitmask = Bitmask::from_bits(&random_bits(num_pks, 2.0 / 3.0, rng));
+
+        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
 
         // let proving = Instant::now();
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(&b, signer_set.get_all(), &params.to_pk());
+        let proof = prove(&bitmask, signer_set.get_all(), &params.to_pk());
         end_timer!(prove_);
         // println!("{}μs = proving\n", proving.elapsed().as_micros());
 
         // let verification = Instant::now();
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk());
+        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &bitmask, &proof, &params.to_vk());
         end_timer!(verify_);
         // println!("{}μs = verification", verification.elapsed().as_micros());
 

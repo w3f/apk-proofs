@@ -8,9 +8,8 @@ use ark_poly_commit::kzg10::Randomness;
 use ark_poly_commit::PCRandomness;
 use ark_std::{UniformRand, test_rng};
 
-use bitvec::vec::BitVec;
-
 use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
+use crate::Bitmask;
 
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
@@ -29,15 +28,15 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 }
 
 #[allow(non_snake_case)]
-pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
+pub fn prove(bitmask: &Bitmask, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let m = pks.len();
 
-    assert_eq!(b.len(), m);
-    assert!(b.count_ones() > 0);
+    assert_eq!(bitmask.size(), m);
+    assert!(bitmask.count_ones() > 0);
 
     let rng = &mut test_rng();
 
-    let apk = b.iter()
+    let apk = bitmask.to_bits().iter()
         .zip(pks.iter())
         .filter(|(b, _p)| **b)
         .map(|(_b, p)| p.0)
@@ -51,7 +50,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
     let h = pk.h;
     let mut acc = vec![h;m+1];
-    for (i, (b, p)) in b.iter().zip(pks.iter()).enumerate() {
+    for (i, (b, p)) in bitmask.to_bits().iter().zip(pks.iter()).enumerate() {
         acc[i+1] = if *b {
             acc[i] + p.0.into_affine()
         } else {
@@ -64,7 +63,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         .unzip();
 
 
-    assert_eq!(b.len(), m);
+    assert_eq!(bitmask.size(), m);
     assert_eq!(pks_x.len(), m);
     assert_eq!(pks_y.len(), m);
     assert_eq!(acc_x.len(), m+1);
@@ -72,7 +71,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
     assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk + h);
 
-    let mut b = b.iter()
+    let mut b = bitmask.to_bits().iter()
         .map(|b| if *b { F::one() } else { F::zero() })
         .collect::<Vec<_>>();
 
