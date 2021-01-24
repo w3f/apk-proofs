@@ -6,7 +6,6 @@ use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomia
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::kzg10::Randomness;
 use ark_poly_commit::PCRandomness;
-use ark_std::{UniformRand, test_rng};
 
 use bitvec::vec::BitVec;
 
