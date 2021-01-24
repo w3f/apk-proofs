@@ -229,24 +229,24 @@ mod tests {
         let mut transcript = Transcript::new(b"apk_proof");
         // transcript.set_protocol_params();
         transcript.set_signer_set(&pks_x_comm, &pks_y_comm); //TODO: size
-        let mut prover_transcript = transcript.clone();
-        let mut verifier_transcript = transcript.clone();
 
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         // let proving = Instant::now();
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(&b, signer_set.get_all(), &params.to_pk(), &mut prover_transcript);
+        let proof = prove(&b, signer_set.get_all(), &params.to_pk(), &mut transcript);
         end_timer!(prove_);
         // println!("{}μs = proving\n", proving.elapsed().as_micros());
         let mut serialized_proof = vec![0; proof.serialized_size()];
         proof.serialize(&mut serialized_proof[..]).unwrap();
 
         let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+
+        let verifier = Verifier::new(params.to_vk(), pks_x_comm, pks_y_comm, Transcript::new(b"apk_proof"));
         // let verification = Instant::now();
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk(), &mut verifier_transcript);
+        let valid = verifier.verify(&apk, &b, &proof);
         end_timer!(verify_);
         // println!("{}μs = verification", verification.elapsed().as_micros());
 
