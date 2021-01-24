@@ -10,6 +10,7 @@ pub mod endo;
 pub mod utils;
 pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
+mod transcript;
 
 use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
@@ -193,10 +194,6 @@ pub struct Proof {
     pub acc_y_zeta_omega: F,
 
     pub q_zeta: F,
-
-    pub zeta: F,
-    pub phi: F,
-    pub nu: F,
 }
 
 
@@ -206,10 +203,12 @@ mod tests {
     use std::time::Instant;
     use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
+    use merlin::Transcript;
+    use crate::transcript::ApkTranscript;
 
     #[test]
     fn apk_proof() {
-        let num_pks = 1023;
+        let num_pks = 15;
 
         let rng = &mut test_rng();
 
@@ -227,12 +226,18 @@ mod tests {
         let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
         println!("{}μs = signer set commitment", signer_set_commitment.elapsed().as_micros());
 
+        let mut transcript = Transcript::new(b"apk_proof");
+        // transcript.set_protocol_params();
+        transcript.set_signer_set(&pks_x_comm, &pks_y_comm); //TODO: size
+        let mut prover_transcript = transcript.clone();
+        let mut verifier_transcript = transcript.clone();
+
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         // let proving = Instant::now();
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(&b, signer_set.get_all(), &params.to_pk());
+        let proof = prove(&b, signer_set.get_all(), &params.to_pk(), &mut prover_transcript);
         end_timer!(prove_);
         // println!("{}μs = proving\n", proving.elapsed().as_micros());
         let mut serialized_proof = vec![0; proof.serialized_size()];
@@ -241,7 +246,7 @@ mod tests {
         let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
         // let verification = Instant::now();
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk());
+        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk(), &mut verifier_transcript);
         end_timer!(verify_);
         // println!("{}μs = verification", verification.elapsed().as_micros());
 

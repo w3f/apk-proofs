@@ -11,6 +11,8 @@ use ark_std::{UniformRand, test_rng};
 use bitvec::vec::BitVec;
 
 use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
+use merlin::Transcript;
+use crate::transcript::ApkTranscript;
 
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
@@ -29,20 +31,19 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 }
 
 #[allow(non_snake_case)]
-pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
+pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, transcript: &mut Transcript) -> Proof {
     let m = pks.len();
 
     assert_eq!(b.len(), m);
     assert!(b.count_ones() > 0);
 
-    let rng = &mut test_rng();
-
     let apk = b.iter()
         .zip(pks.iter())
         .filter(|(b, _p)| **b)
         .map(|(_b, p)| p.0)
-        .sum::<ark_bls12_377::G1Projective>()
-        .into_affine();
+        .sum::<ark_bls12_377::G1Projective>();
+
+    transcript.append_public_input(&apk.into(), b);
 
     let (pks_x, pks_y): (Vec<F>, Vec<F>) = pks.iter()
         .map(|p| p.0.into_affine())
@@ -70,7 +71,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(acc_x.len(), m+1);
     assert_eq!(acc_y.len(), m+1);
     assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
-    assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk + h);
+    assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + h);
 
     let mut b = b.iter()
         .map(|b| if *b { F::one() } else { F::zero() })
@@ -107,7 +108,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_x_poly, None, None).unwrap().0.0;
     let acc_y_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
 
-    let phi =  F::rand(rng);
+    let phi = transcript.get_128_bit_challenge(b"phi");
 
     let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
     let acc_y_shifted_poly = Evaluations::from_vec_and_domain(acc_y_shifted, subdomain).interpolate();
@@ -227,8 +228,11 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     assert_eq!(pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
     let q_comm = KZG_BW6::commit(&pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
 
-    let zeta: F = u128::rand(rng).into();
-    let zeta_omega = zeta * pk.domain.group_gen;
+    transcript.append_proof_point(b"b_comm", &b_comm);
+    transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
+    transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+    transcript.append_proof_point(b"q_comm", &q_comm);
+    let zeta = transcript.get_128_bit_challenge(b"zeta");
 
     let b_zeta = b_poly.evaluate(&zeta);
     let pks_x_zeta = pks_x_poly.evaluate(&zeta);
@@ -236,10 +240,18 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let acc_x_zeta = acc_x_poly.evaluate(&zeta);
     let acc_y_zeta = acc_y_poly.evaluate(&zeta);
     let q_zeta = q_poly.evaluate(&zeta);
+
+    let zeta_omega = zeta * pk.domain.group_gen;
     let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
     let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
-    let nu: F = u128::rand(rng).into();
+    transcript.append_proof_scalar(b"b_zeta", &b_zeta);
+    transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
+    transcript.append_proof_scalar(b"pks_y_zeta", &pks_y_zeta);
+    transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
+    transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
+    transcript.append_proof_scalar(b"q_zeta", &q_zeta);
+    let nu: F = transcript.get_128_bit_challenge(b"nu");
 
     let mut curr = nu;
     let mut powers_of_nu = vec![curr];
@@ -274,10 +286,6 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         acc_x_zeta_omega,
         acc_y_zeta_omega,
         q_zeta,
-
-        zeta,
-        phi,
-        nu,
     }
 }
 

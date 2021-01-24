@@ -7,6 +7,8 @@ use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
 use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey};
+use merlin::Transcript;
+use crate::transcript::ApkTranscript;
 
 pub fn verify(
     pks_x_comm: &ark_bw6_761::G1Affine,
@@ -14,17 +16,31 @@ pub fn verify(
     apk: &PublicKey,
     bitmask: &BitVec,
     proof: &Proof,
-    vk: &PreparedVerifierKey) -> bool
+    vk: &PreparedVerifierKey,
+    transcript: &mut Transcript) -> bool
 {
-    let rng = &mut test_rng(); //TODO: method parameter
+    let rng = &mut test_rng(); //TODO: remove
+    transcript.append_public_input(&apk, bitmask);
+    let f = transcript.get_128_bit_challenge(b"phi");
 
-    let nu= proof.nu;
+    transcript.append_proof_point(b"b_comm", &proof.b_comm);
+    transcript.append_proof_point(b"acc_x_comm", &proof.acc_x_comm);
+    transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
+    transcript.append_proof_point(b"q_comm", &proof.q_comm);
+    let zeta = transcript.get_128_bit_challenge(b"zeta");
 
     let t_accountability = start_timer!(|| "accountability check");
-    let b_at_zeta = utils::barycentric_eval_binary_at(proof.zeta, &bitmask, vk.domain);
+    let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, vk.domain);
     assert_eq!(b_at_zeta, proof.b_zeta); // accountability
     end_timer!(t_accountability);
 
+    transcript.append_proof_scalar(b"b_zeta", &proof.b_zeta);
+    transcript.append_proof_scalar(b"pks_x_zeta", &proof.pks_x_zeta);
+    transcript.append_proof_scalar(b"pks_y_zeta", &proof.pks_y_zeta);
+    transcript.append_proof_scalar(b"acc_x_zeta", &proof.acc_x_zeta);
+    transcript.append_proof_scalar(b"acc_y_zeta", &proof.acc_y_zeta);
+    transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
+    let nu: F = transcript.get_128_bit_challenge(b"nu");
 
     let t_multiexp = start_timer!(|| "multiexp");
     let nu_repr = nu.into_repr();
@@ -34,16 +50,16 @@ pub fn verify(
 
     let t_opening_points = start_timer!(|| "opening points evaluation");
     let w1_zeta = utils::horner_field(&[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta], nu);
-    let zeta_omega = proof.zeta * vk.domain.group_gen;
+    let zeta_omega = zeta * vk.domain.group_gen;
     let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
     end_timer!(t_opening_points);
 
-    let r: F = u128::rand(rng).into();
+    let r: F = u128::rand(rng).into(); //TODO: deterministic
 
     let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
     let c = w1_comm + w2_comm.mul(r); //128-bit mul //TODO: w2_comm is affine
     let v = vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
-    let z = proof.w1_proof.mul(proof.zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
+    let z = proof.w1_proof.mul(zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
     let lhs = c - v + z;
     let mut rhs = proof.w2_proof.mul(r);  //128-bit mul
     rhs.add_assign_mixed(&proof.w1_proof);
@@ -83,14 +99,13 @@ pub fn verify(
 
         let a3 = b * (F::one() - b);
 
-        let evals = &vk.lagrange_evaluations(proof.zeta);
+        let evals = &vk.lagrange_evaluations(zeta);
         let apk = apk.0.into_affine();
         let apk_plus_h = vk.h + apk;
         let a4 = (x1 - vk.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
         let a5 = (y1 - vk.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
-        let s = proof.zeta - vk.domain.group_gen_inv;
-        let f = proof.phi;
+        let s = zeta - vk.domain.group_gen_inv;
         a1 * s + f * (a2 * s + f * (a3 + f * (a4 + f * a5))) == proof.q_zeta * evals.vanishing_polynomial
     }
 }

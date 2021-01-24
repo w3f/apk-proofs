@@ -21,6 +21,7 @@ bench-utils = { git = "https://github.com/arkworks-rs/utils", default-features =
 
 bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
 rand = "0.7"
+merlin = "2.0.0"
 
 [dev-dependencies]
 criterion = "0.3"
