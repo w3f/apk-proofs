@@ -1,11 +1,12 @@
 use ark_bw6_761::Fr as F;
 use ark_ec::ProjectiveCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
-use ark_ff::{FftField, Field, One, test_rng, UniformRand, Zero};
+use ark_ff::{FftField, Field, One, Zero};
 use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::kzg10::Randomness;
 use ark_poly_commit::PCRandomness;
+use ark_std::{UniformRand, test_rng};
 
 use bitvec::vec::BitVec;
 
@@ -27,6 +28,7 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
     Evaluations::from_vec_and_domain(p.evals.iter().map(|x| c + x).collect(), d)
 }
 
+#[allow(non_snake_case)]
 pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
     let m = pks.len();
 
@@ -133,7 +135,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
         domain
     );
 
-    let mut a1 =
+    let a1 =
         &(
             &B *
                 &(
@@ -154,7 +156,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
                 &nB * &(&y3 - &y1)
             );
 
-    let mut a2 =
+    let a2 =
         &(
             &B *
                 &(
@@ -170,7 +172,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
                 &nB * &(&x3 - &x1)
             );
 
-    let mut a3 = &B * &nB;
+    let a3 = &B * &nB;
 
 
 
@@ -281,8 +283,6 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey) -> Proof {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use super::*;
 
     #[test]

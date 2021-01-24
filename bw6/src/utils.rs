@@ -33,7 +33,6 @@ pub fn barycentric_eval_at<F: FftField>(z: F, evals: &Vec<F>, domain: Radix2Eval
 }
 
 pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &BitVec, domain: Radix2EvaluationDomain<F>) -> F {
-    let n = domain.size();
     // let timer_z_n =  std::time::Instant::now();
     let mut z_n = z; // z^n, n=2^d - domain size, so squarings only
     for _ in 0..domain.log_size_of_group {
@@ -86,8 +85,9 @@ pub fn horner_field<F: Field>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand, Field, One};
+    use ark_ff::{Field, One};
     use ark_poly::{Evaluations, Polynomial};
+    use ark_std::{UniformRand, test_rng};
     use rand::Rng;
 
     #[test]

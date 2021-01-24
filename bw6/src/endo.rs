@@ -1,5 +1,4 @@
 use ark_ff::{field_new, Zero, BitIteratorBE};
-use ark_ff::biginteger::{BigInteger384, BigInteger768};
 use ark_ec::ProjectiveCurve;
 use ark_ec::bls12::Bls12Parameters;
 use ark_bw6_761::{Fq, Fr, G1Affine, G1Projective};
@@ -20,6 +19,7 @@ const OMEGA: Fq = field_new!(
 );
 
 
+#[allow(dead_code)]
 /// lambda in Z s.t. phi(P) = lambda*P for all P
 /// \lambda = 0x9b3af05dd14f6ec619aaf7d34594aabc5ed1347970dec00452217cc900000008508c00000000001
 const LAMBDA: Fr = field_new!(
@@ -41,11 +41,13 @@ fn mul_by_u(p: &G1Projective) -> G1Projective {
     res
 }
 
+#[allow(dead_code)]
 fn glv_endomorphism_in_place(p: &mut G1Affine) {
     let x =  &mut p.x;
     *x *= &OMEGA;
 }
 
+#[allow(dead_code)]
 fn glv_endomorphism(p: &G1Affine) -> G1Affine {
     G1Affine::new(p.x * OMEGA, p.y, false)
 }
@@ -67,9 +69,9 @@ pub fn subgroup_check(p: &G1Projective) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{test_rng, UniformRand, Field, One, PrimeField};
+    use ark_ff::{Field, One, PrimeField};
     use ark_ec::AffineCurve;
-    use ark_ec::models::short_weierstrass_jacobian::GroupAffine;
+    use ark_std::{UniformRand, test_rng};
 
     #[test]
     pub fn test_omega() {
