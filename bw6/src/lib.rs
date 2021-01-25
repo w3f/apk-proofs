@@ -15,6 +15,7 @@ pub use bls::{Signature, SecretKey, PublicKey};
 mod transcript;
 mod signer_set;
 use signer_set::{SignerSet, SignerSetCommitment};
+mod kzg;
 
 use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
