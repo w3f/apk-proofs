@@ -13,7 +13,7 @@ pub trait ApkTranscript {
     fn set_signer_set(&mut self, signer_set_comm: &SignerSetCommitment) {
         self._append_bytes(b"pks_x_comm", &signer_set_comm.pks_x_comm);
         self._append_bytes(b"pks_y_comm", &signer_set_comm.pks_y_comm);
-        self._append_bytes(b"pks_size", &signer_set_comm.signer_set_size);
+        self._append_bytes(b"pks_size", &(signer_set_comm.signer_set_size as u32));
     }
 
     fn append_public_input(&mut self, apk: &PublicKey, bitmask: &BitVec);

@@ -35,6 +35,7 @@ impl Verifier {
         proof: &Proof,
     ) -> bool
     {
+        assert_eq!(bitmask.len(), self.pks_comm.signer_set_size);
         let mut transcript = self.preprocessed_transcript.clone();
         let rng = &mut test_rng(); //TODO: remove
         transcript.append_public_input(&apk, bitmask);

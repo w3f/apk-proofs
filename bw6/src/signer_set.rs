@@ -12,7 +12,7 @@ pub struct SignerSet(Vec<PublicKey>);
 pub struct SignerSetCommitment {
     pub pks_x_comm: ark_bw6_761::G1Affine,
     pub pks_y_comm: ark_bw6_761::G1Affine,
-    pub signer_set_size: u32
+    pub signer_set_size: usize
 }
 
 impl SignerSet {
