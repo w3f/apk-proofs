@@ -9,15 +9,19 @@ pub use self::verifier::*;
 pub mod endo;
 pub mod utils;
 pub mod bls;
+
 pub use bls::{Signature, SecretKey, PublicKey};
 
+mod transcript;
+mod signer_set;
+use signer_set::{SignerSet, SignerSetCommitment};
+
 use ark_ff::{One, Field, batch_inversion};
-use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::kzg10::{KZG10, Powers};
 use ark_ec::{ProjectiveCurve, PairingEngine};
 
-use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_bw6_761::{BW6_761, Fr as F};
 
@@ -64,7 +68,7 @@ impl PreparedVerifierKey {
             zeta_n.square_in_place();
         }
         assert_eq!(zeta_n, zeta.pow([self.domain_size]));
-        let zeta_n_minus_one= zeta_n - F::one();
+        let zeta_n_minus_one = zeta_n - F::one();
         let zeta_n_minus_one_div_n = zeta_n_minus_one * self.domain.size_inv;
 
         let mut inv = [zeta - F::one(), self.domain.group_gen * zeta - F::one()];
@@ -84,7 +88,7 @@ impl Params {
         let n = domain.size();
 
         // deg(q) = 3n-3
-        let kzg_params = KZG_BW6::setup(3*n-2, false, rng).unwrap();
+        let kzg_params = KZG_BW6::setup(3 * n - 2, false, rng).unwrap();
 
         Self {
             domain,
@@ -106,9 +110,9 @@ impl Params {
         let n = self.domain.size();
         ProverKey {
             domain_size: n,
-            kzg_ck: self.get_ck(3*n-2),
+            kzg_ck: self.get_ck(3 * n - 2),
             domain: self.domain,
-            h: self.h
+            h: self.h,
         }
     }
 
@@ -125,53 +129,12 @@ impl Params {
     }
 }
 
-pub struct SignerSet(Vec<PublicKey>);
-
-impl SignerSet {
-    pub fn size(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn commit(&self, ck: &Powers<BW6_761>) -> (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine) {
-        let m = self.0.len();
-        // assert_eq!(m, powers.len());
-        // as now we use ifft to compute the polynomials, we require
-        let domain = GeneralEvaluationDomain::<F>::new(m).unwrap();
-        assert_eq!(domain.size(), ck.powers_of_g.len());
-
-        let (pks_x, pks_y): (Vec<F>, Vec<F>) = self.0.iter()
-            .map(|p| p.0.into_affine())
-            .map(|p| (p.x, p.y))
-            .unzip();
-
-        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
-        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
-
-        let (pks_x_comm, _) = KZG_BW6::commit(ck, &pks_x_poly, None, None).unwrap();
-        let (pks_y_comm, _) = KZG_BW6::commit(ck, &pks_y_poly, None, None).unwrap();
-        (pks_x_comm.0, pks_y_comm.0)
-    }
-
-    pub fn random<R: Rng>(num_pks: usize, rng: &mut R) -> Self {
-        assert!(num_pks > 1); // https://github.com/arkworks-rs/poly-commit/issues/40
-        Self(
-            (0..num_pks)
-            .map(|_| SecretKey::new(rng))
-            .map(|sk| PublicKey::from(&sk))
-            .collect::<Vec<_>>()
-        )
-    }
-
-    pub fn get_all(&self) -> &[PublicKey] {
-        return self.0.as_slice();
-    }
-
-    pub fn get_by_mask(&self, b: &BitVec) -> Vec<&PublicKey> {
-        self.0.iter().zip(b.iter()).filter(|(_p, b)| **b).map(|(p, _b)| p).collect()
-    }
-}
 
 
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof {
     b_comm: ark_bw6_761::G1Affine,
     acc_x_comm: ark_bw6_761::G1Affine,
@@ -190,54 +153,53 @@ pub struct Proof {
     pub acc_y_zeta_omega: F,
 
     pub q_zeta: F,
-
-    pub zeta: F,
-    pub phi: F,
-    pub nu: F,
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
     use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
+    use merlin::Transcript;
+    use ark_poly::GeneralEvaluationDomain;
+    use bitvec::vec::BitVec;
 
     #[test]
     fn apk_proof() {
-        let num_pks = 1023;
+        let num_pks = 15;
 
         let rng = &mut test_rng();
 
         let signer_set = SignerSet::random(num_pks, rng);
 
-        // let parameter_generation = Instant::now();
-        let setup = start_timer!(|| "BW6 setup");
+        let setup_ = start_timer!(|| "BW6 setup");
         let params = Params::new(signer_set.size(), rng);
-        end_timer!(setup);
-        // println!("{}μs = parameter generation", parameter_generation.elapsed().as_micros());
+        end_timer!(setup_);
 
         let pks_domain_size = GeneralEvaluationDomain::<F>::compute_size_of_domain(num_pks).unwrap();
 
-        let signer_set_commitment = Instant::now();
-        let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
-        println!("{}μs = signer set commitment", signer_set_commitment.elapsed().as_micros());
+        let pks_commitment_ = start_timer!(|| "signer set commitment");
+        let pks_comm = signer_set.commit(&params.get_ck(pks_domain_size));
+        end_timer!(pks_commitment_);
+
+        let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
-        // let proving = Instant::now();
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(&b, signer_set.get_all(), &params.to_pk());
+        let proof = prover.prove(&b);
         end_timer!(prove_);
-        // println!("{}μs = proving\n", proving.elapsed().as_micros());
 
-        // let verification = Instant::now();
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &b, &proof, &params.to_vk());
+        let valid = verifier.verify(&apk, &b, &proof);
         end_timer!(verify_);
-        // println!("{}μs = verification", verification.elapsed().as_micros());
 
         assert!(valid);
     }
@@ -246,14 +208,14 @@ mod tests {
     fn test_lagrange_evaluations() {
         let n = 16;
         let rng = &mut test_rng();
-        let params = Params::new(n-1, rng);
+        let params = Params::new(n - 1, rng);
         assert_eq!(params.domain.size(), n);
 
         let z = F::rand(rng);
         let evals = params.to_vk().lagrange_evaluations(z);
         assert_eq!(evals.vanishing_polynomial, params.domain.evaluate_vanishing_polynomial(z));
-        let coeffs =  params.domain.evaluate_all_lagrange_coefficients(z);
+        let coeffs = params.domain.evaluate_all_lagrange_coefficients(z);
         assert_eq!(evals.l_0, coeffs[0]);
-        assert_eq!(evals.l_minus_1, coeffs[n-1]);
+        assert_eq!(evals.l_minus_1, coeffs[n - 1]);
     }
 }
