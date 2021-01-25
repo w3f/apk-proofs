@@ -20,7 +20,7 @@ mod kzg;
 use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::kzg10::{KZG10, Powers};
+use ark_poly_commit::kzg10::Powers;
 use ark_ec::{ProjectiveCurve, PairingEngine};
 
 use rand::Rng;
@@ -33,7 +33,7 @@ type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
 pub struct Params {
     domain: Radix2EvaluationDomain<F>,
-    kzg_params: ark_poly_commit::kzg10::UniversalParams<BW6_761>,
+    kzg_params: UniversalParams<BW6_761>,
 
     h: ark_bls12_377::G1Affine,
 }
@@ -124,8 +124,8 @@ impl Params {
             h: self.h,
 
             g: self.kzg_params.powers_of_g[0],
-            prepared_h: self.kzg_params.prepared_h.clone(),
-            prepared_beta_h: self.kzg_params.prepared_beta_h.clone(),
+            prepared_h: self.kzg_params.h.into(),
+            prepared_beta_h: self.kzg_params.beta_h.into(),
         }
     }
 }
@@ -134,6 +134,7 @@ impl Params {
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use crate::kzg::{KZG10, UniversalParams};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof {

@@ -123,9 +123,9 @@ impl<'a> Prover<'a> {
         let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, subdomain).interpolate();
         let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, subdomain).interpolate();
 
-        let b_comm = KZG_BW6::commit(&self.pk.kzg_ck, &b_poly, None, None).unwrap().0.0;
-        let acc_x_comm = KZG_BW6::commit(&self.pk.kzg_ck, &acc_x_poly, None, None).unwrap().0.0;
-        let acc_y_comm = KZG_BW6::commit(&self.pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
+        let b_comm = KZG_BW6::commit(&self.pk.kzg_ck, &b_poly).unwrap();
+        let acc_x_comm = KZG_BW6::commit(&self.pk.kzg_ck, &acc_x_poly).unwrap();
+        let acc_y_comm = KZG_BW6::commit(&self.pk.kzg_ck, &acc_y_poly).unwrap();
 
         let phi = transcript.get_128_bit_challenge(b"phi");
 
@@ -245,7 +245,7 @@ impl<'a> Prover<'a> {
         assert_eq!(q_poly.degree(), 3*n-3);
 
         assert_eq!(self.pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
-        let q_comm = KZG_BW6::commit(&self.pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
+        let q_comm = KZG_BW6::commit(&self.pk.kzg_ck, &q_poly).unwrap();
 
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
@@ -280,13 +280,13 @@ impl<'a> Prover<'a> {
         }
 
         let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
-        let w2_proof = KZG_BW6::open(&self.pk.kzg_ck, &w2, zeta_omega, &Randomness::empty()).unwrap().w;
+        let w2_proof = KZG_BW6::open(&self.pk.kzg_ck, &w2, zeta_omega).unwrap();
 
         let mut w1 = &pks_x_poly + &mul(powers_of_nu[0], &pks_y_poly);
         w1 = &w1 + &mul(powers_of_nu[1], &b_poly);
         w1 = &w1 + &mul(powers_of_nu[2], &q_poly);
         w1 = &w1 + &mul(powers_of_nu[3], &w2);
-        let w1_proof = KZG_BW6::open(&self.pk.kzg_ck, &w1, zeta, &Randomness::empty()).unwrap().w;
+        let w1_proof = KZG_BW6::open(&self.pk.kzg_ck, &w1, zeta).unwrap();
 
         Proof {
             b_comm,

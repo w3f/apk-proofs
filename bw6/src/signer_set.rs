@@ -35,11 +35,11 @@ impl SignerSet {
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
         let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
 
-        let (pks_x_comm, _) = KZG_BW6::commit(ck, &pks_x_poly, None, None).unwrap();
-        let (pks_y_comm, _) = KZG_BW6::commit(ck, &pks_y_poly, None, None).unwrap();
+        let pks_x_comm= KZG_BW6::commit(ck, &pks_x_poly).unwrap();
+        let pks_y_comm= KZG_BW6::commit(ck, &pks_y_poly).unwrap();
         SignerSetCommitment {
-            pks_x_comm: pks_x_comm.0,
-            pks_y_comm: pks_y_comm.0,
+            pks_x_comm,
+            pks_y_comm,
             signer_set_size: m.try_into().unwrap()
         }
     }
