@@ -312,6 +312,7 @@ impl<'a> Prover<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ark_std::{test_rng, UniformRand};
 
     #[test]
     fn test_larger_domain() {
