@@ -12,6 +12,7 @@ use bitvec::vec::BitVec;
 use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
+use crate::signer_set::SignerSetCommitment;
 
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
@@ -38,13 +39,12 @@ pub struct Prover<'a> {
 impl<'a> Prover<'a> {
     pub fn new(
         pk: ProverKey<'a>,
-        pks_x_comm: &ark_bw6_761::G1Affine,
-        pks_y_comm: &ark_bw6_761::G1Affine,
+        signer_set_comm: &SignerSetCommitment,
         pks: &'a[PublicKey],
         mut empty_transcript: Transcript,
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_signer_set(&pks_x_comm, &pks_y_comm);
+        empty_transcript.set_signer_set(&signer_set_comm);
         Self { pk, pks, preprocessed_transcript: empty_transcript }
     }
 

@@ -9,24 +9,23 @@ use bench_utils::{end_timer, start_timer};
 use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
+use crate::signer_set::SignerSetCommitment;
 
 pub struct Verifier {
     vk: PreparedVerifierKey,
-    pks_x_comm: ark_bw6_761::G1Affine,
-    pks_y_comm: ark_bw6_761::G1Affine,
+    pks_comm: SignerSetCommitment,
     preprocessed_transcript: Transcript,
 }
 
 impl Verifier {
     pub fn new(
         vk: PreparedVerifierKey,
-        pks_x_comm: ark_bw6_761::G1Affine,
-        pks_y_comm: ark_bw6_761::G1Affine,
+        pks_comm: SignerSetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_signer_set(&pks_x_comm, &pks_y_comm);
-        Self { vk, pks_x_comm, pks_y_comm, preprocessed_transcript: empty_transcript }
+        empty_transcript.set_signer_set(&pks_comm);
+        Self { vk, pks_comm, preprocessed_transcript: empty_transcript }
     }
 
     pub fn verify(
@@ -64,7 +63,7 @@ impl Verifier {
         let t_multiexp = start_timer!(|| "multiexp");
         let nu_repr = nu.into_repr();
         let w2_comm = utils::horner(&[proof.acc_x_comm, proof.acc_y_comm], nu_repr).into_affine();
-        let w1_comm = utils::horner(&[self.pks_x_comm, self.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr);
+        let w1_comm = utils::horner(&[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");

@@ -5,15 +5,22 @@ use ark_poly::{Evaluations, GeneralEvaluationDomain, EvaluationDomain};
 use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_ec::ProjectiveCurve;
+use ark_std::convert::TryInto;
 
 pub struct SignerSet(Vec<PublicKey>);
+
+pub struct SignerSetCommitment {
+    pub pks_x_comm: ark_bw6_761::G1Affine,
+    pub pks_y_comm: ark_bw6_761::G1Affine,
+    pub signer_set_size: u32
+}
 
 impl SignerSet {
     pub fn size(&self) -> usize {
         self.0.len()
     }
 
-    pub fn commit(&self, ck: &Powers<BW6_761>) -> (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine) {
+    pub fn commit(&self, ck: &Powers<BW6_761>) -> SignerSetCommitment {
         let m = self.0.len();
         // assert_eq!(m, powers.len());
         // as now we use ifft to compute the polynomials, we require
@@ -30,7 +37,11 @@ impl SignerSet {
 
         let (pks_x_comm, _) = KZG_BW6::commit(ck, &pks_x_poly, None, None).unwrap();
         let (pks_y_comm, _) = KZG_BW6::commit(ck, &pks_y_poly, None, None).unwrap();
-        (pks_x_comm.0, pks_y_comm.0)
+        SignerSetCommitment {
+            pks_x_comm: pks_x_comm.0,
+            pks_y_comm: pks_y_comm.0,
+            signer_set_size: m.try_into().unwrap()
+        }
     }
 
     pub fn random<R: Rng>(num_pks: usize, rng: &mut R) -> Self {

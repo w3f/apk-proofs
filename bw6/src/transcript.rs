@@ -4,14 +4,16 @@ use ark_ff::{Field, ToBytes};
 use crate::PublicKey;
 use ark_ec::ProjectiveCurve;
 use bitvec::vec::BitVec;
+use crate::signer_set::SignerSetCommitment;
 
 pub trait ApkTranscript {
 
     fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine);
 
-    fn set_signer_set(&mut self, pks_x_comm: &ark_bw6_761::G1Affine, pks_y_comm: &ark_bw6_761::G1Affine) {
-        self._append_bytes(b"pks_x_comm", pks_x_comm);
-        self._append_bytes(b"pks_y_comm", pks_y_comm);
+    fn set_signer_set(&mut self, signer_set_comm: &SignerSetCommitment) {
+        self._append_bytes(b"pks_x_comm", &signer_set_comm.pks_x_comm);
+        self._append_bytes(b"pks_y_comm", &signer_set_comm.pks_y_comm);
+        self._append_bytes(b"pks_size", &signer_set_comm.signer_set_size);
     }
 
     fn append_public_input(&mut self, apk: &PublicKey, bitmask: &BitVec);

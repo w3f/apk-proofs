@@ -14,6 +14,7 @@ pub use bls::{Signature, SecretKey, PublicKey};
 
 mod transcript;
 mod signer_set;
+use signer_set::{SignerSet, SignerSetCommitment};
 
 use ark_ff::{One, Field, batch_inversion};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
@@ -161,7 +162,6 @@ mod tests {
     use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
     use merlin::Transcript;
-    use crate::signer_set::SignerSet;
     use ark_poly::GeneralEvaluationDomain;
     use bitvec::vec::BitVec;
 
@@ -180,11 +180,11 @@ mod tests {
         let pks_domain_size = GeneralEvaluationDomain::<F>::compute_size_of_domain(num_pks).unwrap();
 
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
+        let pks_comm = signer_set.commit(&params.get_ck(pks_domain_size));
         end_timer!(pks_commitment_);
 
-        let prover = Prover::new(params.to_pk(), &pks_x_comm, &pks_y_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
-        let verifier = Verifier::new(params.to_vk(), pks_x_comm, pks_y_comm, Transcript::new(b"apk_proof"));
+        let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
