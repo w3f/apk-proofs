@@ -18,6 +18,18 @@ use bench_utils::{end_timer, start_timer};
 
 use ark_poly_commit::Error;
 use ark_poly_commit::kzg10::Powers;
+use rand::RngCore;
+
+/// `UniversalParams` are the universal parameters for the KZG10 scheme.
+#[derive(Clone, Debug)]
+pub struct UniversalParams<E: PairingEngine> {
+    /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
+    pub powers_of_g: Vec<E::G1Affine>,
+    /// The generator of G2.
+    pub h: E::G2Affine,
+    /// \beta times the above generator of G2.
+    pub beta_h: E::G2Affine,
+}
 
 /// `KZG10` is an implementation of the polynomial commitment scheme of
 /// [Kate, Zaverucha and Goldbgerg][kzg10]
@@ -34,108 +46,56 @@ impl<E, P> KZG10<E, P>
         P: UVPolynomial<E::Fr, Point = E::Fr>,
         for<'a, 'b> &'a P: Div<&'b P, Output = P>,
 {
-    // /// Constructs public parameters when given as input the maximum degree `degree`
-    // /// for the polynomial commitment scheme.
-    // pub fn setup<R: RngCore>(
-    //     max_degree: usize,
-    //     produce_g2_powers: bool,
-    //     rng: &mut R,
-    // ) -> Result<UniversalParams<E>, Error> {
-    //     if max_degree < 1 {
-    //         return Err(Error::DegreeIsZero);
-    //     }
-    //     let setup_time = start_timer!(|| format!("KZG10::Setup with degree {}", max_degree));
-    //     let beta = E::Fr::rand(rng);
-    //     let g = E::G1Projective::rand(rng);
-    //     let gamma_g = E::G1Projective::rand(rng);
-    //     let h = E::G2Projective::rand(rng);
-    //
-    //     let mut powers_of_beta = vec![E::Fr::one()];
-    //
-    //     let mut cur = beta;
-    //     for _ in 0..max_degree {
-    //         powers_of_beta.push(cur);
-    //         cur *= &beta;
-    //     }
-    //
-    //     let window_size = FixedBaseMSM::get_mul_window_size(max_degree + 1);
-    //
-    //     let scalar_bits = E::Fr::size_in_bits();
-    //     let g_time = start_timer!(|| "Generating powers of G");
-    //     let g_table = FixedBaseMSM::get_window_table(scalar_bits, window_size, g);
-    //     let powers_of_g = FixedBaseMSM::multi_scalar_mul::<E::G1Projective>(
-    //         scalar_bits,
-    //         window_size,
-    //         &g_table,
-    //         &powers_of_beta,
-    //     );
-    //     end_timer!(g_time);
-    //     let gamma_g_time = start_timer!(|| "Generating powers of gamma * G");
-    //     let gamma_g_table = FixedBaseMSM::get_window_table(scalar_bits, window_size, gamma_g);
-    //     let mut powers_of_gamma_g = FixedBaseMSM::multi_scalar_mul::<E::G1Projective>(
-    //         scalar_bits,
-    //         window_size,
-    //         &gamma_g_table,
-    //         &powers_of_beta,
-    //     );
-    //     // Add an additional power of gamma_g, because we want to be able to support
-    //     // up to D queries.
-    //     powers_of_gamma_g.push(powers_of_gamma_g.last().unwrap().mul(&beta));
-    //     end_timer!(gamma_g_time);
-    //
-    //     let powers_of_g = E::G1Projective::batch_normalization_into_affine(&powers_of_g);
-    //     let powers_of_gamma_g =
-    //         E::G1Projective::batch_normalization_into_affine(&powers_of_gamma_g)
-    //             .into_iter()
-    //             .enumerate()
-    //             .collect();
-    //
-    //     let neg_powers_of_h_time = start_timer!(|| "Generating negative powers of h in G2");
-    //     let neg_powers_of_h = if produce_g2_powers {
-    //         let mut neg_powers_of_beta = vec![E::Fr::one()];
-    //         let mut cur = E::Fr::one() / &beta;
-    //         for _ in 0..max_degree {
-    //             neg_powers_of_beta.push(cur);
-    //             cur /= &beta;
-    //         }
-    //
-    //         let neg_h_table = FixedBaseMSM::get_window_table(scalar_bits, window_size, h);
-    //         let neg_powers_of_h = FixedBaseMSM::multi_scalar_mul::<E::G2Projective>(
-    //             scalar_bits,
-    //             window_size,
-    //             &neg_h_table,
-    //             &neg_powers_of_beta,
-    //         );
-    //
-    //         let affines = E::G2Projective::batch_normalization_into_affine(&neg_powers_of_h);
-    //         let mut affines_map = BTreeMap::new();
-    //         affines.into_iter().enumerate().for_each(|(i, a)| {
-    //             affines_map.insert(i, a);
-    //         });
-    //         affines_map
-    //     } else {
-    //         BTreeMap::new()
-    //     };
-    //
-    //     end_timer!(neg_powers_of_h_time);
-    //
-    //     let h = h.into_affine();
-    //     let beta_h = h.mul(beta).into_affine();
-    //     let prepared_h = h.into();
-    //     let prepared_beta_h = beta_h.into();
-    //
-    //     let pp = UniversalParams {
-    //         powers_of_g,
-    //         powers_of_gamma_g,
-    //         h,
-    //         beta_h,
-    //         neg_powers_of_h,
-    //         prepared_h,
-    //         prepared_beta_h,
-    //     };
-    //     end_timer!(setup_time);
-    //     Ok(pp)
-    // }
+    /// Constructs public parameters when given as input the maximum degree `degree`
+    /// for the polynomial commitment scheme.
+    pub fn setup<R: RngCore>(
+        max_degree: usize,
+        produce_g2_powers: bool,
+        rng: &mut R,
+    ) -> Result<UniversalParams<E>, Error> {
+        if max_degree < 1 {
+            return Err(Error::DegreeIsZero);
+        }
+        let setup_time = start_timer!(|| format!("KZG10::Setup with degree {}", max_degree));
+        let beta = E::Fr::rand(rng);
+        let g = E::G1Projective::rand(rng);
+        let h = E::G2Projective::rand(rng);
+
+        let mut powers_of_beta = vec![E::Fr::one()];
+
+        let mut cur = beta;
+        for _ in 0..max_degree {
+            powers_of_beta.push(cur);
+            cur *= &beta;
+        }
+
+        let window_size = FixedBaseMSM::get_mul_window_size(max_degree + 1);
+
+        let scalar_bits = E::Fr::size_in_bits();
+        let g_time = start_timer!(|| "Generating powers of G");
+        let g_table = FixedBaseMSM::get_window_table(scalar_bits, window_size, g);
+        let powers_of_g = FixedBaseMSM::multi_scalar_mul::<E::G1Projective>(
+            scalar_bits,
+            window_size,
+            &g_table,
+            &powers_of_beta,
+        );
+        end_timer!(g_time);
+
+
+        let powers_of_g = E::G1Projective::batch_normalization_into_affine(&powers_of_g);
+
+        let h = h.into_affine();
+        let beta_h = h.mul(beta).into_affine();
+
+        let pp = UniversalParams {
+            powers_of_g,
+            h,
+            beta_h,
+        };
+        end_timer!(setup_time);
+        Ok(pp)
+    }
 
     /// Outputs a commitment to `polynomial`.
     pub fn commit(
