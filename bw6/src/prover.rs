@@ -12,11 +12,7 @@ use bitvec::vec::BitVec;
 use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
 use ark_bw6_761::{BW6_761};
 
-enum ProofScheme {
-    Unaccountable,
-    Accountable,
-    SuccinctAccountable,
-}
+use super::ProofScheme;
 
 //next function adds the value s to every coefficient of a polynomial
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
@@ -119,7 +115,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let mut r_accountable;
     let mut c_accountable = vec![F::zero(); n];
     let mut c_accountable_shifted = vec![F::zero(); n];
-    let mut a_accountable: Vec<Fp384<FqParameters>> = vec![F::zero(); n];
+    let mut a_accountable  = vec![F::zero(); n];
     let mut c_poly : DensePolynomial::<F>;
     let mut a_poly : DensePolynomial::<F>;
     let mut c_comm : Commitment::<BW6_761>;
@@ -129,15 +125,17 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     if let ProofScheme::SuccinctAccountable = scheme {
 	r_accountable = F::rand(rng); //TODO: make sure this is different than phi
 	for i in 0..n {
-	    c_accountable[i] = (F::one() + F::one())^(i % 256);
-        c_accountable[i] *= r_accountable^(i /256);
-        if (i%256) == 0 {
-            a_accountable[i] = F::one();    
-        } 
-        else {
-            a_accountable[i] = F::zero();
-        } 
-    }
+	    let exp1 : [u64; 1] = [(i % 256) as u64];
+	    let exp2 : [u64; 1] = [(i /256) as u64];
+	    c_accountable[i] = (F::one() + F::one()).pow(exp1);
+            c_accountable[i] *= r_accountable.pow(exp2);
+            if (i%256) == 0 {
+		a_accountable[i] = F::one();    
+            } 
+            else {
+		a_accountable[i] = F::zero();
+            } 
+	}
     c_accountable_shifted = c_accountable.clone(); 
     c_accountable_shifted.rotate_left(1); //TODO: make sure the rotation is on correct direction
     c_poly = Evaluations::from_vec_and_domain(c_accountable, subdomain).interpolate();

@@ -24,7 +24,7 @@ use ark_bw6_761::{BW6_761, Fr as F};
 type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
 
-enum ProofScheme {
+pub enum ProofScheme {
     Unaccountable,
     Accountable, 
    SuccinctAccountable,
