@@ -97,8 +97,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
 
     let mut acc_x_shifted = acc_x.clone();
     let mut acc_y_shifted = acc_y.clone();//TO DO Reminder what kind of copy this is?
-    acc_x_shifted.rotate_left(1); //removes the first component, i.e., h_x?
-    acc_y_shifted.rotate_left(1); //is it about multiplying by omega? or dividing by omega TODO: make sure the rotation is on correct direction
+    acc_x_shifted.rotate_left(1); //as per name, a rotation of vector components
+    acc_y_shifted.rotate_left(1); //TODO: make sure the rotation is on correct direction
 
     let mut l1 = vec![F::zero(); n];
     let mut ln = vec![F::zero(); n];
@@ -118,16 +118,31 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     //succinct accountable variables
     let mut r_accountable;
     let mut c_accountable = vec![F::zero(); n];
+    let mut c_accountable_shifted = vec![F::zero(); n];
+    let mut a_accountable: Vec<Fp384<FqParameters>> = vec![F::zero(); n];
     let mut c_poly : DensePolynomial::<F>;
+    let mut a_poly : DensePolynomial::<F>;
     let mut c_comm : Commitment::<BW6_761>;
+    let mut a_comm : Commitment::<BW6_761>;
 
     //c for accountable scheme
     if let ProofScheme::SuccinctAccountable = scheme {
 	r_accountable = F::rand(rng); //TODO: make sure this is different than phi
 	for i in 0..n {
 	    c_accountable[i] = (F::one() + F::one())^(i % 256);
-	    c_accountable[i] *= r_accountable^(i /256);
-	}
+        c_accountable[i] *= r_accountable^(i /256);
+        if (i%256) == 0 {
+            a_accountable[i] = F::one();    
+        } 
+        else {
+            a_accountable[i] = F::zero();
+        } 
+    }
+    c_accountable_shifted = c_accountable.clone(); 
+    c_accountable_shifted.rotate_left(1); //TODO: make sure the rotation is on correct direction
+    c_poly = Evaluations::from_vec_and_domain(c_accountable, subdomain).interpolate();
+    a_poly = Evaluations::from_vec_and_domain(a_accountable, subdomain).interpolate();
+
     }
     
     let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
