@@ -115,7 +115,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let mut r_accountable;
     let mut c_accountable = vec![F::zero(); n];
     let mut c_accountable_shifted = vec![F::zero(); n];
-    let mut a_accountable  = vec![F::zero(); n];
+    let mut a_accountable = vec![F::zero(); n];
     let mut c_poly : DensePolynomial::<F>;
     let mut a_poly : DensePolynomial::<F>;
     let mut c_comm : Commitment::<BW6_761>;
