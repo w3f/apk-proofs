@@ -68,29 +68,31 @@ mod tests {
     use bitvec::vec::BitVec;
     use crate::setup::Params;
     use rand::Rng;
+    use ark_std::convert::TryInto;
 
     #[test]
     fn apk_proof() {
-        let num_pks = 15;
-
         let rng = &mut test_rng();
 
-        let signer_set = SignerSet::random(num_pks, rng);
+        let log_domain_size = 4;
+        let domain_size = 2u32.pow(log_domain_size);
 
-        let setup_ = start_timer!(|| "BW6 setup");
-        let params = Params::new(signer_set.size(), rng);
-        end_timer!(setup_);
+        let t_setup = start_timer!(|| format!("BW6 setup for log(domain_size) = {}", log_domain_size));
+        let params = Params::generate(domain_size, rng);
+        end_timer!(t_setup);
 
-        let pks_domain_size = GeneralEvaluationDomain::<F>::compute_size_of_domain(num_pks).unwrap();
+        let keyset_size = rng.gen_range(1, params.max_keyset_size() + 1);
+        let keyset_size = keyset_size.try_into().unwrap();
+        let signer_set = SignerSet::random(keyset_size, rng);
 
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = signer_set.commit(&params.get_ck(pks_domain_size));
+        let pks_comm = signer_set.commit(params.get_ck());
         end_timer!(pks_commitment_);
 
         let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
         let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
-        let b: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
+        let b: BitVec = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");

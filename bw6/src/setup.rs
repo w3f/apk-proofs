@@ -7,12 +7,18 @@ use rand::Rng;
 use crate::kzg::UniversalParams;
 use crate::{KZG_BW6, kzg};
 use ark_poly_commit::kzg10::Powers;
+use ark_std::convert::TryInto;
 
 pub struct Params {
     domain: Radix2EvaluationDomain<Fr>,
     kzg_params: UniversalParams<BW6_761>,
 
     h: ark_bls12_377::G1Affine,
+}
+
+pub struct CommitmentKey<'a> {
+    pub domain: Radix2EvaluationDomain<Fr>,
+    pub kzg_ck: Powers<'a, BW6_761>,
 }
 
 pub struct ProverKey<'a> {
@@ -57,35 +63,48 @@ impl PreparedVerifierKey {
 }
 
 impl Params {
-    pub fn new<R: Rng>(max_pks: usize, rng: &mut R) -> Self {
-        let min_domain_size = max_pks + 1; // to initialize the acc with h
-        let domain = Radix2EvaluationDomain::<Fr>::new(min_domain_size).unwrap();
-        let n = domain.size();
-
+    pub fn generate<R: Rng>(domain_size: u32, rng: &mut R) -> Self {
+        assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
+        let n = domain_size.try_into().expect("domain size doesn't fit usize");
+        let domain = Radix2EvaluationDomain::<Fr>::new(n).unwrap();
         // deg(q) = 3n-3
-        let kzg_params = KZG_BW6::setup(3 * n - 2, false, rng).unwrap();
+        let max_poly_degree = 3 * n - 3; // TODO: assert it fits field's 2-adicity
+        let kzg_params = KZG_BW6::setup(max_poly_degree + 1, false, rng).unwrap();
 
         Self {
             domain,
             kzg_params,
-
             h: rng.gen::<ark_bls12_377::G1Projective>().into_affine(), //TODO: outside G1
         }
     }
 
-    pub fn get_ck(&self, m: usize) -> Powers<BW6_761> {
-        let powers_of_g = self.kzg_params.powers_of_g[..m].to_vec();
-        Powers {
+    pub fn max_keyset_size(&self) -> u32 {
+        (self.domain.size - 1) as u32
+    }
+
+    pub fn get_ck(&self) -> CommitmentKey {
+        let n = self.domain.size(); //TODO: smaller cks
+        let powers_of_g = self.kzg_params.powers_of_g[..n].to_vec();
+        let powers = Powers {
             powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
             powers_of_gamma_g: ark_std::borrow::Cow::default(),
+        };
+        CommitmentKey {
+            domain: self.domain,
+            kzg_ck: powers
         }
     }
 
     pub fn to_pk(&self) -> ProverKey {
         let n = self.domain.size();
+        let powers_of_g = self.kzg_params.powers_of_g[..3*n-2].to_vec();
+        let powers = Powers {
+            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
+            powers_of_gamma_g: ark_std::borrow::Cow::default(),
+        };
         ProverKey {
             domain_size: n,
-            kzg_ck: self.get_ck(3 * n - 2),
+            kzg_ck: powers,
             domain: self.domain,
             h: self.h,
         }
@@ -113,9 +132,11 @@ mod tests {
 
     #[test]
     fn test_lagrange_evaluations() {
-        let n = 16;
         let rng = &mut test_rng();
-        let params = Params::new(n - 1, rng);
+
+        let n = 16;
+        let params = Params::generate(n, rng);
+        let n: usize = n.try_into().unwrap();
         assert_eq!(params.domain.size(), n);
 
         let z = Fr::rand(rng);

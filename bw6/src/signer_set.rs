@@ -6,6 +6,7 @@ use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_ec::ProjectiveCurve;
 use ark_std::convert::TryInto;
+use crate::setup::CommitmentKey;
 
 pub struct SignerSet(Vec<PublicKey>);
 
@@ -20,27 +21,23 @@ impl SignerSet {
         self.0.len()
     }
 
-    pub fn commit(&self, ck: &Powers<BW6_761>) -> SignerSetCommitment {
-        let m = self.0.len();
-        // assert_eq!(m, powers.len());
-        // as now we use ifft to compute the polynomials, we require
-        let domain = GeneralEvaluationDomain::<Fr>::new(m).unwrap();
-        assert_eq!(domain.size(), ck.powers_of_g.len());
+    pub fn commit(&self, ck: CommitmentKey) -> SignerSetCommitment {
+        assert!(self.0.len() <= ck.domain.size());
 
         let (pks_x, pks_y): (Vec<Fr>, Vec<Fr>) = self.0.iter()
             .map(|p| p.0.into_affine())
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
-        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
+        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, ck.domain).interpolate();
+        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, ck.domain).interpolate();
 
-        let pks_x_comm= KZG_BW6::commit(ck, &pks_x_poly).unwrap();
-        let pks_y_comm= KZG_BW6::commit(ck, &pks_y_poly).unwrap();
+        let pks_x_comm= KZG_BW6::commit(&ck.kzg_ck, &pks_x_poly).unwrap();
+        let pks_y_comm= KZG_BW6::commit(&ck.kzg_ck, &pks_y_poly).unwrap();
         SignerSetCommitment {
             pks_x_comm,
             pks_y_comm,
-            signer_set_size: m.try_into().unwrap()
+            signer_set_size: self.0.len()
         }
     }
 
