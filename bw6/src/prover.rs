@@ -4,8 +4,6 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_ff::{FftField, Field, One, Zero};
 use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::kzg10::Randomness;
-use ark_poly_commit::PCRandomness;
 
 use bitvec::vec::BitVec;
 

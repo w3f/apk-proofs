@@ -1,7 +1,7 @@
-use ark_bw6_761::{BW6_761, Fr as F, G1Projective};
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_bw6_761::Fr as F;
+use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField};
-use ark_std::{UniformRand, test_rng};
+use ark_std::test_rng;
 
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
