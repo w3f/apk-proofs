@@ -5,7 +5,7 @@ use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::{Field, One, batch_inversion};
 use rand::Rng;
 use crate::kzg::UniversalParams;
-use crate::KZG_BW6;
+use crate::{KZG_BW6, kzg};
 use ark_poly_commit::kzg10::Powers;
 
 pub struct Params {
@@ -27,10 +27,7 @@ pub struct PreparedVerifierKey {
     pub domain: Radix2EvaluationDomain<Fr>,
     pub h: ark_bls12_377::G1Affine,
 
-    // KZG verifier key
-    pub g: <BW6_761 as PairingEngine>::G1Affine,
-    pub prepared_h: <BW6_761 as PairingEngine>::G2Prepared,
-    pub prepared_beta_h: <BW6_761 as PairingEngine>::G2Prepared,
+    pub kzg_vk_prepared: kzg::PreparedVerifierKey<BW6_761>,
 }
 
 pub struct LagrangeEvaluations {
@@ -100,9 +97,11 @@ impl Params {
             domain: self.domain,
             h: self.h,
 
-            g: self.kzg_params.powers_of_g[0],
-            prepared_h: self.kzg_params.h.into(),
-            prepared_beta_h: self.kzg_params.beta_h.into(),
+            kzg_vk_prepared: kzg::PreparedVerifierKey {
+                g: self.kzg_params.powers_of_g[0],
+                prepared_h: self.kzg_params.h.into(),
+                prepared_beta_h: self.kzg_params.beta_h.into(),
+            },
         }
     }
 }

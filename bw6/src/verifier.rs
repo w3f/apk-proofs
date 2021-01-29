@@ -73,21 +73,15 @@ impl Verifier {
         let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
         end_timer!(t_opening_points);
 
-        let kzg_vk = kzg::PreparedVerifierKey {
-            g: self.vk.g,
-            prepared_h:  self.vk.prepared_h.clone(),
-            prepared_beta_h:  self.vk.prepared_beta_h.clone()
-        };
-
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        let (total_c, total_w) = KZG_BW6::aggregate_openings(&kzg_vk,
+        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.vk.kzg_vk_prepared,
                                                              &[w1_comm, w2_comm],
                                                              &[zeta, zeta_omega],
                                                              &[w1_zeta, w2_zeta_omega],
                                                              &[proof.w1_proof, proof.w2_proof],
                                                              rng, //TODO: deterministic
         );
-        assert!(KZG_BW6::batch_check_aggregated(&kzg_vk, total_c, total_w).is_ok());
+        assert!(KZG_BW6::batch_check_aggregated(&self.vk.kzg_vk_prepared, total_c, total_w).is_ok());
         end_timer!(t_kzg_batch_opening);
 
         let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
