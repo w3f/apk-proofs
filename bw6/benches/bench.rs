@@ -4,6 +4,7 @@ use ark_std::{UniformRand, test_rng};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use apk_proofs::{Prover, Verifier};
 use merlin::Transcript;
+use rand::seq::SliceRandom;
 
 extern crate apk_proofs;
 
@@ -84,7 +85,6 @@ fn apk_verification(c: &mut Criterion) {
     use ark_poly::{GeneralEvaluationDomain, EvaluationDomain};
     use apk_proofs::Params;
     use bitvec::vec::BitVec;
-    use rand::Rng;
 
     let num_pks = 1000;
 
@@ -96,7 +96,14 @@ fn apk_verification(c: &mut Criterion) {
     let pks_comm = signer_set.commit(&params.get_ck(pks_domain_size));
     let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
     let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
-    let bitmask: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
+
+    let mut bitmask = Vec::with_capacity(num_pks);
+    let set_bits_count = num_pks / 2;
+    bitmask.extend_from_slice(&vec![true; set_bits_count]);
+    bitmask.extend_from_slice(&vec![false; num_pks - set_bits_count]);
+    bitmask.shuffle(rng);
+    let bitmask: BitVec = bitmask.iter().collect();
+
     let apk = apk_proofs::bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
     let proof = prover.prove(&bitmask);
     c.bench_function("apk verification", move |b| {
