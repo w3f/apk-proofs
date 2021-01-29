@@ -225,10 +225,7 @@ impl<E, P> KZG10<E, P>
         values: &[E::Fr],
         proofs: &[E::G1Affine],
         rng: &mut R,
-    ) -> (E::G1Affine, E::G1Affine) {
-        let aggregate_time =
-            start_timer!(|| format!("Aggregating {} evaluation proofs", commitments.len()));
-
+    ) -> (E::G1Projective, E::G1Projective) {
         let mut total_c = <E::G1Projective>::zero();
         let mut total_w = <E::G1Projective>::zero();
 
@@ -254,23 +251,23 @@ impl<E, P> KZG10<E, P>
         total_c -= &vk.g.mul(g_multiplier); // $(\sum_i r_i y_i) [1]_1$
         end_timer!(combination_time);
 
-        let to_affine_time = start_timer!(|| "Converting results to affine for pairing");
-        let affine_points = E::G1Projective::batch_normalization_into_affine(&[-total_w, total_c]);
-        let (total_w, total_c) = (affine_points[0], affine_points[1]);
-        end_timer!(to_affine_time);
-        end_timer!(aggregate_time);
-        (total_w, total_c)
+        (total_c, total_w)
     }
 
     pub fn batch_check_aggregated(
         vk: &PreparedVerifierKey<E>,
-        total_w: E::G1Affine,
-        total_c: E::G1Affine,
+        total_c: E::G1Projective,
+        total_w: E::G1Projective,
     ) -> Result<bool, Error> {
+        let to_affine_time = start_timer!(|| "Converting results to affine for pairing");
+        let affine_points = E::G1Projective::batch_normalization_into_affine(&[total_c, -total_w]);
+        let (total_c, total_w) = (affine_points[0], affine_points[1]);
+        end_timer!(to_affine_time);
+
         let pairing_time = start_timer!(|| "Performing product of pairings");
         let result = E::product_of_pairings(&[
-            (total_w.into(), vk.prepared_beta_h.clone()),
             (total_c.into(), vk.prepared_h.clone()),
+            (total_w.into(), vk.prepared_beta_h.clone()),
         ])
             .is_one();
         end_timer!(pairing_time);
@@ -289,8 +286,8 @@ impl<E, P> KZG10<E, P>
     ) -> Result<bool, Error> {
         let check_time =
             start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
-        let (total_w, total_c) = Self::aggregate_openings(vk, commitments, points, values, proofs, rng);
-        let result = Self::batch_check_aggregated(vk, total_w, total_c)?;
+        let (total_c, total_w) = Self::aggregate_openings(vk, commitments, points, values, proofs, rng);
+        let result = Self::batch_check_aggregated(vk, total_c, total_w)?;
         end_timer!(check_time, || format!("Result: {}", result));
         Ok(result)
     }

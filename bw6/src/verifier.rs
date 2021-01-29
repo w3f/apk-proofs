@@ -80,19 +80,20 @@ impl Verifier {
         };
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        assert!(KZG_BW6::batch_check(&kzg_vk,
-                                     &[w1_comm, w2_comm],
-                                     &[zeta, zeta_omega],
-                                     &[w1_zeta, w2_zeta_omega],
-                                     &[proof.w1_proof, proof.w2_proof],
-                                     rng, //TODO: deterministic
-        ).is_ok());
+        let (total_c, total_w) = KZG_BW6::aggregate_openings(&kzg_vk,
+                                                             &[w1_comm, w2_comm],
+                                                             &[zeta, zeta_omega],
+                                                             &[w1_zeta, w2_zeta_omega],
+                                                             &[proof.w1_proof, proof.w2_proof],
+                                                             rng, //TODO: deterministic
+        );
+        assert!(KZG_BW6::batch_check_aggregated(&kzg_vk, total_c, total_w).is_ok());
         end_timer!(t_kzg_batch_opening);
 
-        // let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
-        // endo::subgroup_check(&lhs);
-        // endo::subgroup_check(&rhs);
-        // end_timer!(t_lazy_subgroup_checks);
+        let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
+        endo::subgroup_check(&total_c);
+        endo::subgroup_check(&total_w);
+        end_timer!(t_lazy_subgroup_checks);
 
         return {
             let b = proof.b_zeta;
