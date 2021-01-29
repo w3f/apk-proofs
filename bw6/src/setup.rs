@@ -4,14 +4,13 @@ use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{Field, One, batch_inversion};
 use rand::Rng;
-use crate::kzg::Params;
 use crate::{KZG_BW6, kzg};
 use ark_poly_commit::kzg10::Powers;
 use ark_std::convert::TryInto;
 
 pub struct Params {
     domain: Radix2EvaluationDomain<Fr>,
-    kzg_params: Params<BW6_761>,
+    kzg_params: kzg::Params<BW6_761>,
 
     h: ark_bls12_377::G1Affine,
 }
