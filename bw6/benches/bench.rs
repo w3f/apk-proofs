@@ -1,6 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ark_ff::{Field, PrimeField, test_rng, UniformRand};
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use apk_proofs::{Prover, Verifier};
+use merlin::Transcript;
 
 extern crate apk_proofs;
 
@@ -90,20 +92,18 @@ fn apk_verification(c: &mut Criterion) {
     let signer_set = apk_proofs::SignerSet::random(num_pks, rng);
     let params = Params::new(signer_set.size(), rng);
     let pks_domain_size = GeneralEvaluationDomain::<ark_bw6_761::Fr>::compute_size_of_domain(num_pks).unwrap();
-    let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
+    let pks_comm = signer_set.commit(&params.get_ck(pks_domain_size));
+    let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+    let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
     let bitmask: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
     let apk = apk_proofs::bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
-    let proof = apk_proofs::prove(&bitmask, signer_set.get_all(), &params.to_pk());
-    let vk = params.to_vk();
+    let proof = prover.prove(&bitmask);
     c.bench_function("apk verification", move |b| {
-        b.iter(|| apk_proofs::verify(
-            black_box(&pks_x_comm),
-            black_box(&pks_y_comm),
+        b.iter(|| assert!(verifier.verify(
             black_box(&apk),
             black_box(&bitmask),
-            black_box(&proof),
-            black_box(&vk)
-        ))
+            black_box(&proof)
+        )))
     });
 }
 
