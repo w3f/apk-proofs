@@ -6,7 +6,7 @@
 //! This construction achieves extractability in the algebraic group model (AGM).
 
 use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
-use ark_ec::{group::Group, AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField, UniformRand, Zero};
 use ark_poly::UVPolynomial;
 use ark_std::{format, marker::PhantomData, ops::Div, vec};
@@ -62,7 +62,6 @@ impl<E, P> KZG10<E, P>
     /// for the polynomial commitment scheme.
     pub fn setup<R: RngCore>(
         max_degree: usize,
-        produce_g2_powers: bool,
         rng: &mut R,
     ) -> Result<UniversalParams<E>, Error> {
         if max_degree < 1 {
@@ -126,7 +125,7 @@ impl<E, P> KZG10<E, P>
             skip_leading_zeros_and_convert_to_bigints(polynomial);
 
         let msm_time = start_timer!(|| "MSM to compute commitment to plaintext poly");
-        let mut commitment = VariableBaseMSM::multi_scalar_mul(
+        let commitment = VariableBaseMSM::multi_scalar_mul(
             &powers.powers_of_g[num_leading_zeros..],
             &plain_coeffs,
         );
@@ -155,7 +154,6 @@ impl<E, P> KZG10<E, P>
 
     pub(crate) fn open_with_witness_polynomial<'a>(
         powers: &Powers<E>,
-        point: P::Point,
         witness_polynomial: &P,
     ) -> Result<E::G1Affine, Error> {
         Self::check_degree_is_too_large(witness_polynomial.degree(), powers.size())?;
@@ -163,7 +161,7 @@ impl<E, P> KZG10<E, P>
             skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
 
         let witness_comm_time = start_timer!(|| "Computing commitment to witness polynomial");
-        let mut w = VariableBaseMSM::multi_scalar_mul(
+        let w = VariableBaseMSM::multi_scalar_mul(
             &powers.powers_of_g[num_leading_zeros..],
             &witness_coeffs,
         );
@@ -187,7 +185,6 @@ impl<E, P> KZG10<E, P>
 
         let proof = Self::open_with_witness_polynomial(
             powers,
-            point,
             &witness_poly
         );
 

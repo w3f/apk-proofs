@@ -69,7 +69,7 @@ impl Params {
         let domain = Radix2EvaluationDomain::<Fr>::new(n).unwrap();
         // deg(q) = 3n-3
         let max_poly_degree = 3 * n - 3; // TODO: assert it fits field's 2-adicity
-        let kzg_params = KZG_BW6::setup(max_poly_degree + 1, false, rng).unwrap();
+        let kzg_params = KZG_BW6::setup(max_poly_degree + 1, rng).unwrap();
 
         Self {
             domain,
