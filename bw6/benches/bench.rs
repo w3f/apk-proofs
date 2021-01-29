@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ark_ff::{Field, PrimeField, test_rng, UniformRand};
+use ark_ff::{Field, PrimeField};
+use ark_std::{UniformRand, test_rng};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use apk_proofs::{Prover, Verifier};
 use merlin::Transcript;
