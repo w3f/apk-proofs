@@ -259,7 +259,22 @@ impl<E, P> KZG10<E, P>
         let (total_w, total_c) = (affine_points[0], affine_points[1]);
         end_timer!(to_affine_time);
         end_timer!(aggregate_time);
-        (total_c, total_w)
+        (total_w, total_c)
+    }
+
+    pub fn batch_check_aggregated(
+        vk: &PreparedVerifierKey<E>,
+        total_w: E::G1Affine,
+        total_c: E::G1Affine,
+    ) -> Result<bool, Error> {
+        let pairing_time = start_timer!(|| "Performing product of pairings");
+        let result = E::product_of_pairings(&[
+            (total_w.into(), vk.prepared_beta_h.clone()),
+            (total_c.into(), vk.prepared_h.clone()),
+        ])
+            .is_one();
+        end_timer!(pairing_time);
+        Ok(result)
     }
 
     /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
@@ -274,16 +289,8 @@ impl<E, P> KZG10<E, P>
     ) -> Result<bool, Error> {
         let check_time =
             start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
-
         let (total_w, total_c) = Self::aggregate_openings(vk, commitments, points, values, proofs, rng);
-
-        let pairing_time = start_timer!(|| "Performing product of pairings");
-        let result = E::product_of_pairings(&[
-            (total_w.into(), vk.prepared_beta_h.clone()),
-            (total_c.into(), vk.prepared_h.clone()),
-        ])
-            .is_one();
-        end_timer!(pairing_time);
+        let result = Self::batch_check_aggregated(vk, total_w, total_c)?;
         end_timer!(check_time, || format!("Result: {}", result));
         Ok(result)
     }
