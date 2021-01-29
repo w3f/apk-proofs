@@ -22,7 +22,7 @@ use rand::RngCore;
 
 /// `UniversalParams` are the universal parameters for the KZG10 scheme.
 #[derive(Clone, Debug)]
-pub struct UniversalParams<E: PairingEngine> {
+pub struct Params<E: PairingEngine> {
     /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
     pub powers_of_g: Vec<E::G1Affine>,
     /// The generator of G2.
@@ -63,7 +63,7 @@ impl<E, P> KZG10<E, P>
     pub fn setup<R: RngCore>(
         max_degree: usize,
         rng: &mut R,
-    ) -> Result<UniversalParams<E>, Error> {
+    ) -> Result<Params<E>, Error> {
         if max_degree < 1 {
             return Err(Error::DegreeIsZero);
         }
@@ -99,7 +99,7 @@ impl<E, P> KZG10<E, P>
         let h = h.into_affine();
         let beta_h = h.mul(beta).into_affine();
 
-        let pp = UniversalParams {
+        let pp = Params {
             powers_of_g,
             h,
             beta_h,
