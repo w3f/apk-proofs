@@ -1,7 +1,7 @@
 use ark_poly::domain::radix2::Radix2EvaluationDomain;
 use ark_poly::EvaluationDomain;
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::{PairingEngine, ProjectiveCurve};
+use ark_ec::ProjectiveCurve;
 use ark_ff::{Field, One, batch_inversion};
 use rand::Rng;
 use crate::kzg::UniversalParams;

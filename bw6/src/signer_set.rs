@@ -1,11 +1,9 @@
 use crate::{PublicKey, KZG_BW6, SecretKey};
-use ark_poly_commit::kzg10::Powers;
-use ark_bw6_761::{BW6_761, Fr};
-use ark_poly::{Evaluations, GeneralEvaluationDomain, EvaluationDomain};
+use ark_bw6_761::Fr;
+use ark_poly::{Evaluations, EvaluationDomain};
 use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_ec::ProjectiveCurve;
-use ark_std::convert::TryInto;
 use crate::setup::CommitmentKey;
 
 pub struct SignerSet(Vec<PublicKey>);

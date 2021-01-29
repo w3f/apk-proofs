@@ -6,7 +6,7 @@ use ark_std::test_rng;
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, KZG_BW6, kzg};
+use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, KZG_BW6};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
