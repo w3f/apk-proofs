@@ -218,18 +218,16 @@ impl<E, P> KZG10<E, P>
     //     Ok(lhs == rhs)
     // }
 
-    /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
-    /// `commitment_i` at `point_i`.
-    pub fn batch_check<R: RngCore>(
+    pub fn aggregate_openings<R: RngCore>(
         vk: &PreparedVerifierKey<E>,
         commitments: &[E::G1Affine],
         points: &[E::Fr],
         values: &[E::Fr],
         proofs: &[E::G1Affine],
         rng: &mut R,
-    ) -> Result<bool, Error> {
-        let check_time =
-            start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
+    ) -> (E::G1Affine, E::G1Affine) {
+        let aggregate_time =
+            start_timer!(|| format!("Aggregating {} evaluation proofs", commitments.len()));
 
         let mut total_c = <E::G1Projective>::zero();
         let mut total_w = <E::G1Projective>::zero();
@@ -243,15 +241,15 @@ impl<E, P> KZG10<E, P>
             .zip(points)
             .zip(values)
             .zip(proofs) {
-                let mut temp = w.mul(*z); // $x_i [q_i(x)]_1$
-                temp.add_assign_mixed(&c); // $[p_i(x)]_1 + x_i [q_i(x)]_1$
-                let c = temp;
-                g_multiplier += &(randomizer * v); // $r_i y_i$
-                total_c += &c.mul(randomizer.into()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
-                total_w += &w.mul(randomizer); //  $r_i [q_i(x)]_1$
-                // We don't need to sample randomizers from the full field,
-                // only from 128-bit strings.
-                randomizer = u128::rand(rng).into();
+            let mut temp = w.mul(*z); // $x_i [q_i(x)]_1$
+            temp.add_assign_mixed(&c); // $[p_i(x)]_1 + x_i [q_i(x)]_1$
+            let c = temp;
+            g_multiplier += &(randomizer * v); // $r_i y_i$
+            total_c += &c.mul(randomizer.into()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
+            total_w += &w.mul(randomizer); //  $r_i [q_i(x)]_1$
+            // We don't need to sample randomizers from the full field,
+            // only from 128-bit strings.
+            randomizer = u128::rand(rng).into();
         }
         total_c -= &vk.g.mul(g_multiplier); // $(\sum_i r_i y_i) [1]_1$
         end_timer!(combination_time);
@@ -260,6 +258,24 @@ impl<E, P> KZG10<E, P>
         let affine_points = E::G1Projective::batch_normalization_into_affine(&[-total_w, total_c]);
         let (total_w, total_c) = (affine_points[0], affine_points[1]);
         end_timer!(to_affine_time);
+        end_timer!(aggregate_time);
+        (total_c, total_w)
+    }
+
+    /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
+    /// `commitment_i` at `point_i`.
+    pub fn batch_check<R: RngCore>(
+        vk: &PreparedVerifierKey<E>,
+        commitments: &[E::G1Affine],
+        points: &[E::Fr],
+        values: &[E::Fr],
+        proofs: &[E::G1Affine],
+        rng: &mut R,
+    ) -> Result<bool, Error> {
+        let check_time =
+            start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
+
+        let (total_w, total_c) = Self::aggregate_openings(vk, commitments, points, values, proofs, rng);
 
         let pairing_time = start_timer!(|| "Performing product of pairings");
         let result = E::product_of_pairings(&[
