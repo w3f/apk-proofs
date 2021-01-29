@@ -31,6 +31,18 @@ pub struct UniversalParams<E: PairingEngine> {
     pub beta_h: E::G2Affine,
 }
 
+/// `VerifierKey` is used to check evaluation proofs for a given commitment.
+#[derive(Clone, Debug)]
+pub struct PreparedVerifierKey<E: PairingEngine> {
+    /// The generator of G1.
+    pub g: E::G1Affine,
+    /// The generator of G2, prepared for use in pairings.
+    pub prepared_h: E::G2Prepared,
+    /// \beta times the above generator of G2, prepared for use in pairings.
+    pub prepared_beta_h: E::G2Prepared,
+}
+
+
 /// `KZG10` is an implementation of the polynomial commitment scheme of
 /// [Kate, Zaverucha and Goldbgerg][kzg10]
 ///
@@ -205,64 +217,61 @@ impl<E, P> KZG10<E, P>
     //     end_timer!(check_time, || format!("Result: {}", lhs == rhs));
     //     Ok(lhs == rhs)
     // }
-    //
-    // /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
-    // /// `commitment_i` at `point_i`.
-    // pub fn batch_check<R: RngCore>(
-    //     vk: &VerifierKey<E>,
-    //     commitments: &[Commitment<E>],
-    //     points: &[E::Fr],
-    //     values: &[E::Fr],
-    //     proofs: &[Proof<E>],
-    //     rng: &mut R,
-    // ) -> Result<bool, Error> {
-    //     let check_time =
-    //         start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
-    //
-    //     let mut total_c = <E::G1Projective>::zero();
-    //     let mut total_w = <E::G1Projective>::zero();
-    //
-    //     let combination_time = start_timer!(|| "Combining commitments and proofs");
-    //     let mut randomizer = E::Fr::one();
-    //     // Instead of multiplying g and gamma_g in each turn, we simply accumulate
-    //     // their coefficients and perform a final multiplication at the end.
-    //     let mut g_multiplier = E::Fr::zero();
-    //     let mut gamma_g_multiplier = E::Fr::zero();
-    //     for (((c, z), v), proof) in commitments.iter().zip(points).zip(values).zip(proofs) {
-    //         let w = proof.w;
-    //         let mut temp = w.mul(*z);
-    //         temp.add_assign_mixed(&c.0);
-    //         let c = temp;
-    //         g_multiplier += &(randomizer * v);
-    //         if let Some(random_v) = proof.random_v {
-    //             gamma_g_multiplier += &(randomizer * &random_v);
-    //         }
-    //         total_c += &c.mul(randomizer.into());
-    //         total_w += &w.mul(randomizer);
-    //         // We don't need to sample randomizers from the full field,
-    //         // only from 128-bit strings.
-    //         randomizer = u128::rand(rng).into();
-    //     }
-    //     total_c -= &vk.g.mul(g_multiplier);
-    //     total_c -= &vk.gamma_g.mul(gamma_g_multiplier);
-    //     end_timer!(combination_time);
-    //
-    //     let to_affine_time = start_timer!(|| "Converting results to affine for pairing");
-    //     let affine_points = E::G1Projective::batch_normalization_into_affine(&[-total_w, total_c]);
-    //     let (total_w, total_c) = (affine_points[0], affine_points[1]);
-    //     end_timer!(to_affine_time);
-    //
-    //     let pairing_time = start_timer!(|| "Performing product of pairings");
-    //     let result = E::product_of_pairings(&[
-    //         (total_w.into(), vk.prepared_beta_h.clone()),
-    //         (total_c.into(), vk.prepared_h.clone()),
-    //     ])
-    //         .is_one();
-    //     end_timer!(pairing_time);
-    //     end_timer!(check_time, || format!("Result: {}", result));
-    //     Ok(result)
-    // }
-    //
+
+    /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
+    /// `commitment_i` at `point_i`.
+    pub fn batch_check<R: RngCore>(
+        vk: &PreparedVerifierKey<E>,
+        commitments: &[E::G1Affine],
+        points: &[E::Fr],
+        values: &[E::Fr],
+        proofs: &[E::G1Affine],
+        rng: &mut R,
+    ) -> Result<bool, Error> {
+        let check_time =
+            start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
+
+        let mut total_c = <E::G1Projective>::zero();
+        let mut total_w = <E::G1Projective>::zero();
+
+        let combination_time = start_timer!(|| "Combining commitments and proofs");
+        let mut randomizer = E::Fr::one();
+        // Instead of multiplying g in each turn, we simply accumulate
+        // it's coefficients and perform a final multiplication at the end.
+        let mut g_multiplier = E::Fr::zero();
+        for (((c, z), v), w) in commitments.iter()
+            .zip(points)
+            .zip(values)
+            .zip(proofs) {
+                let mut temp = w.mul(*z); // $x_i [q_i(x)]_1$
+                temp.add_assign_mixed(&c); // $[p_i(x)]_1 + x_i [q_i(x)]_1$
+                let c = temp;
+                g_multiplier += &(randomizer * v); // $r_i y_i$
+                total_c += &c.mul(randomizer.into()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
+                total_w += &w.mul(randomizer); //  $r_i [q_i(x)]_1$
+                // We don't need to sample randomizers from the full field,
+                // only from 128-bit strings.
+                randomizer = u128::rand(rng).into();
+        }
+        total_c -= &vk.g.mul(g_multiplier); // $(\sum_i r_i y_i) [1]_1$
+        end_timer!(combination_time);
+
+        let to_affine_time = start_timer!(|| "Converting results to affine for pairing");
+        let affine_points = E::G1Projective::batch_normalization_into_affine(&[-total_w, total_c]);
+        let (total_w, total_c) = (affine_points[0], affine_points[1]);
+        end_timer!(to_affine_time);
+
+        let pairing_time = start_timer!(|| "Performing product of pairings");
+        let result = E::product_of_pairings(&[
+            (total_w.into(), vk.prepared_beta_h.clone()),
+            (total_c.into(), vk.prepared_h.clone()),
+        ])
+            .is_one();
+        end_timer!(pairing_time);
+        end_timer!(check_time, || format!("Result: {}", result));
+        Ok(result)
+    }
+
     pub(crate) fn check_degree_is_too_large(
         num_coefficients: usize,
         num_powers: usize,
@@ -276,52 +285,6 @@ impl<E, P> KZG10<E, P>
             Ok(())
         }
     }
-    //
-    // pub(crate) fn check_hiding_bound(
-    //     hiding_poly_degree: usize,
-    //     num_powers: usize,
-    // ) -> Result<(), Error> {
-    //     if hiding_poly_degree == 0 {
-    //         Err(Error::HidingBoundIsZero)
-    //     } else if hiding_poly_degree >= num_powers {
-    //         // The above check uses `>=` because committing to a hiding poly with
-    //         // degree `hiding_poly_degree` requires `hiding_poly_degree + 1`
-    //         // powers.
-    //         Err(Error::HidingBoundToolarge {
-    //             hiding_poly_degree,
-    //             num_powers,
-    //         })
-    //     } else {
-    //         Ok(())
-    //     }
-    // }
-    //
-    // pub(crate) fn check_degrees_and_bounds<'a>(
-    //     supported_degree: usize,
-    //     max_degree: usize,
-    //     enforced_degree_bounds: Option<&[usize]>,
-    //     p: &'a LabeledPolynomial<E::Fr, P>,
-    // ) -> Result<(), Error> {
-    //     if let Some(bound) = p.degree_bound() {
-    //         let enforced_degree_bounds =
-    //             enforced_degree_bounds.ok_or(Error::UnsupportedDegreeBound(bound))?;
-    //
-    //         if enforced_degree_bounds.binary_search(&bound).is_err() {
-    //             Err(Error::UnsupportedDegreeBound(bound))
-    //         } else if bound < p.degree() || bound > max_degree {
-    //             return Err(Error::IncorrectDegreeBound {
-    //                 poly_degree: p.degree(),
-    //                 degree_bound: p.degree_bound().unwrap(),
-    //                 supported_degree,
-    //                 label: p.label().to_string(),
-    //             });
-    //         } else {
-    //             Ok(())
-    //         }
-    //     } else {
-    //         Ok(())
-    //     }
-    // }
 }
 
 fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(

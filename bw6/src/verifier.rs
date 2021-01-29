@@ -6,7 +6,7 @@ use ark_std::{UniformRand, test_rng};
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey};
+use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, KZG_BW6, kzg};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
@@ -64,7 +64,7 @@ impl Verifier {
         let t_multiexp = start_timer!(|| "multiexp");
         let nu_repr = nu.into_repr();
         let w2_comm = utils::horner(&[proof.acc_x_comm, proof.acc_y_comm], nu_repr).into_affine();
-        let w1_comm = utils::horner(&[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr);
+        let w1_comm = utils::horner(&[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm], nu_repr).into_affine();
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
@@ -73,27 +73,26 @@ impl Verifier {
         let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
         end_timer!(t_opening_points);
 
-        let r: F = u128::rand(rng).into(); //TODO: deterministic
+        let kzg_vk = kzg::PreparedVerifierKey {
+            g: self.vk.g,
+            prepared_h:  self.vk.prepared_h.clone(),
+            prepared_beta_h:  self.vk.prepared_beta_h.clone()
+        };
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        let c = w1_comm + w2_comm.mul(r); //128-bit mul //TODO: w2_comm is affine
-        let v = self.vk.g.mul(w1_zeta + r * w2_zeta_omega); //377-bit FIXED BASE mul
-        let z = proof.w1_proof.mul(zeta) + proof.w2_proof.mul(r * zeta_omega); // 128-bit mul + 377 bit mul
-        let lhs = c - v + z;
-        let mut rhs = proof.w2_proof.mul(r);  //128-bit mul
-        rhs.add_assign_mixed(&proof.w1_proof);
-        let to_affine = G1Projective::batch_normalization_into_affine(&[lhs, -rhs]); // Basically, not required, BW6 Miller's loop is in projective afair
-        let (lhs_affine, rhs_affine) = (to_affine[0], to_affine[1]);
-        assert!(BW6_761::product_of_pairings(&[
-            (lhs_affine.into(), self.vk.prepared_h.clone()),
-            (rhs_affine.into(), self.vk.prepared_beta_h.clone()),
-        ]).is_one());
+        assert!(KZG_BW6::batch_check(&kzg_vk,
+                                     &[w1_comm, w2_comm],
+                                     &[zeta, zeta_omega],
+                                     &[w1_zeta, w2_zeta_omega],
+                                     &[proof.w1_proof, proof.w2_proof],
+                                     rng, //TODO: deterministic
+        ).is_ok());
         end_timer!(t_kzg_batch_opening);
 
-        let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
-        endo::subgroup_check(&lhs);
-        endo::subgroup_check(&rhs);
-        end_timer!(t_lazy_subgroup_checks);
+        // let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
+        // endo::subgroup_check(&lhs);
+        // endo::subgroup_check(&rhs);
+        // end_timer!(t_lazy_subgroup_checks);
 
         return {
             let b = proof.b_zeta;
