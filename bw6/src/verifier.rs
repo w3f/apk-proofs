@@ -1,4 +1,4 @@
-use ark_bw6_761::Fr as F;
+use ark_bw6_761::{Fr as F, BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField};
 use ark_std::test_rng;
@@ -6,27 +6,36 @@ use ark_std::test_rng;
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, KZG_BW6, nums_point_in_g1_complement};
+use crate::{endo, Proof, PublicKey, utils, KZG_BW6, nums_point_in_g1_complement};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
+use crate::kzg::{VerifierKey, PreparedVerifierKey};
+use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
+use ark_std::convert::TryInto;
+use crate::utils::lagrange_evaluations;
 
 pub struct Verifier {
-    vk: PreparedVerifierKey,
-    pks_comm: SignerSetCommitment,
+    domain: Radix2EvaluationDomain<Fr>,
+    kzg_pvk: PreparedVerifierKey<BW6_761>,
     h: ark_bls12_377::G1Affine,
+    pks_comm: SignerSetCommitment,
     preprocessed_transcript: Transcript,
 }
 
 impl Verifier {
     pub fn new(
-        vk: PreparedVerifierKey,
+        domain_size: u64,
+        kzg_vk: VerifierKey<BW6_761>,
         pks_comm: SignerSetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&pks_comm);
-        Self { vk, pks_comm, h: nums_point_in_g1_complement(), preprocessed_transcript: empty_transcript }
+        let domain_size = domain_size.try_into().expect("domain size doesn't fit usize");
+        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
+        let kzg_pvk = kzg_vk.prepare();
+        Self { domain, kzg_pvk, h: nums_point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
     }
 
     pub fn verify(
@@ -49,7 +58,7 @@ impl Verifier {
         let zeta = transcript.get_128_bit_challenge(b"zeta");
 
         let t_accountability = start_timer!(|| "accountability check");
-        let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.vk.domain);
+        let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
         assert_eq!(b_at_zeta, proof.b_zeta);
         // accountability
         end_timer!(t_accountability);
@@ -70,19 +79,19 @@ impl Verifier {
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
         let w1_zeta = utils::horner_field(&[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta], nu);
-        let zeta_omega = zeta * self.vk.domain.group_gen;
+        let zeta_omega = zeta * self.domain.group_gen;
         let w2_zeta_omega = utils::horner_field(&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega], nu);
         end_timer!(t_opening_points);
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.vk.kzg_vk_prepared,
+        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
                                                              &[w1_comm, w2_comm],
                                                              &[zeta, zeta_omega],
                                                              &[w1_zeta, w2_zeta_omega],
                                                              &[proof.w1_proof, proof.w2_proof],
                                                              rng, //TODO: deterministic
         );
-        assert!(KZG_BW6::batch_check_aggregated(&self.vk.kzg_vk_prepared, total_c, total_w).is_ok());
+        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w).is_ok());
         end_timer!(t_kzg_batch_opening);
 
         let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
@@ -113,13 +122,13 @@ impl Verifier {
 
             let a3 = b * (F::one() - b);
 
-            let evals = &self.vk.lagrange_evaluations(zeta);
+            let evals = lagrange_evaluations(zeta, self.domain);
             let apk = apk.0.into_affine();
             let apk_plus_h = self.h + apk;
             let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
             let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
-            let s = zeta - self.vk.domain.group_gen_inv;
+            let s = zeta - self.domain.group_gen_inv;
             a1 * s + f * (a2 * s + f * (a3 + f * (a4 + f * a5))) == proof.q_zeta * evals.vanishing_polynomial
         };
     }

@@ -20,7 +20,7 @@ pub use signer_set::{SignerSet, SignerSetCommitment};
 mod kzg;
 mod setup;
 
-use setup::{ProverKey, PreparedVerifierKey};
+use setup::ProverKey;
 
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::PairingEngine;
@@ -90,7 +90,7 @@ mod tests {
         let rng = &mut test_rng();
 
         let log_domain_size = 4;
-        let domain_size = 2u32.pow(log_domain_size);
+        let domain_size = 2u64.pow(log_domain_size);
 
         let t_setup = start_timer!(|| format!("BW6 setup for log(domain_size) = {}", log_domain_size));
         let params = Params::generate(domain_size, rng);
@@ -105,7 +105,7 @@ mod tests {
         end_timer!(pks_commitment_);
 
         let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
-        let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(domain_size, params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let b: BitVec = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
