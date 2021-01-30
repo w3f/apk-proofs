@@ -20,7 +20,7 @@ use ark_poly_commit::Error;
 use ark_poly_commit::kzg10::Powers;
 use rand::RngCore;
 
-/// `UniversalParams` are the universal parameters for the KZG10 scheme.
+/// `Params` are the parameters for the KZG10 scheme.
 #[derive(Clone, Debug)]
 pub struct Params<E: PairingEngine> {
     /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
@@ -31,7 +31,37 @@ pub struct Params<E: PairingEngine> {
     pub beta_h: E::G2Affine,
 }
 
-/// `VerifierKey` is used to check evaluation proofs for a given commitment.
+impl <E: PairingEngine> Params<E> {
+    pub fn get_vk(&self) -> VerifierKey<E> {
+        VerifierKey {
+            g: self.powers_of_g[0],
+            h: self.h,
+            beta_h: self.beta_h,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct VerifierKey<E: PairingEngine> {
+    /// The generator of G1.
+    pub g: E::G1Affine,
+    /// The generator of G2.
+    pub h: E::G2Affine,
+    /// \beta times the above generator of G2.
+    pub beta_h: E::G2Affine,
+}
+
+impl <E: PairingEngine> VerifierKey<E> {
+    pub fn prepare(&self) -> PreparedVerifierKey<E> {
+        PreparedVerifierKey {
+            g: self.g,
+            prepared_h: self.h.into(),
+            prepared_beta_h: self.beta_h.into(),
+        }
+    }
+}
+
+/// `PreparedVerifierKey` is used to check evaluation proofs for a given commitment.
 #[derive(Clone, Debug)]
 pub struct PreparedVerifierKey<E: PairingEngine> {
     /// The generator of G1.
