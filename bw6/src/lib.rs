@@ -58,6 +58,14 @@ pub struct Proof {
 }
 
 
+use ark_ff::field_new;
+const H_X: F = field_new!(F, "0");
+const H_Y: F = field_new!(F, "1");
+fn nums_point_in_g1_complement() -> ark_bls12_377::G1Affine {
+    ark_bls12_377::G1Affine::new(H_X, H_Y, false)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,6 +77,13 @@ mod tests {
     use crate::setup::Params;
     use rand::Rng;
     use ark_std::convert::TryInto;
+
+    #[test]
+    fn h_is_not_in_g1() {
+        let h = nums_point_in_g1_complement();
+        assert!(h.is_on_curve());
+        assert!(!h.is_in_correct_subgroup_assuming_on_curve());
+    }
 
     #[test]
     fn apk_proof() {

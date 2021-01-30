@@ -6,7 +6,7 @@ use ark_std::test_rng;
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 
-use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, KZG_BW6};
+use crate::{endo, Proof, PublicKey, utils, PreparedVerifierKey, KZG_BW6, nums_point_in_g1_complement};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
@@ -14,6 +14,7 @@ use crate::signer_set::SignerSetCommitment;
 pub struct Verifier {
     vk: PreparedVerifierKey,
     pks_comm: SignerSetCommitment,
+    h: ark_bls12_377::G1Affine,
     preprocessed_transcript: Transcript,
 }
 
@@ -25,7 +26,7 @@ impl Verifier {
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&pks_comm);
-        Self { vk, pks_comm, preprocessed_transcript: empty_transcript }
+        Self { vk, pks_comm, h: nums_point_in_g1_complement(), preprocessed_transcript: empty_transcript }
     }
 
     pub fn verify(
@@ -114,9 +115,9 @@ impl Verifier {
 
             let evals = &self.vk.lagrange_evaluations(zeta);
             let apk = apk.0.into_affine();
-            let apk_plus_h = self.vk.h + apk;
-            let a4 = (x1 - self.vk.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
-            let a5 = (y1 - self.vk.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
+            let apk_plus_h = self.h + apk;
+            let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
+            let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
             let s = zeta - self.vk.domain.group_gen_inv;
             a1 * s + f * (a2 * s + f * (a3 + f * (a4 + f * a5))) == proof.q_zeta * evals.vanishing_polynomial

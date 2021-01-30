@@ -7,7 +7,7 @@ use ark_poly::univariate::DensePolynomial;
 
 use bitvec::vec::BitVec;
 
-use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
+use crate::{KZG_BW6, Proof, ProverKey, PublicKey, nums_point_in_g1_complement};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
@@ -31,6 +31,7 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 pub struct Prover<'a> {
     pk: ProverKey<'a>,
     pks: &'a[PublicKey],
+    h: ark_bls12_377::G1Affine,
     preprocessed_transcript: Transcript,
 }
 
@@ -43,7 +44,7 @@ impl<'a> Prover<'a> {
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
-        Self { pk, pks, preprocessed_transcript: empty_transcript }
+        Self { pk, pks, h: nums_point_in_g1_complement(), preprocessed_transcript: empty_transcript }
     }
 
     #[allow(non_snake_case)]
@@ -67,8 +68,7 @@ impl<'a> Prover<'a> {
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let h = self.pk.h;
-        let mut acc = vec![h;m+1];
+        let mut acc = vec![self.h; m+1];
         for (i, (b, p)) in b.iter().zip(self.pks.iter()).enumerate() {
             acc[i+1] = if *b {
                 acc[i] + p.0.into_affine()
@@ -87,8 +87,8 @@ impl<'a> Prover<'a> {
         assert_eq!(pks_y.len(), m);
         assert_eq!(acc_x.len(), m+1);
         assert_eq!(acc_y.len(), m+1);
-        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
-        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + h);
+        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.h);
+        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.h);
 
         let mut b = b.iter()
             .map(|b| if *b { F::one() } else { F::zero() })
@@ -195,8 +195,8 @@ impl<'a> Prover<'a> {
 
 
 
-        let acc_minus_h_x = add_constant(&x1, -self.pk.h.x, domain);
-        let acc_minus_h_y = add_constant(&y1, -self.pk.h.y, domain);
+        let acc_minus_h_x = add_constant(&x1, -self.h.x, domain);
+        let acc_minus_h_y = add_constant(&y1, -self.h.y, domain);
 
         let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, domain);
         let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, domain);
