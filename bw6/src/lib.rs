@@ -101,7 +101,7 @@ mod tests {
         let signer_set = SignerSet::random(keyset_size, rng);
 
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = signer_set.commit(params.get_ck());
+        let pks_comm = signer_set.commit(domain_size as usize, &params.kzg_params.get_pk());
         end_timer!(pks_commitment_);
 
         let prover = Prover::new(domain_size as usize, params.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));

@@ -1,10 +1,11 @@
 use crate::{PublicKey, KZG_BW6, SecretKey};
-use ark_bw6_761::Fr;
-use ark_poly::{Evaluations, EvaluationDomain};
+use ark_bw6_761::{Fr, BW6_761};
+use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain};
 use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_ec::ProjectiveCurve;
 use crate::setup::CommitmentKey;
+use crate::kzg::ProverKey;
 
 pub struct SignerSet(Vec<PublicKey>);
 
@@ -19,19 +20,22 @@ impl SignerSet {
         self.0.len()
     }
 
-    pub fn commit(&self, ck: CommitmentKey) -> SignerSetCommitment {
-        assert!(self.0.len() <= ck.domain.size());
+    pub fn commit(&self, domain_size: usize, kzg_pk: &ProverKey<BW6_761>) -> SignerSetCommitment {
+        assert!(domain_size.is_power_of_two());
+        assert!(self.size() + 1 <= domain_size); // accounts for accumulator initial value h
+        assert!(domain_size <= kzg_pk.max_coeffs());
 
         let (pks_x, pks_y): (Vec<Fr>, Vec<Fr>) = self.0.iter()
             .map(|p| p.0.into_affine())
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, ck.domain).interpolate();
-        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, ck.domain).interpolate();
+        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
+        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
+        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
 
-        let pks_x_comm= KZG_BW6::commit(&ck.kzg_ck, &pks_x_poly).unwrap();
-        let pks_y_comm= KZG_BW6::commit(&ck.kzg_ck, &pks_y_poly).unwrap();
+        let pks_x_comm= KZG_BW6::commit(kzg_pk, &pks_x_poly).unwrap();
+        let pks_y_comm= KZG_BW6::commit(kzg_pk, &pks_y_poly).unwrap();
         SignerSetCommitment {
             pks_x_comm,
             pks_y_comm,
