@@ -52,7 +52,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     assert_eq!(b.len(), m); //the length of the bit vector must be equal to the total number of validators
     assert!(b.count_ones() > 0); //at least one person should have signed
 
-    let rng = &mut test_rng(); //Oana: is rng the seed for randomness generation? Alistair: is the same seed used for all randomness?
+    let rng = &mut test_rng(); //Oana: is rng the seed for randomness generation? Alistair: is the same seed used for all
 
     let apk = b.iter()
         .zip(pks.iter())
@@ -135,7 +135,7 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let acc_y_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
     
     //succinct accountable variables
-    let mut r_saccount;
+    let mut r_saccount :F = F::zero();
     let mut c_saccount = vec![F::zero(); n];
     let mut c_saccount_shifted = vec![F::zero(); n];
     let mut a_saccount = vec![F::zero(); n];
@@ -147,26 +147,27 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let mut c_saccount_comm : ark_bw6_761::G1Affine;
     let mut a_saccount_comm : ark_bw6_761::G1Affine;
     let mut acc_saccount = vec![F::zero(); n];
-    let mut acc_saccount_poly: DensePolynomial::<F>;
+    let mut acc_saccount_poly: DensePolynomial::<F> ;
     let mut acc_saccount_shifted = vec![F::zero(); n];
-    let mut acc_saccount_shifted_poly: DensePolynomial::<F>;    
+    let mut acc_saccount_shifted_poly: DensePolynomial::<F>;   
     let mut acc_saccount_comm: ark_bw6_761::G1Affine;
-    let mut sum_saccount :F;
-    let mut var_r_saccount :F;   
-    let mut var_r_2_saccount :F;
+    let mut sum_saccount :F = F::zero();
+    let mut var_r_saccount :F = F::one();   
+    let mut var_r_2_saccount :F = F::one();
     
-    let mut a6_saccount: Evaluations<F, GeneralEvaluationDomain<F>>;// TO DO: is this the correct type? 
-    let mut a7_saccount: Evaluations<F, GeneralEvaluationDomain<F>>;// TO DO: is this the correct type? 
-    let mut acc_saccount_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace acc_saccount due to Rust move
-    let mut acc_saccount_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace acc_saccount_shifted due to Rust move
+    let mut a_saccount_shifted_eval: Evaluations<F, GeneralEvaluationDomain<F>>;// 
+    let mut a6_saccount: Evaluations<F, GeneralEvaluationDomain<F>>;// 
+    let mut a7_saccount: Evaluations<F, GeneralEvaluationDomain<F>>;// 
+    let mut acc_saccount_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// TO DO: Is this needed as evaluation needs to be done on 4*n size domain?
+    let mut acc_saccount_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace acc_saccount_shifted 
     let mut c_saccount_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace c_saccount
     let mut c_saccount_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace c_saccount_shifted
     let mut a6_saccount_poly: DensePolynomial::<F>;
     let mut a7_saccount_poly: DensePolynomial::<F>;
 
-    let acc_saccount_zeta: F;
-    let c_saccount_zeta: F;
-    let r_saccount_zeta_omega: F;
+    let acc_saccount_zeta: F = F::zero();
+    let c_saccount_zeta: F = F::zero() ;
+    let r_saccount_zeta_omega: F = F::zero();
     let r_saccount_poly: DensePolynomial::<F>;
 
     if let ProofScheme::SuccinctAccountable = scheme {
@@ -213,6 +214,14 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
         acc_saccount_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_saccount_poly, None, None).unwrap().0.0; 
 
         sum_saccount = F::zero(); 
+        for i in 0..n/256 {
+            var_r_saccount = var_r_saccount*r_saccount; //TO DO: include a more efficient function to compute this using pow 2
+        }
+
+        for i in 0..256 {
+            var_r_2_saccount = var_r_2_saccount*(F::one() + F::one()); //TO DO: include a more efficient function to compute this using pow 2
+        }
+        //var_r_2_saccount = r_saccount*var_r_2_saccount^{-1}; //TO DO: the field inversion is not right here
 
     }
 
@@ -225,18 +234,19 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     //let domain = GeneralEvaluationDomain::<F>::new(4*n).unwrap(); //Initial location
     //assert_eq!(domain.size(), 4*n); //Initial location
 
-    let B = b_poly.evaluate_over_domain_by_ref(domain); // TO DO: is this needed because of Rust's use of move when b? No, because of use of domain instead of subdomain
+    let B = b_poly.evaluate_over_domain_by_ref(domain); 
     let x1 = acc_x_poly.evaluate_over_domain_by_ref(domain);
     let y1 = acc_y_poly.evaluate_over_domain_by_ref(domain);
     let x2 = pks_x_poly.evaluate_over_domain_by_ref(domain);
     let y2 = pks_y_poly.evaluate_over_domain_by_ref(domain);
     let x3 = acc_x_shifted_poly.evaluate_over_domain(domain);
     let y3 = acc_y_shifted_poly.evaluate_over_domain(domain);// TO DO: what is the difference between evaluate_over_domain and evaluate_over_domain_by_ref ?
-    let L1 = l1_poly.evaluate_over_domain(domain);
-    let Ln = ln_poly.evaluate_over_domain(domain);
+    let L1 = l1_poly.evaluate_over_domain(domain);// this is l0 in my write-up
+    let Ln = ln_poly.evaluate_over_domain(domain);// this is ln-1 in my write-up
     //acc_saccount_shifted_eval = acc_saccount_shifted_poly.evaluate_over_domain_by_ref(domain);
     //acc_saccount_eval = acc_saccount_poly.evaluate_over_domain_by_ref(domain);
     //c_saccount_eval = c_saccount_poly.evaluate_over_domain_by_ref(domain);
+    //a_saccount_shifted_eval = a_saccount_shifted_poly.evaluate_over_domain_by_ref(domain);
 
     let nB = Evaluations::from_vec_and_domain(B.evals.iter().map(|x| F::one() - x).collect(),domain);
 
@@ -288,8 +298,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln); //a5 in Oana's writeup
     let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln); //a6 in Oana's writeup
     
-    //a6_saccount = &c_saccount_shifted_eval - &mul_const(&l1_poly, F::one() - var_r_saccount, domain);
-    //a7_saccount = &acc_saccount_shifted_eval - &acc_saccount_eval - &c_saccount_eval * &B;
+    //a6_saccount = &c_saccount_shifted_eval - &(&c_saccount_eval*&add_constant(&mul_constant(&a_saccount_shifted_eval,var_r_2_saccount -  F::one() -  F::one(), domain), F::one() + F::one(), domain))) - &mul_constant(&l1_poly, F::one() - var_r_saccount, domain); //a4 in my write-up
+    //a7_saccount = &acc_saccount_shifted_eval - &acc_saccount_eval - &c_saccount_eval * &B + &mul_constant(&Ln, sum, domain); //a7 in my write-up
 
     let a1_poly = a1.interpolate();
     let a2_poly = a2.interpolate();
@@ -311,15 +321,13 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let a1_poly_ = &mul_by_x(&a1_poly) - &mul(pk.domain.group_gen_inv, &a1_poly);
     let a2_poly_ = &mul_by_x(&a2_poly) - &mul(pk.domain.group_gen_inv, &a2_poly);
 
-    //a6_saccount_poly_ = a6_saccount_poly - &mul(var_r_2_saccount - (F::one() + F::one()), &a_saccount_shift_poly) - &mul(1-var_r_saccount, &l1_poly);
-    //a7_saccount_poly_ = a7_saccount_poly + &mul(sum, &ln_poly);
     assert_eq!(a1_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a2_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a3_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a4_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a5_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
-    //assert_eq!(a6_saccount_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
-    //assert_eq!(a7_saccount_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
+    //assert_eq!(a6_saccount_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
+    //assert_eq!(a7_saccount_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
 
     let phi =  F::rand(rng); // TO DO: put a comment on what is this random is being used for? here V
     
