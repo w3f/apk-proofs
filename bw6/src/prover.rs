@@ -29,6 +29,7 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 }
 
 pub struct Prover<'a> {
+    domain_size: usize,
     pk: ProverKey<'a>,
     pks: &'a[PublicKey],
     h: ark_bls12_377::G1Affine,
@@ -37,14 +38,16 @@ pub struct Prover<'a> {
 
 impl<'a> Prover<'a> {
     pub fn new(
+        domain_size: usize,
         pk: ProverKey<'a>,
         signer_set_comm: &SignerSetCommitment,
         pks: &'a[PublicKey],
         mut empty_transcript: Transcript,
     ) -> Self {
+        assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
-        Self { pk, pks, h: nums_point_in_g1_complement(), preprocessed_transcript: empty_transcript }
+        Self { domain_size, pk, pks, h: nums_point_in_g1_complement(), preprocessed_transcript: empty_transcript }
     }
 
     #[allow(non_snake_case)]
@@ -94,7 +97,7 @@ impl<'a> Prover<'a> {
             .map(|b| if *b { F::one() } else { F::zero() })
             .collect::<Vec<_>>();
 
-        let n = self.pk.domain_size;
+        let n = self.domain_size;
         let subdomain = Radix2EvaluationDomain::<F>::new(n).unwrap();
 
         // Extend the computation to the whole domain
