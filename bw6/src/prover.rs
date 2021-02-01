@@ -2,7 +2,7 @@ use ark_bw6_761::Fr as F;
 use ark_ec::ProjectiveCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_ff::{FftField, Field, One, Zero};
-use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial};
+use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 
 use bitvec::vec::BitVec;
@@ -95,7 +95,7 @@ impl<'a> Prover<'a> {
             .collect::<Vec<_>>();
 
         let n = self.pk.domain_size;
-        let subdomain = GeneralEvaluationDomain::<F>::new(n).unwrap();
+        let subdomain = Radix2EvaluationDomain::<F>::new(n).unwrap();
 
         // Extend the computation to the whole domain
         b.resize_with(n, || F::zero());
@@ -216,8 +216,8 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.degree(), 2*(n-1));
         assert_eq!(a5_poly.degree(), 2*(n-1));
 
-        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(self.pk.domain.group_gen_inv, &a1_poly);
-        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(self.pk.domain.group_gen_inv, &a2_poly);
+        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(subdomain.group_gen_inv, &a1_poly);
+        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(subdomain.group_gen_inv, &a2_poly);
         assert_eq!(a1_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a2_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a3_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
@@ -233,7 +233,7 @@ impl<'a> Prover<'a> {
         }
 
         let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
-        w = &mul_by_x(&w) - &mul(self.pk.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
+        w = &mul_by_x(&w) - &mul(subdomain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
         w = &w + &mul(powers_of_phi[1], &a3_poly);
         w = &w + &mul(powers_of_phi[2], &a4_poly);
         w = &w + &mul(powers_of_phi[3], &a5_poly);
@@ -258,7 +258,7 @@ impl<'a> Prover<'a> {
         let acc_y_zeta = acc_y_poly.evaluate(&zeta);
         let q_zeta = q_poly.evaluate(&zeta);
 
-        let zeta_omega = zeta * self.pk.domain.group_gen;
+        let zeta_omega = zeta * subdomain.group_gen;
         let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
         let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
