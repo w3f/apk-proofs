@@ -17,7 +17,6 @@ use bench_utils::{end_timer, start_timer};
 // use rayon::prelude::*;
 
 use ark_poly_commit::Error;
-use ark_poly_commit::kzg10::Powers;
 use rand::RngCore;
 
 /// `Params` are the parameters for the KZG10 scheme.
@@ -32,12 +31,32 @@ pub struct Params<E: PairingEngine> {
 }
 
 impl <E: PairingEngine> Params<E> {
+    pub fn get_pk(&self) -> ProverKey<E> {
+        ProverKey(self.powers_of_g.clone()) //TODO: avoid cloning
+    }
+
     pub fn get_vk(&self) -> VerifierKey<E> {
         VerifierKey {
             g: self.powers_of_g[0],
             h: self.h,
             beta_h: self.beta_h,
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ProverKey<E: PairingEngine> (
+    /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
+    Vec<E::G1Affine>
+);
+
+impl <E: PairingEngine> ProverKey<E> {
+    pub fn max_coeffs(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn max_degree(&self) -> usize {
+        self.max_coeffs() - 1
     }
 }
 
@@ -140,10 +159,10 @@ impl<E, P> KZG10<E, P>
 
     /// Outputs a commitment to `polynomial`.
     pub fn commit(
-        powers: &Powers<E>,
+        powers: &ProverKey<E>,
         polynomial: &P
     ) -> Result<E::G1Affine, Error> {
-        Self::check_degree_is_too_large(polynomial.degree(), powers.size())?;
+        assert!(polynomial.degree() <= powers.max_degree());
 
         let commit_time = start_timer!(|| format!(
             "Committing to polynomial of degree {} with hiding_bound: {:?}",
@@ -156,7 +175,7 @@ impl<E, P> KZG10<E, P>
 
         let msm_time = start_timer!(|| "MSM to compute commitment to plaintext poly");
         let commitment = VariableBaseMSM::multi_scalar_mul(
-            &powers.powers_of_g[num_leading_zeros..],
+            &powers.0[num_leading_zeros..],
             &plain_coeffs,
         );
         end_timer!(msm_time);
@@ -183,16 +202,16 @@ impl<E, P> KZG10<E, P>
     }
 
     pub(crate) fn open_with_witness_polynomial<'a>(
-        powers: &Powers<E>,
+        powers: &ProverKey<E>,
         witness_polynomial: &P,
     ) -> Result<E::G1Affine, Error> {
-        Self::check_degree_is_too_large(witness_polynomial.degree(), powers.size())?;
+        assert!(witness_polynomial.degree() <= powers.max_degree());
         let (num_leading_zeros, witness_coeffs) =
             skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
 
         let witness_comm_time = start_timer!(|| "Computing commitment to witness polynomial");
         let w = VariableBaseMSM::multi_scalar_mul(
-            &powers.powers_of_g[num_leading_zeros..],
+            &powers.0[num_leading_zeros..],
             &witness_coeffs,
         );
         end_timer!(witness_comm_time);
@@ -202,11 +221,11 @@ impl<E, P> KZG10<E, P>
 
     /// On input a polynomial `p` and a point `point`, outputs a proof for the same.
     pub fn open<'a>(
-        powers: &Powers<E>,
+        powers: &ProverKey<E>,
         p: &P,
         point: P::Point
     ) -> Result<E::G1Affine, Error> {
-        Self::check_degree_is_too_large(p.degree(), powers.size())?;
+        assert!(p.degree() <= powers.max_degree());
         let open_time = start_timer!(|| format!("Opening polynomial of degree {}", p.degree()));
 
         let witness_time = start_timer!(|| "Computing witness polynomials");
@@ -317,20 +336,6 @@ impl<E, P> KZG10<E, P>
         let result = Self::batch_check_aggregated(vk, total_c, total_w)?;
         end_timer!(check_time, || format!("Result: {}", result));
         Ok(result)
-    }
-
-    pub(crate) fn check_degree_is_too_large(
-        num_coefficients: usize,
-        num_powers: usize,
-    ) -> Result<(), Error> {
-        if num_coefficients > num_powers {
-            Err(Error::TooManyCoefficients {
-                num_coefficients,
-                num_powers,
-            })
-        } else {
-            Ok(())
-        }
     }
 }
 
