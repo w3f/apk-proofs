@@ -104,7 +104,7 @@ mod tests {
         let pks_comm = signer_set.commit(params.get_ck());
         end_timer!(pks_commitment_);
 
-        let prover = Prover::new(domain_size as usize, params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+        let prover = Prover::new(domain_size as usize, params.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
         let verifier = Verifier::new(domain_size, params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let b: BitVec = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
