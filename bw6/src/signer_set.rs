@@ -33,8 +33,8 @@ impl SignerSet {
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
         let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
 
-        let pks_x_comm= KZG_BW6::commit(kzg_pk, &pks_x_poly).unwrap();
-        let pks_y_comm= KZG_BW6::commit(kzg_pk, &pks_y_poly).unwrap();
+        let pks_x_comm= KZG_BW6::commit(kzg_pk, &pks_x_poly);
+        let pks_y_comm= KZG_BW6::commit(kzg_pk, &pks_y_poly);
         SignerSetCommitment {
             pks_x_comm,
             pks_y_comm,

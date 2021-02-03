@@ -19,7 +19,7 @@ impl Setup {
         let max_poly_degree = 3 * domain_size - 3; // deg(q) = 3n-3
         let log_ceil_max_poly_degree = max_poly_degree.next_power_of_two().trailing_zeros();
         assert!(log_ceil_max_poly_degree <= <Fr as FftField>::FftParams::TWO_ADICITY, "");
-        let kzg_params = KZG_BW6::setup(max_poly_degree, rng).unwrap();
+        let kzg_params = KZG_BW6::setup(max_poly_degree, rng);
 
 
         Self {

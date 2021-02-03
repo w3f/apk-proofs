@@ -91,7 +91,7 @@ impl Verifier {
                                                              &[proof.w1_proof, proof.w2_proof],
                                                              rng, //TODO: deterministic
         );
-        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w).is_ok());
+        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
         end_timer!(t_kzg_batch_opening);
 
         let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");

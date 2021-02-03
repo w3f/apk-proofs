@@ -16,7 +16,6 @@ use bench_utils::{end_timer, start_timer};
 // #[cfg(feature = "parallel")]
 // use rayon::prelude::*;
 
-use ark_poly_commit::Error;
 use rand::RngCore;
 
 /// `Params` are the parameters for the KZG10 scheme.
@@ -112,10 +111,10 @@ impl<E, P> KZG10<E, P>
     pub fn setup<R: RngCore>(
         max_degree: usize,
         rng: &mut R,
-    ) -> Result<Params<E>, Error> {
-        if max_degree < 1 {
-            return Err(Error::DegreeIsZero);
-        }
+    ) -> Params<E> {
+        //TODO: was changed in https://github.com/arkworks-rs/poly-commit/pull/55/files
+        assert!(max_degree > 0, "max_degree should be positive");
+
         let setup_time = start_timer!(|| format!("KZG10::Setup with degree {}", max_degree));
         let beta = E::Fr::rand(rng);
         let g = E::G1Projective::rand(rng);
@@ -154,14 +153,14 @@ impl<E, P> KZG10<E, P>
             beta_h,
         };
         end_timer!(setup_time);
-        Ok(pp)
+        pp
     }
 
     /// Outputs a commitment to `polynomial`.
     pub fn commit(
         powers: &ProverKey<E>,
         polynomial: &P
-    ) -> Result<E::G1Affine, Error> {
+    ) -> E::G1Affine {
         assert!(polynomial.degree() <= powers.max_degree());
 
         let commit_time = start_timer!(|| format!(
@@ -180,7 +179,7 @@ impl<E, P> KZG10<E, P>
         );
         end_timer!(msm_time);
         end_timer!(commit_time);
-        Ok(commitment.into())
+        commitment.into()
     }
 
     /// Compute witness polynomial.
@@ -191,20 +190,20 @@ impl<E, P> KZG10<E, P>
     pub fn compute_witness_polynomial(
         p: &P,
         point: P::Point
-    ) -> Result<P, Error> {
+    ) -> P {
         let divisor = P::from_coefficients_vec(vec![-point, E::Fr::one()]);
 
         let witness_time = start_timer!(|| "Computing witness polynomial");
         let witness_polynomial = p / &divisor;
         end_timer!(witness_time);
 
-        Ok(witness_polynomial)
+        witness_polynomial
     }
 
     pub(crate) fn open_with_witness_polynomial<'a>(
         powers: &ProverKey<E>,
         witness_polynomial: &P,
-    ) -> Result<E::G1Affine, Error> {
+    ) -> E::G1Affine {
         assert!(witness_polynomial.degree() <= powers.max_degree());
         let (num_leading_zeros, witness_coeffs) =
             skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
@@ -216,7 +215,7 @@ impl<E, P> KZG10<E, P>
         );
         end_timer!(witness_comm_time);
 
-        Ok(w.into_affine())
+        w.into_affine()
     }
 
     /// On input a polynomial `p` and a point `point`, outputs a proof for the same.
@@ -224,12 +223,12 @@ impl<E, P> KZG10<E, P>
         powers: &ProverKey<E>,
         p: &P,
         point: P::Point
-    ) -> Result<E::G1Affine, Error> {
+    ) -> E::G1Affine {
         assert!(p.degree() <= powers.max_degree());
         let open_time = start_timer!(|| format!("Opening polynomial of degree {}", p.degree()));
 
         let witness_time = start_timer!(|| "Computing witness polynomials");
-        let witness_poly = Self::compute_witness_polynomial(p, point)?;
+        let witness_poly = Self::compute_witness_polynomial(p, point);
         end_timer!(witness_time);
 
         let proof = Self::open_with_witness_polynomial(
@@ -304,20 +303,20 @@ impl<E, P> KZG10<E, P>
         vk: &PreparedVerifierKey<E>,
         total_c: E::G1Projective,
         total_w: E::G1Projective,
-    ) -> Result<bool, Error> {
+    ) -> bool {
         let to_affine_time = start_timer!(|| "Converting results to affine for pairing");
         let affine_points = E::G1Projective::batch_normalization_into_affine(&[total_c, -total_w]);
         let (total_c, total_w) = (affine_points[0], affine_points[1]);
         end_timer!(to_affine_time);
 
         let pairing_time = start_timer!(|| "Performing product of pairings");
-        let result = E::product_of_pairings(&[
+        let valid = E::product_of_pairings(&[
             (total_c.into(), vk.prepared_h.clone()),
             (total_w.into(), vk.prepared_beta_h.clone()),
         ])
             .is_one();
         end_timer!(pairing_time);
-        Ok(result)
+        valid
     }
 
     /// Check that each `proof_i` in `proofs` is a valid proof of evaluation for
@@ -329,13 +328,13 @@ impl<E, P> KZG10<E, P>
         values: &[E::Fr],
         proofs: &[E::G1Affine],
         rng: &mut R,
-    ) -> Result<bool, Error> {
+    ) -> bool {
         let check_time =
             start_timer!(|| format!("Checking {} evaluation proofs", commitments.len()));
         let (total_c, total_w) = Self::aggregate_openings(vk, commitments, points, values, proofs, rng);
-        let result = Self::batch_check_aggregated(vk, total_c, total_w)?;
-        end_timer!(check_time, || format!("Result: {}", result));
-        Ok(result)
+        let valid = Self::batch_check_aggregated(vk, total_c, total_w);
+        end_timer!(check_time, || format!("Result: {}", valid));
+        valid
     }
 }
 
