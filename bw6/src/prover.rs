@@ -1,18 +1,17 @@
-use ark_bw6_761::Fr as F;
+use ark_bw6_761::{Fr as F, BW6_761};
 use ark_ec::ProjectiveCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_ff::{FftField, Field, One, Zero};
-use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial};
+use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::kzg10::Randomness;
-use ark_poly_commit::PCRandomness;
 
 use bitvec::vec::BitVec;
 
-use crate::{KZG_BW6, Proof, ProverKey, PublicKey};
+use crate::{KZG_BW6, Proof, PublicKey, point_in_g1_complement};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
+use crate::kzg::ProverKey;
 
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
@@ -31,21 +30,26 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 }
 
 pub struct Prover<'a> {
-    pk: ProverKey<'a>,
+    domain_size: usize,
+    pk: ProverKey<BW6_761>, //TODO: rename to kzg_pk
     pks: &'a[PublicKey],
+    h: ark_bls12_377::G1Affine,
     preprocessed_transcript: Transcript,
 }
 
 impl<'a> Prover<'a> {
     pub fn new(
-        pk: ProverKey<'a>,
+        domain_size: usize,
+        kzg_pk: ProverKey<BW6_761>,
         signer_set_comm: &SignerSetCommitment,
         pks: &'a[PublicKey],
         mut empty_transcript: Transcript,
     ) -> Self {
+        assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
+        assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
-        Self { pk, pks, preprocessed_transcript: empty_transcript }
+        Self { domain_size, pk: kzg_pk, pks, h: point_in_g1_complement(), preprocessed_transcript: empty_transcript }
     }
 
     #[allow(non_snake_case)]
@@ -69,8 +73,7 @@ impl<'a> Prover<'a> {
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let h = self.pk.h;
-        let mut acc = vec![h;m+1];
+        let mut acc = vec![self.h; m+1];
         for (i, (b, p)) in b.iter().zip(self.pks.iter()).enumerate() {
             acc[i+1] = if *b {
                 acc[i] + p.0.into_affine()
@@ -89,15 +92,15 @@ impl<'a> Prover<'a> {
         assert_eq!(pks_y.len(), m);
         assert_eq!(acc_x.len(), m+1);
         assert_eq!(acc_y.len(), m+1);
-        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
-        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + h);
+        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.h);
+        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.h);
 
         let mut b = b.iter()
             .map(|b| if *b { F::one() } else { F::zero() })
             .collect::<Vec<_>>();
 
-        let n = self.pk.domain_size;
-        let subdomain = GeneralEvaluationDomain::<F>::new(n).unwrap();
+        let n = self.domain_size;
+        let subdomain = Radix2EvaluationDomain::<F>::new(n).unwrap();
 
         // Extend the computation to the whole domain
         b.resize_with(n, || F::zero());
@@ -123,9 +126,9 @@ impl<'a> Prover<'a> {
         let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, subdomain).interpolate();
         let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, subdomain).interpolate();
 
-        let b_comm = KZG_BW6::commit(&self.pk.kzg_ck, &b_poly, None, None).unwrap().0.0;
-        let acc_x_comm = KZG_BW6::commit(&self.pk.kzg_ck, &acc_x_poly, None, None).unwrap().0.0;
-        let acc_y_comm = KZG_BW6::commit(&self.pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
+        let b_comm = KZG_BW6::commit(&self.pk, &b_poly);
+        let acc_x_comm = KZG_BW6::commit(&self.pk, &acc_x_poly);
+        let acc_y_comm = KZG_BW6::commit(&self.pk, &acc_y_poly);
 
         let phi = transcript.get_128_bit_challenge(b"phi");
 
@@ -197,8 +200,8 @@ impl<'a> Prover<'a> {
 
 
 
-        let acc_minus_h_x = add_constant(&x1, -self.pk.h.x, domain);
-        let acc_minus_h_y = add_constant(&y1, -self.pk.h.y, domain);
+        let acc_minus_h_x = add_constant(&x1, -self.h.x, domain);
+        let acc_minus_h_y = add_constant(&y1, -self.h.y, domain);
 
         let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, domain);
         let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, domain);
@@ -218,8 +221,8 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.degree(), 2*(n-1));
         assert_eq!(a5_poly.degree(), 2*(n-1));
 
-        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(self.pk.domain.group_gen_inv, &a1_poly);
-        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(self.pk.domain.group_gen_inv, &a2_poly);
+        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(subdomain.group_gen_inv, &a1_poly);
+        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(subdomain.group_gen_inv, &a2_poly);
         assert_eq!(a1_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a2_poly_.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a3_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
@@ -235,7 +238,7 @@ impl<'a> Prover<'a> {
         }
 
         let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
-        w = &mul_by_x(&w) - &mul(self.pk.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
+        w = &mul_by_x(&w) - &mul(subdomain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
         w = &w + &mul(powers_of_phi[1], &a3_poly);
         w = &w + &mul(powers_of_phi[2], &a4_poly);
         w = &w + &mul(powers_of_phi[3], &a5_poly);
@@ -244,8 +247,8 @@ impl<'a> Prover<'a> {
         assert_eq!(r, DensePolynomial::zero());
         assert_eq!(q_poly.degree(), 3*n-3);
 
-        assert_eq!(self.pk.kzg_ck.powers_of_g.len(), q_poly.degree()+1);
-        let q_comm = KZG_BW6::commit(&self.pk.kzg_ck, &q_poly, None, None).unwrap().0.0;
+        assert_eq!(self.pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
+        let q_comm = KZG_BW6::commit(&self.pk, &q_poly);
 
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
@@ -260,7 +263,7 @@ impl<'a> Prover<'a> {
         let acc_y_zeta = acc_y_poly.evaluate(&zeta);
         let q_zeta = q_poly.evaluate(&zeta);
 
-        let zeta_omega = zeta * self.pk.domain.group_gen;
+        let zeta_omega = zeta * subdomain.group_gen;
         let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
         let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
@@ -280,13 +283,13 @@ impl<'a> Prover<'a> {
         }
 
         let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
-        let w2_proof = KZG_BW6::open(&self.pk.kzg_ck, &w2, zeta_omega, &Randomness::empty()).unwrap().w;
+        let w2_proof = KZG_BW6::open(&self.pk, &w2, zeta_omega);
 
         let mut w1 = &pks_x_poly + &mul(powers_of_nu[0], &pks_y_poly);
         w1 = &w1 + &mul(powers_of_nu[1], &b_poly);
         w1 = &w1 + &mul(powers_of_nu[2], &q_poly);
         w1 = &w1 + &mul(powers_of_nu[3], &w2);
-        let w1_proof = KZG_BW6::open(&self.pk.kzg_ck, &w1, zeta, &Randomness::empty()).unwrap().w;
+        let w1_proof = KZG_BW6::open(&self.pk, &w1, zeta);
 
         Proof {
             b_comm,

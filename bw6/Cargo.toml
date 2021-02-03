@@ -15,7 +15,6 @@ ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", default-feature
 ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-poly-commit = { git = "https://github.com/swasilyev/poly-commit", branch = "kzg-fix", default-features = false }
 
 bench-utils = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 
