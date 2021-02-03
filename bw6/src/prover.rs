@@ -7,7 +7,7 @@ use ark_poly::univariate::DensePolynomial;
 
 use bitvec::vec::BitVec;
 
-use crate::{KZG_BW6, Proof, PublicKey, nums_point_in_g1_complement};
+use crate::{KZG_BW6, Proof, PublicKey, point_in_g1_complement};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
@@ -49,7 +49,7 @@ impl<'a> Prover<'a> {
         assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
-        Self { domain_size, pk: kzg_pk, pks, h: nums_point_in_g1_complement(), preprocessed_transcript: empty_transcript }
+        Self { domain_size, pk: kzg_pk, pks, h: point_in_g1_complement(), preprocessed_transcript: empty_transcript }
     }
 
     #[allow(non_snake_case)]

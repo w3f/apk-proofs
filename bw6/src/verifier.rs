@@ -1,3 +1,4 @@
+use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{Fr as F, BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField};
@@ -5,14 +6,14 @@ use ark_std::test_rng;
 
 use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
-
-use crate::{endo, Proof, PublicKey, utils, KZG_BW6, nums_point_in_g1_complement};
 use merlin::Transcript;
+
+use crate::{endo, Proof, PublicKey, utils, KZG_BW6, point_in_g1_complement};
+
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
-use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
-use ark_std::convert::TryInto;
+
 use crate::utils::lagrange_evaluations;
 
 pub struct Verifier {
@@ -25,17 +26,16 @@ pub struct Verifier {
 
 impl Verifier {
     pub fn new(
-        domain_size: u64,
+        domain_size: usize,
         kzg_vk: VerifierKey<BW6_761>,
         pks_comm: SignerSetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&pks_comm);
-        let domain_size = domain_size.try_into().expect("domain size doesn't fit usize");
         let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
         let kzg_pvk = kzg_vk.prepare();
-        Self { domain, kzg_pvk, h: nums_point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
+        Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
     }
 
     pub fn verify(

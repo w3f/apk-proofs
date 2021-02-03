@@ -4,7 +4,6 @@ use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain};
 use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_ec::ProjectiveCurve;
-use crate::setup::CommitmentKey;
 use crate::kzg::ProverKey;
 
 pub struct SignerSet(Vec<PublicKey>);
@@ -44,7 +43,7 @@ impl SignerSet {
     }
 
     pub fn random<R: Rng>(num_pks: usize, rng: &mut R) -> Self {
-        assert!(num_pks > 1); // https://github.com/arkworks-rs/poly-commit/issues/40
+        assert!(num_pks > 0);
         Self(
             (0..num_pks)
                 .map(|_| SecretKey::new(rng))

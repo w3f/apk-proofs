@@ -1,26 +1,26 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
 mod prover;
-mod verifier;
-
 pub use self::prover::*;
+
+mod verifier;
 pub use self::verifier::*;
 
 pub mod endo;
 pub mod utils;
-pub mod bls;
 
+pub mod bls;
 pub use bls::{Signature, SecretKey, PublicKey};
 
 mod transcript;
-mod signer_set;
 
+mod signer_set;
 pub use signer_set::{SignerSet, SignerSetCommitment};
 
 mod kzg;
-mod setup;
 
-use setup::ProverKey;
+mod setup;
+use setup::Setup;
 
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::PairingEngine;
@@ -61,7 +61,7 @@ pub struct Proof {
 use ark_ff::field_new;
 const H_X: F = field_new!(F, "0");
 const H_Y: F = field_new!(F, "1");
-fn nums_point_in_g1_complement() -> ark_bls12_377::G1Affine {
+fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
     ark_bls12_377::G1Affine::new(H_X, H_Y, false)
 }
 
@@ -69,18 +69,16 @@ fn nums_point_in_g1_complement() -> ark_bls12_377::G1Affine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
     use merlin::Transcript;
-    use ark_poly::{GeneralEvaluationDomain, EvaluationDomain};
     use bitvec::vec::BitVec;
-    use crate::setup::Params;
-    use rand::Rng;
     use ark_std::convert::TryInto;
+    use ark_std::test_rng;
+    use rand::Rng;
 
     #[test]
     fn h_is_not_in_g1() {
-        let h = nums_point_in_g1_complement();
+        let h = point_in_g1_complement();
         assert!(h.is_on_curve());
         assert!(!h.is_in_correct_subgroup_assuming_on_curve());
     }
@@ -88,24 +86,22 @@ mod tests {
     #[test]
     fn apk_proof() {
         let rng = &mut test_rng();
-
         let log_domain_size = 4;
-        let domain_size = 2u64.pow(log_domain_size);
 
-        let t_setup = start_timer!(|| format!("BW6 setup for log(domain_size) = {}", log_domain_size));
-        let params = Params::generate(domain_size, rng);
+        let t_setup = start_timer!(|| "setup");
+        let setup = Setup::generate(log_domain_size, rng);
         end_timer!(t_setup);
 
-        let keyset_size = rng.gen_range(1, params.max_keyset_size() + 1);
+        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
         let keyset_size = keyset_size.try_into().unwrap();
         let signer_set = SignerSet::random(keyset_size, rng);
 
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = signer_set.commit(domain_size as usize, &params.kzg_params.get_pk());
+        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
         end_timer!(pks_commitment_);
 
-        let prover = Prover::new(domain_size as usize, params.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
-        let verifier = Verifier::new(domain_size, params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
+        let prover = Prover::new(setup.domain_size, setup.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let b: BitVec = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
