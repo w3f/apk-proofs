@@ -2,9 +2,9 @@ use merlin::Transcript;
 use ark_serialize::CanonicalSerialize;
 use ark_ff::{Field, ToBytes};
 use ark_ec::ProjectiveCurve;
-use bitvec::vec::BitVec;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
+use crate::Bitmask;
 
 pub trait ApkTranscript {
 
@@ -16,7 +16,7 @@ pub trait ApkTranscript {
         self._append_bytes(b"pks_size", &(signer_set_comm.signer_set_size as u32));
     }
 
-    fn append_public_input(&mut self, apk: &PublicKey, bitmask: &BitVec);
+    fn append_public_input(&mut self, apk: &PublicKey, bitmask: &Bitmask);
 
     fn append_proof_point(&mut self, label: &'static [u8], point: &ark_bw6_761::G1Affine) {
         self._append_bytes(label, point);
@@ -40,14 +40,14 @@ impl ApkTranscript for Transcript {
         self._append_bytes(b"h", h);
     }
 
-    fn append_public_input(&mut self, apk: &PublicKey, bitmask: &BitVec) {
+    fn append_public_input(&mut self, apk: &PublicKey, bitmask: &Bitmask) {
         let apk = apk.0.into_affine();
         self._append_bytes(b"apk", &apk);
 
-        let bitmask = bitmask.clone().into_vec();
-        let mut buffer = vec![0; bitmask.serialized_size()];
-        bitmask.serialize(&mut buffer);
-        self.append_message(b"bitmask", &buffer);
+        // let bitmask = bitmask.clone().into_vec();
+        // let mut buffer = vec![0; bitmask.serialized_size()];
+        // bitmask.serialize(&mut buffer);
+        // self.append_message(b"bitmask", &buffer);
     }
 
     fn get_128_bit_challenge(&mut self, label: &'static [u8]) -> ark_bw6_761::Fr {

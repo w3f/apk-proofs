@@ -1,9 +1,10 @@
-use crate::KZG_BW6;
+use crate::{KZG_BW6, Bitmask};
 use ark_bw6_761::{Fr, BW6_761};
 use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain};
-use bitvec::vec::BitVec;
-use rand::Rng;
 use ark_ec::ProjectiveCurve;
+use rand::Rng;
+
+
 use crate::kzg::ProverKey;
 use crate::bls::{PublicKey, SecretKey};
 
@@ -57,7 +58,7 @@ impl SignerSet {
         return self.0.as_slice();
     }
 
-    pub fn get_by_mask(&self, b: &BitVec) -> Vec<&PublicKey> {
-        self.0.iter().zip(b.iter()).filter(|(_p, b)| **b).map(|(p, _b)| p).collect()
+    pub fn get_by_mask(&self, b: &Bitmask) -> Vec<&PublicKey> {
+        self.0.iter().zip(b.to_bits().iter()).filter(|(_p, b)| **b).map(|(p, _b)| p).collect()
     }
 }

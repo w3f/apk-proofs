@@ -3,13 +3,10 @@ use ark_bw6_761::{Fr as F, BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField};
 use ark_std::test_rng;
-
-use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement};
-
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
@@ -41,11 +38,11 @@ impl Verifier {
     pub fn verify(
         &self,
         apk: &PublicKey,
-        bitmask: &BitVec,
+        bitmask: &Bitmask,
         proof: &Proof,
     ) -> bool
     {
-        assert_eq!(bitmask.len(), self.pks_comm.signer_set_size);
+        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
         let mut transcript = self.preprocessed_transcript.clone();
         let rng = &mut test_rng(); //TODO: remove
         transcript.append_public_input(&apk, bitmask);
