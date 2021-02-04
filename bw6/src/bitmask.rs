@@ -126,4 +126,26 @@ mod tests {
         let chunks = bitmask.to_chunks_as_field_elements::<Fr>(4);
         assert_eq!(chunks.len(), 4);
     }
+
+
+    pub fn _test_to_field_element(set_bit_positions: Vec<usize>, expected: u128) {
+        let mut bits = vec![false; 128];
+        assert!(set_bit_positions.len() <= 128);
+        for i in set_bit_positions {
+            bits[i] = true;
+        }
+
+        let bitmask = Bitmask::from_bits(&bits);
+        let chunks = bitmask.to_chunks_as_field_elements::<Fr>(2);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0], Fr::from(expected));
+    }
+
+    #[test]
+    pub fn test_to_field_elements() {
+        _test_to_field_element(vec![0], 1);
+        _test_to_field_element(vec![63], 2u128.pow(63));
+        _test_to_field_element(vec![0, 64], 2u128.pow(64) + 1);
+        _test_to_field_element(vec![126], 2u128.pow(126));
+    }
 }
