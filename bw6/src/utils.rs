@@ -56,6 +56,31 @@ pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &Bitmask, domain: Ra
     z_n * s
 }
 
+pub struct LagrangeEvaluations<F: FftField> {
+    pub vanishing_polynomial: F,
+    pub l_0: F,
+    pub l_minus_1: F,
+}
+
+pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>) -> LagrangeEvaluations<F> {
+    // TODO: reuse this code with barycentric_eval methods
+    let mut z_n = z; // z^n, n=2^d - domain size, so squarings only
+    for _ in 0..domain.log_size_of_group {
+        z_n.square_in_place();
+    }
+
+    let z_n_minus_one = z_n - F::one();
+    let z_n_minus_one_div_n = z_n_minus_one * domain.size_inv;
+
+    let mut inv = [z - F::one(), domain.group_gen * z - F::one()];
+    batch_inversion(&mut inv);
+    LagrangeEvaluations {
+        vanishing_polynomial: z_n_minus_one,
+        l_0: z_n_minus_one_div_n * inv[0],
+        l_minus_1: z_n_minus_one_div_n * inv[1],
+    }
+}
+
 
 use ark_ff::{Field, PrimeField, Zero};
 use ark_ec::{AffineCurve, ProjectiveCurve};
@@ -125,5 +150,20 @@ mod tests {
         let powers = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
 
         assert_eq!(horner(&bases, nu.into_repr()), mul_then_add(&bases, &powers));
+    }
+
+    #[test]
+    fn test_lagrange_evaluations() {
+        let rng = &mut test_rng();
+
+        let n = 16;
+        let domain = Radix2EvaluationDomain::<ark_bw6_761::Fr>::new(n).unwrap();
+
+        let z = ark_bw6_761::Fr::rand(rng);
+        let evals = lagrange_evaluations(z, domain);
+        assert_eq!(evals.vanishing_polynomial, domain.evaluate_vanishing_polynomial(z));
+        let coeffs = domain.evaluate_all_lagrange_coefficients(z);
+        assert_eq!(evals.l_0, coeffs[0]);
+        assert_eq!(evals.l_minus_1, coeffs[n - 1]);
     }
 }

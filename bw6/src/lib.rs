@@ -1,25 +1,29 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
 mod prover;
-mod verifier;
-
 pub use self::prover::*;
+
+mod verifier;
 pub use self::verifier::*;
 
 pub mod endo;
 pub mod utils;
+
 pub mod bls;
-pub use bls::{Signature, SecretKey, PublicKey};
-mod bitmask;
-pub use bitmask::Bitmask;
 
-use ark_ff::{One, Field, batch_inversion};
-use ark_poly::{Evaluations, EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain};
+mod transcript;
+
+mod signer_set;
+pub use signer_set::{SignerSet, SignerSetCommitment};
+
+mod kzg;
+
+mod setup;
+pub use setup::Setup;
+
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::kzg10::{KZG10, Powers};
-use ark_ec::{ProjectiveCurve, PairingEngine};
+use ark_ec::PairingEngine;
 
-use rand::Rng;
 use ark_bw6_761::{BW6_761, Fr as F};
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
@@ -27,152 +31,11 @@ type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
 
-pub struct Params {
-    domain: Radix2EvaluationDomain<F>,
-    kzg_params: ark_poly_commit::kzg10::UniversalParams<BW6_761>,
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use crate::kzg::KZG10;
 
-    h: ark_bls12_377::G1Affine,
-}
-
-pub struct ProverKey<'a> {
-    domain_size: usize,
-    kzg_ck: Powers<'a, BW6_761>,
-    domain: Radix2EvaluationDomain<F>,
-    h: ark_bls12_377::G1Affine,
-}
-
-pub struct PreparedVerifierKey {
-    domain_size: u64,
-    domain: Radix2EvaluationDomain<F>,
-    h: ark_bls12_377::G1Affine,
-
-    // KZG verifier key
-    g: <BW6_761 as PairingEngine>::G1Affine,
-    prepared_h: <BW6_761 as PairingEngine>::G2Prepared,
-    prepared_beta_h: <BW6_761 as PairingEngine>::G2Prepared,
-}
-
-pub struct LagrangeEvaluations {
-    vanishing_polynomial: F,
-    l_0: F,
-    l_minus_1: F,
-}
-
-impl PreparedVerifierKey {
-    pub fn lagrange_evaluations(&self, zeta: F) -> LagrangeEvaluations {
-        let mut zeta_n = zeta;
-        for _ in 0..self.domain.log_size_of_group {
-            zeta_n.square_in_place();
-        }
-        assert_eq!(zeta_n, zeta.pow([self.domain_size]));
-        let zeta_n_minus_one= zeta_n - F::one();
-        let zeta_n_minus_one_div_n = zeta_n_minus_one * self.domain.size_inv;
-
-        let mut inv = [zeta - F::one(), self.domain.group_gen * zeta - F::one()];
-        batch_inversion(&mut inv);
-        LagrangeEvaluations {
-            vanishing_polynomial: zeta_n_minus_one,
-            l_0: zeta_n_minus_one_div_n * inv[0],
-            l_minus_1: zeta_n_minus_one_div_n * inv[1],
-        }
-    }
-}
-
-impl Params {
-    pub fn new<R: Rng>(max_pks: usize, rng: &mut R) -> Self {
-        let min_domain_size = max_pks + 1; // to initialize the acc with h
-        let domain = Radix2EvaluationDomain::<F>::new(min_domain_size).unwrap();
-        let n = domain.size();
-
-        // deg(q) = 3n-3
-        let kzg_params = KZG_BW6::setup(3*n-2, false, rng).unwrap();
-
-        Self {
-            domain,
-            kzg_params,
-
-            h: rng.gen::<ark_bls12_377::G1Projective>().into_affine(), //TODO: outside G1
-        }
-    }
-
-    pub fn get_ck(&self, m: usize) -> Powers<BW6_761> {
-        let powers_of_g = self.kzg_params.powers_of_g[..m].to_vec();
-        Powers {
-            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
-            powers_of_gamma_g: ark_std::borrow::Cow::default(),
-        }
-    }
-
-    pub fn to_pk(&self) -> ProverKey {
-        let n = self.domain.size();
-        ProverKey {
-            domain_size: n,
-            kzg_ck: self.get_ck(3*n-2),
-            domain: self.domain,
-            h: self.h
-        }
-    }
-
-    pub fn to_vk(&self) -> PreparedVerifierKey {
-        PreparedVerifierKey {
-            domain_size: self.domain.size,
-            domain: self.domain,
-            h: self.h,
-
-            g: self.kzg_params.powers_of_g[0],
-            prepared_h: self.kzg_params.prepared_h.clone(),
-            prepared_beta_h: self.kzg_params.prepared_beta_h.clone(),
-        }
-    }
-}
-
-pub struct SignerSet(Vec<PublicKey>);
-
-impl SignerSet {
-    pub fn size(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn commit(&self, ck: &Powers<BW6_761>) -> (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine) {
-        let m = self.0.len();
-        // assert_eq!(m, powers.len());
-        // as now we use ifft to compute the polynomials, we require
-        let domain = GeneralEvaluationDomain::<F>::new(m).unwrap();
-        assert_eq!(domain.size(), ck.powers_of_g.len());
-
-        let (pks_x, pks_y): (Vec<F>, Vec<F>) = self.0.iter()
-            .map(|p| p.0.into_affine())
-            .map(|p| (p.x, p.y))
-            .unzip();
-
-        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
-        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, domain).interpolate();
-
-        let (pks_x_comm, _) = KZG_BW6::commit(ck, &pks_x_poly, None, None).unwrap();
-        let (pks_y_comm, _) = KZG_BW6::commit(ck, &pks_y_poly, None, None).unwrap();
-        (pks_x_comm.0, pks_y_comm.0)
-    }
-
-    pub fn random<R: Rng>(num_pks: usize, rng: &mut R) -> Self {
-        assert!(num_pks > 1); // https://github.com/arkworks-rs/poly-commit/issues/40
-        Self(
-            (0..num_pks)
-            .map(|_| SecretKey::new(rng))
-            .map(|sk| PublicKey::from(&sk))
-            .collect::<Vec<_>>()
-        )
-    }
-
-    pub fn get_all(&self) -> &[PublicKey] {
-        return self.0.as_slice();
-    }
-
-    pub fn get_by_mask(&self, bitmask: &Bitmask) -> Vec<&PublicKey> {
-        self.0.iter().zip(bitmask.to_bits()).filter(|(_p, b)| *b).map(|(p, _b)| p).collect()
-    }
-}
-
-
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof {
     b_comm: ark_bw6_761::G1Affine,
     acc_x_comm: ark_bw6_761::G1Affine,
@@ -191,75 +54,69 @@ pub struct Proof {
     pub acc_y_zeta_omega: F,
 
     pub q_zeta: F,
+}
 
-    pub zeta: F,
-    pub phi: F,
-    pub nu: F,
+
+use ark_ff::field_new;
+const H_X: F = field_new!(F, "0");
+const H_Y: F = field_new!(F, "1");
+fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
+    ark_bls12_377::G1Affine::new(H_X, H_Y, false)
 }
 
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
-    use std::time::Instant;
-    use ark_std::{UniformRand, test_rng};
     use bench_utils::{end_timer, start_timer};
+    use merlin::Transcript;
+    use bitvec::vec::BitVec;
+    use ark_std::convert::TryInto;
+    use ark_std::test_rng;
+    use rand::Rng;
 
-    pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
-        (0..size).map(|_| rng.gen_bool(density)).collect()
+    #[test]
+    fn h_is_not_in_g1() {
+        let h = point_in_g1_complement();
+        assert!(h.is_on_curve());
+        assert!(!h.is_in_correct_subgroup_assuming_on_curve());
     }
 
     #[test]
     fn apk_proof() {
-        let num_pks = 1023;
-
         let rng = &mut test_rng();
+        let log_domain_size = 4;
 
-        let signer_set = SignerSet::random(num_pks, rng);
+        let t_setup = start_timer!(|| "setup");
+        let setup = Setup::generate(log_domain_size, rng);
+        end_timer!(t_setup);
 
-        // let parameter_generation = Instant::now();
-        let setup = start_timer!(|| "BW6 setup");
-        let params = Params::new(signer_set.size(), rng);
-        end_timer!(setup);
-        // println!("{}μs = parameter generation", parameter_generation.elapsed().as_micros());
+        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = keyset_size.try_into().unwrap();
+        let signer_set = SignerSet::random(keyset_size, rng);
 
-        let pks_domain_size = GeneralEvaluationDomain::<F>::compute_size_of_domain(num_pks).unwrap();
+        let pks_commitment_ = start_timer!(|| "signer set commitment");
+        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        end_timer!(pks_commitment_);
 
-        let signer_set_commitment = Instant::now();
-        let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
-        println!("{}μs = signer set commitment", signer_set_commitment.elapsed().as_micros());
+        let prover = Prover::new(setup.domain_size, setup.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
-        let bitmask = Bitmask::from_bits(&random_bits(num_pks, 2.0 / 3.0, rng));
+        let b: BitVec = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
+        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
-
-        // let proving = Instant::now();
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(&bitmask, signer_set.get_all(), &params.to_pk());
+        let proof = prover.prove(&b);
         end_timer!(prove_);
-        // println!("{}μs = proving\n", proving.elapsed().as_micros());
 
-        // let verification = Instant::now();
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verify(&pks_x_comm, &pks_y_comm, &apk, &bitmask, &proof, &params.to_vk());
+        let valid = verifier.verify(&apk, &b, &proof);
         end_timer!(verify_);
-        // println!("{}μs = verification", verification.elapsed().as_micros());
 
         assert!(valid);
-    }
-
-    #[test]
-    fn test_lagrange_evaluations() {
-        let n = 16;
-        let rng = &mut test_rng();
-        let params = Params::new(n-1, rng);
-        assert_eq!(params.domain.size(), n);
-
-        let z = F::rand(rng);
-        let evals = params.to_vk().lagrange_evaluations(z);
-        assert_eq!(evals.vanishing_polynomial, params.domain.evaluate_vanishing_polynomial(z));
-        let coeffs =  params.domain.evaluate_all_lagrange_coefficients(z);
-        assert_eq!(evals.l_0, coeffs[0]);
-        assert_eq!(evals.l_minus_1, coeffs[n-1]);
     }
 }
