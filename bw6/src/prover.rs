@@ -30,7 +30,7 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
 
 pub struct Prover<'a> {
     domain_size: usize,
-    pk: ProverKey<BW6_761>, //TODO: rename to kzg_pk
+    kzg_pk: ProverKey<BW6_761>,
     pks: &'a[PublicKey],
     h: ark_bls12_377::G1Affine,
     preprocessed_transcript: Transcript,
@@ -48,7 +48,7 @@ impl<'a> Prover<'a> {
         assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
-        Self { domain_size, pk: kzg_pk, pks, h: point_in_g1_complement(), preprocessed_transcript: empty_transcript }
+        Self { domain_size, kzg_pk, pks, h: point_in_g1_complement(), preprocessed_transcript: empty_transcript }
     }
 
     #[allow(non_snake_case)]
@@ -125,9 +125,9 @@ impl<'a> Prover<'a> {
         let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, subdomain).interpolate();
         let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, subdomain).interpolate();
 
-        let b_comm = KZG_BW6::commit(&self.pk, &b_poly);
-        let acc_x_comm = KZG_BW6::commit(&self.pk, &acc_x_poly);
-        let acc_y_comm = KZG_BW6::commit(&self.pk, &acc_y_poly);
+        let b_comm = KZG_BW6::commit(&self.kzg_pk, &b_poly);
+        let acc_x_comm = KZG_BW6::commit(&self.kzg_pk, &acc_x_poly);
+        let acc_y_comm = KZG_BW6::commit(&self.kzg_pk, &acc_y_poly);
 
         let phi = transcript.get_128_bit_challenge(b"phi");
 
@@ -246,8 +246,8 @@ impl<'a> Prover<'a> {
         assert_eq!(r, DensePolynomial::zero());
         assert_eq!(q_poly.degree(), 3*n-3);
 
-        assert_eq!(self.pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
-        let q_comm = KZG_BW6::commit(&self.pk, &q_poly);
+        assert_eq!(self.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
+        let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
 
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
@@ -282,13 +282,13 @@ impl<'a> Prover<'a> {
         }
 
         let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
-        let w2_proof = KZG_BW6::open(&self.pk, &w2, zeta_omega);
+        let w2_proof = KZG_BW6::open(&self.kzg_pk, &w2, zeta_omega);
 
         let mut w1 = &pks_x_poly + &mul(powers_of_nu[0], &pks_y_poly);
         w1 = &w1 + &mul(powers_of_nu[1], &b_poly);
         w1 = &w1 + &mul(powers_of_nu[2], &q_poly);
         w1 = &w1 + &mul(powers_of_nu[3], &w2);
-        let w1_proof = KZG_BW6::open(&self.pk, &w1, zeta);
+        let w1_proof = KZG_BW6::open(&self.kzg_pk, &w1, zeta);
 
         Proof {
             b_comm,
