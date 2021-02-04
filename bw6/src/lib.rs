@@ -20,7 +20,7 @@ pub use signer_set::{SignerSet, SignerSetCommitment};
 mod kzg;
 
 mod setup;
-use setup::Setup;
+pub use setup::Setup;
 
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::PairingEngine;
