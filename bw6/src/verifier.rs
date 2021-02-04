@@ -8,13 +8,13 @@ use bitvec::vec::BitVec;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, PublicKey, utils, KZG_BW6, point_in_g1_complement};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement};
 
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
+use crate::bls::PublicKey;
 
-use crate::utils::lagrange_evaluations;
 
 pub struct Verifier {
     domain: Radix2EvaluationDomain<Fr>,
@@ -122,7 +122,7 @@ impl Verifier {
 
             let a3 = b * (F::one() - b);
 
-            let evals = lagrange_evaluations(zeta, self.domain);
+            let evals = utils::lagrange_evaluations(zeta, self.domain);
             let apk = apk.0.into_affine();
             let apk_plus_h = self.h + apk;
             let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;

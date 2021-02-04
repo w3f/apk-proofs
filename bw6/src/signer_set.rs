@@ -1,10 +1,11 @@
-use crate::{PublicKey, KZG_BW6, SecretKey};
+use crate::KZG_BW6;
 use ark_bw6_761::{Fr, BW6_761};
 use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain};
 use bitvec::vec::BitVec;
 use rand::Rng;
 use ark_ec::ProjectiveCurve;
 use crate::kzg::ProverKey;
+use crate::bls::{PublicKey, SecretKey};
 
 pub struct SignerSet(Vec<PublicKey>);
 

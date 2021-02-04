@@ -7,11 +7,12 @@ use ark_poly::univariate::DensePolynomial;
 
 use bitvec::vec::BitVec;
 
-use crate::{KZG_BW6, Proof, PublicKey, point_in_g1_complement};
+use crate::{KZG_BW6, Proof, point_in_g1_complement};
 use merlin::Transcript;
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
+use crate::bls::PublicKey;
 
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(

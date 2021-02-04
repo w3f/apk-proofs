@@ -1,10 +1,10 @@
 use merlin::Transcript;
 use ark_serialize::CanonicalSerialize;
 use ark_ff::{Field, ToBytes};
-use crate::PublicKey;
 use ark_ec::ProjectiveCurve;
 use bitvec::vec::BitVec;
 use crate::signer_set::SignerSetCommitment;
+use crate::bls::PublicKey;
 
 pub trait ApkTranscript {
 
