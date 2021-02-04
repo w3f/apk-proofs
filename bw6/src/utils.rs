@@ -32,7 +32,7 @@ pub fn barycentric_eval_at<F: FftField>(z: F, evals: &Vec<F>, domain: Radix2Eval
     z_n * s
 }
 
-pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &BitVec, domain: Radix2EvaluationDomain<F>) -> F {
+pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &Bitmask, domain: Radix2EvaluationDomain<F>) -> F {
     // let timer_z_n =  std::time::Instant::now();
     let mut z_n = z; // z^n, n=2^d - domain size, so squarings only
     for _ in 0..domain.log_size_of_group {
@@ -44,8 +44,8 @@ pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &BitVec, domain: Rad
 
     let mut li_inv = Vec::with_capacity(evals.count_ones());
     let mut acc = z;
-    for b in evals {
-        if *b {
+    for b in evals.to_bits() {
+        if b {
             li_inv.push(acc - F::one());
         }
         acc *= domain.group_gen_inv;
@@ -84,7 +84,7 @@ pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>
 
 use ark_ff::{Field, PrimeField, Zero};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use bitvec::vec::BitVec;
+use crate::Bitmask;
 
 pub fn mul_then_add<G: AffineCurve>(
     bases: &[G],
@@ -113,7 +113,8 @@ mod tests {
     use ark_ff::{Field, One};
     use ark_poly::{Evaluations, Polynomial};
     use ark_std::{UniformRand, test_rng};
-    use rand::Rng;
+    use ark_std::convert::TryInto;
+    use crate::tests::random_bits;
 
     #[test]
     pub fn test_barycentric_eval() {
@@ -127,14 +128,14 @@ mod tests {
         let poly_at_z = poly.evaluate(&z);
         assert_eq!(barycentric_eval_at(z, &evals, domain), poly_at_z);
 
-        let bits: BitVec = (0..n).map(|_| rng.gen::<bool>()).collect();
-        let bits_as_field_elements = bits.iter()
+        let bitmask = Bitmask::from_bits(&random_bits(n.try_into().unwrap(), 1.0 / 2.0, rng));
+        let bits_as_field_elements = bitmask.to_bits().iter()
             .map(|b| if *b { ark_bw6_761::Fr::one() } else { ark_bw6_761::Fr::zero() })
             .collect::<Vec<_>>();
         let bits_poly = Evaluations::from_vec_and_domain(bits_as_field_elements.clone(), domain).interpolate();
         let bits_poly_at_z = bits_poly.evaluate(&z);
         assert_eq!(barycentric_eval_at(z, &bits_as_field_elements, domain), bits_poly_at_z);
-        assert_eq!(barycentric_eval_binary_at(z, &bits, domain), bits_poly_at_z);
+        assert_eq!(barycentric_eval_binary_at(z, &bitmask, domain), bits_poly_at_z);
     }
 
     #[test]

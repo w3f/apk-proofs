@@ -18,7 +18,6 @@ ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = 
 
 bench-utils = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 
-bitvec = { version = "0.19", default-features = false, features = [ "alloc" ] }
 rand = "0.7"
 merlin = "2.0.0"
 

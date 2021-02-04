@@ -4,11 +4,9 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_ff::{FftField, Field, One, Zero};
 use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomial, UVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
-
-use bitvec::vec::BitVec;
-
-use crate::{KZG_BW6, Proof, point_in_g1_complement};
 use merlin::Transcript;
+
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -54,13 +52,13 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove(&self, b: &BitVec) -> Proof {
+    pub fn prove(&self, b: &Bitmask) -> Proof {
         let m = self.pks.len();
 
-        assert_eq!(b.len(), m);
+        assert_eq!(b.size(), m);
         assert!(b.count_ones() > 0);
 
-        let apk = b.iter()
+        let apk = b.to_bits().iter()
             .zip(self.pks.iter())
             .filter(|(b, _p)| **b)
             .map(|(_b, p)| p.0)
@@ -75,7 +73,7 @@ impl<'a> Prover<'a> {
             .unzip();
 
         let mut acc = vec![self.h; m+1];
-        for (i, (b, p)) in b.iter().zip(self.pks.iter()).enumerate() {
+        for (i, (b, p)) in b.to_bits().iter().zip(self.pks.iter()).enumerate() {
             acc[i+1] = if *b {
                 acc[i] + p.0.into_affine()
             } else {
@@ -88,7 +86,7 @@ impl<'a> Prover<'a> {
             .unzip();
 
 
-        assert_eq!(b.len(), m);
+        assert_eq!(b.size(), m);
         assert_eq!(pks_x.len(), m);
         assert_eq!(pks_y.len(), m);
         assert_eq!(acc_x.len(), m+1);
@@ -96,7 +94,7 @@ impl<'a> Prover<'a> {
         assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.h);
         assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.h);
 
-        let mut b = b.iter()
+        let mut b = b.to_bits().iter()
             .map(|b| if *b { F::one() } else { F::zero() })
             .collect::<Vec<_>>();
 

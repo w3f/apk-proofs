@@ -21,6 +21,9 @@ mod kzg;
 mod setup;
 pub use setup::Setup;
 
+mod bitmask;
+pub use bitmask::Bitmask;
+
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::PairingEngine;
 
@@ -70,10 +73,13 @@ mod tests {
     use super::*;
     use bench_utils::{end_timer, start_timer};
     use merlin::Transcript;
-    use bitvec::vec::BitVec;
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use rand::Rng;
+
+    pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
+        (0..size).map(|_| rng.gen_bool(density)).collect()
+    }
 
     #[test]
     fn h_is_not_in_g1() {
@@ -102,7 +108,8 @@ mod tests {
         let prover = Prover::new(setup.domain_size, setup.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
         let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
-        let b: BitVec = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
+        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
+        let b = Bitmask::from_bits(&bits);
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
