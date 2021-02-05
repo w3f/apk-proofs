@@ -46,11 +46,12 @@ impl Verifier {
         let mut transcript = self.preprocessed_transcript.clone();
         let rng = &mut test_rng(); //TODO: remove
         transcript.append_public_input(&apk, bitmask);
-        let f = transcript.get_128_bit_challenge(b"phi");
-
         transcript.append_proof_point(b"b_comm", &proof.b_comm);
         transcript.append_proof_point(b"acc_x_comm", &proof.acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
+        let r = transcript.get_128_bit_challenge(b"r");
+        transcript.append_proof_point(b"c_comm", &proof.c_comm);
+        let f = transcript.get_128_bit_challenge(b"phi");
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta");
 

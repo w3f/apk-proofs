@@ -45,6 +45,8 @@ pub struct Proof {
     acc_y_comm: ark_bw6_761::G1Affine,
     q_comm: ark_bw6_761::G1Affine,
 
+    c_comm: ark_bw6_761::G1Affine,
+
     w1_proof: ark_bw6_761::G1Affine,
     w2_proof: ark_bw6_761::G1Affine,
 

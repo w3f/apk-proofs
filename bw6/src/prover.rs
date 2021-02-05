@@ -11,6 +11,7 @@ use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
+use crate::utils;
 
 fn mul<F: Field>(s: F, p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(
@@ -129,6 +130,22 @@ impl<'a> Prover<'a> {
         let acc_x_comm = KZG_BW6::commit(&self.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.kzg_pk, &acc_y_poly);
 
+        transcript.append_proof_point(b"b_comm", &b_comm);
+        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
+        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+        let r = transcript.get_128_bit_challenge(b"r");
+
+        let powers_of_2 = utils::powers(F::from(2u8), 255);
+        assert_eq!(self.domain_size % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
+        let powers_of_r = utils::powers(r, self.domain_size / 256 - 1);
+        // tensor product (powers_of_r X powers_of_2)
+        let c = powers_of_r.iter().flat_map(|rj|
+            powers_of_2.iter().map(move |_2k| *rj * _2k)
+        ).collect::<Vec<F>>();
+
+        let c_poly = Evaluations::from_vec_and_domain(c, subdomain).interpolate();
+        let c_comm = KZG_BW6::commit(&self.kzg_pk, &c_poly);
+        transcript.append_proof_point(b"c_comm", &c_comm);
         let phi = transcript.get_128_bit_challenge(b"phi");
 
         let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
@@ -249,9 +266,6 @@ impl<'a> Prover<'a> {
         assert_eq!(self.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
 
-        transcript.append_proof_point(b"b_comm", &b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
-        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         transcript.append_proof_point(b"q_comm", &q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta");
 
@@ -295,6 +309,8 @@ impl<'a> Prover<'a> {
             acc_x_comm,
             acc_y_comm,
             q_comm,
+
+            c_comm,
 
             w1_proof,
             w2_proof,
