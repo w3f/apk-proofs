@@ -135,93 +135,96 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let acc_y_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_y_poly, None, None).unwrap().0.0;
     
     //succinct accountable variables
-    let mut r_saccount :F = F::zero();
-    let mut c_saccount = vec![F::zero(); n];
-    let mut c_saccount_shifted = vec![F::zero(); n];
-    let mut a_saccount = vec![F::zero(); n];
-    let mut a_saccount_shifted= vec![F::zero(); n];
-    let mut c_saccount_poly : DensePolynomial::<F>;
-    let mut a_saccount_poly : DensePolynomial::<F>;
-    let mut c_saccount_shifted_poly :DensePolynomial::<F>;
-    let mut a_saccount_shifted_poly :DensePolynomial::<F>;
-    let mut c_saccount_comm : ark_bw6_761::G1Affine;
-    let mut a_saccount_comm : ark_bw6_761::G1Affine;
-    let mut acc_saccount = vec![F::zero(); n];
-    let mut acc_saccount_poly: DensePolynomial::<F> ;
-    let mut acc_saccount_shifted = vec![F::zero(); n];
-    let mut acc_saccount_shifted_poly: DensePolynomial::<F>;   
-    let mut acc_saccount_comm: ark_bw6_761::G1Affine;
-    let mut sum_saccount :F = F::zero();
-    let mut var_r_saccount :F = F::one();   
-    let mut var_r_2_saccount :F = F::one();
+    let mut r_succint_account :F = F::zero();
+    let mut c_succint_account = vec![F::zero(); n];
+    let mut c_succint_account_shifted = vec![F::zero(); n];
+    let mut a_succint_account = vec![F::zero(); n];
+    let mut a_succint_account_shifted= vec![F::zero(); n];
+    let mut c_succint_account_poly : DensePolynomial::<F>;
+    let mut a_succint_account_poly : DensePolynomial::<F>;
+    let mut c_succint_account_shifted_poly :DensePolynomial::<F>;
+    let mut a_succint_account_shifted_poly :DensePolynomial::<F>;
+    let mut c_succint_account_comm : ark_bw6_761::G1Affine;
+    let mut a_succint_account_comm : ark_bw6_761::G1Affine;
+    let mut acc_succint_account = vec![F::zero(); n];
+    let mut acc_succint_account_poly: DensePolynomial::<F> ;
+    let mut acc_succint_account_shifted = vec![F::zero(); n];
+    let mut acc_succint_account_shifted_poly: DensePolynomial::<F>;   
+    let mut acc_succint_account_comm: ark_bw6_761::G1Affine;
+    let mut sum_succint_account :F = F::zero();
+    let mut var_r_succint_account :F = F::one();   
+    let mut var_r_2_succint_account :F = F::one();
     
-    let mut a_saccount_shifted_eval: Evaluations<F, GeneralEvaluationDomain<F>>;// 
-    let mut a6_saccount: Evaluations<F, GeneralEvaluationDomain<F>>;// 
-    let mut a7_saccount: Evaluations<F, GeneralEvaluationDomain<F>>;// 
-    let mut acc_saccount_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// TO DO: Is this needed as evaluation needs to be done on 4*n size domain?
-    let mut acc_saccount_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace acc_saccount_shifted 
-    let mut c_saccount_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace c_saccount
-    let mut c_saccount_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace c_saccount_shifted
-    let mut a6_saccount_poly: DensePolynomial::<F>;
-    let mut a7_saccount_poly: DensePolynomial::<F>;
+    let mut a_succint_account_shifted_eval: Evaluations<F, GeneralEvaluationDomain<F>>;// 
+    let mut a6_succint_account: Evaluations<F, GeneralEvaluationDomain<F>>;// 
+    let mut a7_succint_account: Evaluations<F, GeneralEvaluationDomain<F>>;// 
+    let mut acc_succint_account_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// TO DO: Is this needed as evaluation needs to be done on 4*n size domain?
+    let mut acc_succint_account_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace acc_succint_account_shifted 
+    let mut c_succint_account_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace c_succint_account
+    let mut c_succint_account_shifted_eval : Evaluations<F, GeneralEvaluationDomain<F>>;// To replace c_succint_account_shifted
+    let mut a6_succint_account_poly: DensePolynomial::<F>;
+    let mut a7_succint_account_poly: DensePolynomial::<F>;
 
-    let acc_saccount_zeta: F = F::zero();
-    let c_saccount_zeta: F = F::zero() ;
-    let r_saccount_zeta_omega: F = F::zero();
-    let r_saccount_poly: DensePolynomial::<F>;
+    let acc_succint_account_zeta: F = F::zero();
+    let c_succint_account_zeta: F = F::zero() ;
+    let r_succint_account_zeta_omega: F = F::zero();
+    let r_succint_account_poly: DensePolynomial::<F>;
 
     if let ProofScheme::SuccinctAccountable = scheme {
-        r_saccount = F::rand(rng); //TODO: make sure this is different than phi
+        r_succint_account = F::rand(rng); //TODO: make sure this is different than phi
 	    for i in 0..n {
 	        let exp1 : [u64; 1] = [(i % 256) as u64];
 	        let exp2 : [u64; 1] = [(i /256) as u64];
-	        c_saccount[i] = (F::one() + F::one()).pow(exp1);
-            c_saccount[i] *= r_saccount.pow(exp2);
-            if (i%256) == 0 {
-		        a_saccount[i] = F::one();    
-            } 
-            else {
-		        a_saccount[i] = F::zero();
-            } 
-            if i==0 {
-                acc_saccount[i] = F::zero();
-            }    
-            else {
-                acc_saccount[i] = acc_saccount[i-1] + b[i]*c_saccount[i];        
-            }    
+	        c_succint_account[i] = (F::one() + F::one()).pow(exp1);
+		c_succint_account[i] *= r_succint_account.pow(exp2);
+
+		if (i%256) == 0 {
+		    a_succint_account[i] = F::one();    
+		} 
+		else {
+		    a_succint_account[i] = F::zero();
+		} 
+		if i==0 {
+                    acc_succint_account[i] = F::zero();
+		}    
+		else {
+                    acc_succint_account[i] = acc_succint_account[i-1] + b[i]*c_succint_account[i];        
+		}    
         }
 	
-        c_saccount_shifted = c_saccount.clone(); 
-        c_saccount_shifted.rotate_left(1); // TO DO: make sure the rotation has correct direction
+        c_succint_account_shifted = c_succint_account.clone(); 
+        c_succint_account_shifted.rotate_left(1); // TO DO: make sure the rotation has correct direction
 
-        a_saccount_shifted = a_saccount.clone(); 
-        a_saccount_shifted.rotate_left(1); // TO DO: make sure the rotation has correct direction
+        a_succint_account_shifted = a_succint_account.clone(); 
+        a_succint_account_shifted.rotate_left(1); // TO DO: make sure the rotation has correct direction
 
-        acc_saccount_shifted = acc_saccount.clone(); 
-        acc_saccount_shifted.rotate_left(1); // TO DO: make sure the rotation has correct direction
+        acc_succint_account_shifted = acc_succint_account.clone(); 
+        acc_succint_account_shifted.rotate_left(1); // TO DO: make sure the rotation has correct direction
 
-        c_saccount_poly = Evaluations::from_vec_and_domain(c_saccount, subdomain).interpolate();
-        c_saccount_shifted_poly = Evaluations::from_vec_and_domain(c_saccount_shifted, subdomain).interpolate();
+        c_succint_account_poly = Evaluations::from_vec_and_domain(c_succint_account, subdomain).interpolate();
+        c_succint_account_shifted_poly = Evaluations::from_vec_and_domain(c_succint_account_shifted, subdomain).interpolate();
 
-        a_saccount_poly = Evaluations::from_vec_and_domain(a_saccount, subdomain).interpolate();
-        a_saccount_shifted_poly = Evaluations::from_vec_and_domain(a_saccount_shifted, subdomain).interpolate();
+        a_succint_account_poly = Evaluations::from_vec_and_domain(a_succint_account, subdomain).interpolate();
+        a_succint_account_shifted_poly = Evaluations::from_vec_and_domain(a_succint_account_shifted, subdomain).interpolate();
 
-        acc_saccount_poly = Evaluations::from_vec_and_domain(acc_saccount, subdomain).interpolate();        
-        acc_saccount_shifted_poly = Evaluations::from_vec_and_domain(acc_saccount_shifted, subdomain).interpolate();
+        acc_succint_account_poly = Evaluations::from_vec_and_domain(acc_succint_account, subdomain).interpolate();        
+        acc_succint_account_shifted_poly = Evaluations::from_vec_and_domain(acc_succint_account_shifted, subdomain).interpolate();
 
-        c_saccount_comm = KZG_BW6::commit(&pk.kzg_ck, &c_saccount_poly, None, None).unwrap().0.0;
-        a_saccount_comm = KZG_BW6::commit(&pk.kzg_ck, &a_saccount_poly, None, None).unwrap().0.0; //TO DO: This should be an input to prover when using succinct accountable scheme
-        acc_saccount_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_saccount_poly, None, None).unwrap().0.0; 
+        c_succint_account_comm = KZG_BW6::commit(&pk.kzg_ck, &c_succint_account_poly, None, None).unwrap().0.0;
+        a_succint_account_comm = KZG_BW6::commit(&pk.kzg_ck, &a_succint_account_poly, None, None).unwrap().0.0; //TO DO: This should be an input to prover when using succinct accountable scheme
+        acc_succint_account_comm = KZG_BW6::commit(&pk.kzg_ck, &acc_succint_account_poly, None, None).unwrap().0.0; 
 
-        sum_saccount = F::zero(); 
+        sum_succint_account = F::zero();
+	//TODO sum=∑^{n/256−1}_{j=0} b(j)r^j. where b(j) = is j'th 256-bit tranch of the n bit sequence
+	
         for i in 0..n/256 {
-            var_r_saccount = var_r_saccount*r_saccount; //TO DO: include a more efficient function to compute this using pow 2
+            var_r_succint_account = var_r_succint_account*r_succint_account; //TO DO: include a more efficient function to compute this using pow 2
         }
 
         for i in 0..256 {
-            var_r_2_saccount = var_r_2_saccount*(F::one() + F::one()); //TO DO: include a more efficient function to compute this using pow 2
+            var_r_2_succint_account = var_r_2_succint_account*(F::one() + F::one()); //TO DO: include a more efficient function to compute this using pow 2
         }
-        //var_r_2_saccount = r_saccount*var_r_2_saccount^{-1}; //TO DO: the field inversion is not right here
+        //var_r_2_succint_account = r_succint_account*var_r_2_succint_account^{-1}; //TO DO: the field inversion is not right here
 
     }
 
@@ -243,10 +246,10 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let y3 = acc_y_shifted_poly.evaluate_over_domain(domain);// TO DO: what is the difference between evaluate_over_domain and evaluate_over_domain_by_ref ?
     let L1 = l1_poly.evaluate_over_domain(domain);// this is l0 in my write-up
     let Ln = ln_poly.evaluate_over_domain(domain);// this is ln-1 in my write-up
-    //acc_saccount_shifted_eval = acc_saccount_shifted_poly.evaluate_over_domain_by_ref(domain);
-    //acc_saccount_eval = acc_saccount_poly.evaluate_over_domain_by_ref(domain);
-    //c_saccount_eval = c_saccount_poly.evaluate_over_domain_by_ref(domain);
-    //a_saccount_shifted_eval = a_saccount_shifted_poly.evaluate_over_domain_by_ref(domain);
+    //acc_succint_account_shifted_eval = acc_succint_account_shifted_poly.evaluate_over_domain_by_ref(domain);
+    //acc_succint_account_eval = acc_succint_account_poly.evaluate_over_domain_by_ref(domain);
+    //c_succint_account_eval = c_succint_account_poly.evaluate_over_domain_by_ref(domain);
+    //a_succint_account_shifted_eval = a_succint_account_shifted_poly.evaluate_over_domain_by_ref(domain);
 
     let nB = Evaluations::from_vec_and_domain(B.evals.iter().map(|x| F::one() - x).collect(),domain);
 
@@ -298,8 +301,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln); //a5 in Oana's writeup
     let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln); //a6 in Oana's writeup
     
-    //a6_saccount = &c_saccount_shifted_eval - &(&c_saccount_eval*&add_constant(&mul_constant(&a_saccount_shifted_eval,var_r_2_saccount -  F::one() -  F::one(), domain), F::one() + F::one(), domain))) - &mul_constant(&l1_poly, F::one() - var_r_saccount, domain); //a4 in my write-up
-    //a7_saccount = &acc_saccount_shifted_eval - &acc_saccount_eval - &c_saccount_eval * &B + &mul_constant(&Ln, sum, domain); //a7 in my write-up
+    //a6_succint_account = &c_succint_account_shifted_eval - &(&c_succint_account_eval*&add_constant(&mul_constant(&a_succint_account_shifted_eval,var_r_2_succint_account -  F::one() -  F::one(), domain), F::one() + F::one(), domain))) - &mul_constant(&l1_poly, F::one() - var_r_succint_account, domain); //a4 in my write-up
+    //a7_succint_account = &acc_succint_account_shifted_eval - &acc_succint_account_eval - &c_succint_account_eval * &B + &mul_constant(&Ln, sum, domain); //a7 in my write-up
 
     let a1_poly = a1.interpolate();
     let a2_poly = a2.interpolate();
@@ -307,8 +310,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let a4_poly = a4.interpolate();
     let a5_poly = a5.interpolate();
 
-    //a6_saccount_poly = a6_saccount.interpolate();
-    //a7_saccount_poly = a7_saccount.interpolate();        
+    //a6_succint_account_poly = a6_succint_account.interpolate();
+    //a7_succint_account_poly = a7_succint_account.interpolate();        
 
     assert_eq!(a1_poly.degree(), 4*(n-1)); // we need to assert at most not equal
     assert_eq!(a2_poly.degree(), 3*(n-1));
@@ -326,8 +329,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     assert_eq!(a3_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a4_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
     assert_eq!(a5_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
-    //assert_eq!(a6_saccount_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
-    //assert_eq!(a7_saccount_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
+    //assert_eq!(a6_succint_account_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
+    //assert_eq!(a7_succint_account_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
 
     let phi =  F::rand(rng); // TO DO: put a comment on what is this random is being used for? here V
     
@@ -343,8 +346,8 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     w = &w + &mul(powers_of_phi[1], &a3_poly);
     w = &w + &mul(powers_of_phi[2], &a4_poly);
     w = &w + &mul(powers_of_phi[3], &a5_poly);
-    // w = &w + &mul(powers_of_phi[4], &a6_saccount_poly);
-    // w = &w + &mul(powers_of_phi[5], &a7_saccount_poly);
+    // w = &w + &mul(powers_of_phi[4], &a6_succint_account_poly);
+    // w = &w + &mul(powers_of_phi[5], &a7_succint_account_poly);
 
     let (q_poly, r) = w.divide_by_vanishing_poly(subdomain).unwrap();
     assert_eq!(r, DensePolynomial::zero());
@@ -364,9 +367,9 @@ pub fn prove(b: &BitVec, pks: &[PublicKey], pk: &ProverKey, scheme: ProofScheme)
     let q_zeta = q_poly.evaluate(&zeta);//q is what I denote as t in my write-up
     let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega); // TO DO: these are not needed, even in the accountable and non-succinct part
     let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega); // TO DO: these are not needed, even in the accountable and non-succinct part
-    //acc_saccount_zeta = acc_saccount_poly.evaluate(&zeta);
-    //c_saccount_zeta = c_saccount_poly.evaluate(&zeta);
-    //r_saccount_zeta_omega = r_saccount_poly.evaluate(&zeta_omega);
+    //acc_succint_account_zeta = acc_succint_account_poly.evaluate(&zeta);
+    //c_succint_account_zeta = c_succint_account_poly.evaluate(&zeta);
+    //r_succint_account_zeta_omega = r_succint_account_poly.evaluate(&zeta_omega);
  
     let nu: F = u128::rand(rng).into(); //TO DO: why is this differently defined then phi but same as zeta?
 

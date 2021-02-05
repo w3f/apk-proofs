@@ -93,7 +93,7 @@ fn apk_verification(c: &mut Criterion) {
     let (pks_x_comm, pks_y_comm) = signer_set.commit(&params.get_ck(pks_domain_size));
     let bitmask: BitVec = (0..num_pks).map(|_| rng.gen_bool(2.0 / 3.0)).collect();
     let apk = apk_proofs::bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
-    let proof = apk_proofs::prove(&bitmask, signer_set.get_all(), &params.to_pk());
+    let proof = apk_proofs::prove(&bitmask, signer_set.get_all(), &params.to_pk(), ProofScheme::Accountable);
     let vk = params.to_vk();
     c.bench_function("apk verification", move |b| {
         b.iter(|| apk_proofs::verify(

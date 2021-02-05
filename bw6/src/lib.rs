@@ -24,6 +24,9 @@ use ark_bw6_761::{BW6_761, Fr as F};
 type UniPoly_761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly_761>;
 
+//Perhaps we should have different traits arising from Proof trait which reimplement
+//prove for each scheme. Then we would have many smaller functions which performs substeps
+//of the prove and each scheme can call subset of them to build the desired type of the proof.
 pub enum ProofScheme {
     Unaccountable,
     Accountable, 
