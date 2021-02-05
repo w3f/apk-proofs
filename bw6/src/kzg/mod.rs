@@ -13,6 +13,8 @@ use ark_std::{format, marker::PhantomData, ops::Div, vec};
 
 use bench_utils::{end_timer, start_timer};
 
+use crate::utils;
+
 // #[cfg(feature = "parallel")]
 // use rayon::prelude::*;
 
@@ -120,13 +122,7 @@ impl<E, P> KZG10<E, P>
         let g = E::G1Projective::rand(rng);
         let h = E::G2Projective::rand(rng);
 
-        let mut powers_of_beta = vec![E::Fr::one()];
-
-        let mut cur = beta;
-        for _ in 0..max_degree {
-            powers_of_beta.push(cur);
-            cur *= &beta;
-        }
+        let powers_of_beta = utils::powers(beta, max_degree);
 
         let window_size = FixedBaseMSM::get_mul_window_size(max_degree + 1);
 

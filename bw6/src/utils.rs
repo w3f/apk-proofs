@@ -107,6 +107,21 @@ pub fn horner_field<F: Field>(
     bases.iter().rev().fold(F::zero(), |acc, b| nu * acc + b)
 }
 
+/// (max_exp+1)-sized vec: 1, base, base^2,... ,base^{max_exp}
+pub fn powers<F: Field>(base: F, max_exp: usize) -> Vec<F> {
+    let mut result = Vec::with_capacity(max_exp + 1);
+    result.push(F::one());
+    if max_exp > 0 {
+        result.push(base);
+    }
+    let mut curr = base;
+    for _ in 1..max_exp {
+        curr *= base;
+        result.push(curr);
+    };
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,5 +180,21 @@ mod tests {
         let coeffs = domain.evaluate_all_lagrange_coefficients(z);
         assert_eq!(evals.l_0, coeffs[0]);
         assert_eq!(evals.l_minus_1, coeffs[n - 1]);
+    }
+
+    #[test]
+    fn test_powers() {
+        let rng = &mut test_rng();
+        let base = ark_bw6_761::Fr::rand(rng);
+
+        assert_eq!(powers(base, 0), vec![ark_bw6_761::Fr::one()]);
+        assert_eq!(powers(base, 1), vec![ark_bw6_761::Fr::one(), base]);
+
+        let max_exp = 255;
+        let res = powers(base, max_exp);
+        assert_eq!(res.len(), max_exp + 1);
+        assert_eq!(res[0], ark_bw6_761::Fr::one());
+        assert_eq!(res[1], base);
+        assert_eq!(res[255], base.pow([255u64]));
     }
 }

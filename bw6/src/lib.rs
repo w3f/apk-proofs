@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn apk_proof() {
         let rng = &mut test_rng();
-        let log_domain_size = 4;
+        let log_domain_size = 8;
 
         let t_setup = start_timer!(|| "setup");
         let setup = Setup::generate(log_domain_size, rng);
