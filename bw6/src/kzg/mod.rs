@@ -164,9 +164,8 @@ impl<E, P> KZG10<E, P>
         assert!(polynomial.degree() <= powers.max_degree());
 
         let commit_time = start_timer!(|| format!(
-            "Committing to polynomial of degree {} with hiding_bound: {:?}",
-            polynomial.degree(),
-            hiding_bound,
+            "Committing to polynomial of degree {}",
+            polynomial.degree()
         ));
 
         let (num_leading_zeros, plain_coeffs) =
