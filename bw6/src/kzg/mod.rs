@@ -242,7 +242,7 @@ impl<E, P> KZG10<E, P>
     /// Verifies that `value` is the evaluation at `point` of the polynomial
     /// committed inside `comm`.
     pub fn check(
-        vk: &PreparedVerifierKey<E>,
+        pvk: &PreparedVerifierKey<E>,
         comm: &E::G1Affine,
         point: E::Fr,
         value: E::Fr,
@@ -250,10 +250,10 @@ impl<E, P> KZG10<E, P>
     ) -> bool {
         let t_check = start_timer!(|| "1-point KZG verification");
 
-        let lhs = comm.into_projective() - &vk.g.mul(value) + &proof.mul(point); // $[p(x)]_1 - y_1[1]_1 + x_1 [q(x)]_1$
+        let lhs = comm.into_projective() - &pvk.g.mul(value) + &proof.mul(point); // $[p(x)]_1 - y_1[1]_1 + x_1 [q(x)]_1$
         let pp = E::product_of_pairings(&[
-            (lhs.into_affine().into(), vk.prepared_h.clone()), // $e([p(x)]_1 - y_1[1]_1 + x_1 [q(x)]_1, [1]_2)$
-            (proof.into(), vk.prepared_beta_h.clone()), // $e([q(x)]_1,[x]_2)$
+            (lhs.into_affine().into(), pvk.prepared_h.clone()), // $e([p(x)]_1 - y_1[1]_1 + x_1 [q(x)]_1, [1]_2)$
+            ((-proof).into(), pvk.prepared_beta_h.clone()), // $e([q(x)]_1,[x]_2)$
         ]);
         let valid = pp.is_one();
         end_timer!(t_check, || format!("valid = {}", valid));
@@ -376,27 +376,23 @@ mod tests {
     {
         let rng = &mut test_rng();
 
-        for _ in 0..5 {
-            let max_degree = rng.gen_range(0, 123) + 1;
-            let params = KZG10::<E, P>::setup(max_degree, rng);
-            let pk = params.get_pk();
-            let pvk = params.get_vk().prepare();
-            for _ in 0..5 {
-                let degree = rng.gen_range(0, max_degree) + 1;
-                let poly = P::rand(degree, rng);
-                let comm = KZG10::<E, P>::commit(&pk, &poly);
-                for _ in 0..5 {
-                    let x = E::Fr::rand(rng);
-                    let proof = KZG10::<E, P>::open(&pk, &poly, x);
-                    let y = poly.evaluate(&x);
-                    let valid= KZG10::<E, P>::check(&pvk, &comm, x, y, proof);
-                    assert!(valid, "check failed for a valid point");
-                    let not_y = E::Fr::rand(rng);
-                    let valid = KZG10::<E, P>::check(&pvk, &comm, x, not_y, proof);
-                    assert!(!valid, "check failed for an invalid point");
-                }
-            }
-        }
+        let max_degree = rng.gen_range(0, 123) + 1;
+        let params = KZG10::<E, P>::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let pvk = params.get_vk().prepare();
+
+        let degree = rng.gen_range(0, max_degree) + 1;
+        let poly = P::rand(degree, rng);
+        let comm = KZG10::<E, P>::commit(&pk, &poly);
+
+        let x = E::Fr::rand(rng);
+        let proof = KZG10::<E, P>::open(&pk, &poly, x);
+        let y = poly.evaluate(&x);
+        let valid = KZG10::<E, P>::check(&pvk, &comm, x, y, proof);
+        assert!(valid, "check failed for a valid point");
+        let not_y = E::Fr::rand(rng);
+        let valid = KZG10::<E, P>::check(&pvk, &comm, x, not_y, proof);
+        assert!(!valid, "check failed for an invalid point");
     }
 
     #[test]
