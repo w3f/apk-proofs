@@ -371,7 +371,7 @@ mod tests {
         if let ark_poly::GeneralEvaluationDomain::Radix2(d) = d {
             let omega = d.group_gen;
             assert_eq!(p.evaluate(&omega), p_shifted.evaluate(&Fr::one()));
-            let x  =  F::rand(rng);
+            let x  =  Fr::rand(rng);
             assert_eq!(p.evaluate(&(x * omega)), p_shifted.evaluate(&x));
         } else {
             assert_eq!(0, 1);
