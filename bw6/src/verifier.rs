@@ -1,5 +1,5 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
-use ark_bw6_761::{Fr as F, BW6_761, Fr};
+use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField};
 use ark_std::test_rng;
@@ -66,7 +66,7 @@ impl Verifier {
         transcript.append_proof_scalar(b"acc_x_zeta", &proof.acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &proof.acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
-        let nu: F = transcript.get_128_bit_challenge(b"nu");
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu");
 
         let t_multiexp = start_timer!(|| "multiexp");
         let nu_repr = nu.into_repr();
@@ -109,15 +109,15 @@ impl Verifier {
                 b * (
                     (x1 - x2) * (x1 - x2) * (x1 + x2 + x3)
                         - (y2 - y1) * (y2 - y1)
-                ) + (F::one() - b) * (y3 - y1);
+                ) + (Fr::one() - b) * (y3 - y1);
 
             let a2 =
                 b * (
                     (x1 - x2) * (y3 + y1)
                         - (y2 - y1) * (x3 - x1)
-                ) + (F::one() - b) * (x3 - x1);
+                ) + (Fr::one() - b) * (x3 - x1);
 
-            let a3 = b * (F::one() - b);
+            let a3 = b * (Fr::one() - b);
 
             let evals = utils::lagrange_evaluations(zeta, self.domain);
             let apk = apk.0.into_affine();

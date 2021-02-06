@@ -27,7 +27,7 @@ pub use bitmask::Bitmask;
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::PairingEngine;
 
-use ark_bw6_761::{BW6_761, Fr as F};
+use ark_bw6_761::{BW6_761, Fr};
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
@@ -48,21 +48,21 @@ pub struct Proof {
     w1_proof: ark_bw6_761::G1Affine,
     w2_proof: ark_bw6_761::G1Affine,
 
-    pub b_zeta: F,
-    pub pks_x_zeta: F,
-    pub pks_y_zeta: F,
-    pub acc_x_zeta: F,
-    pub acc_y_zeta: F,
-    pub acc_x_zeta_omega: F,
-    pub acc_y_zeta_omega: F,
+    pub b_zeta: Fr,
+    pub pks_x_zeta: Fr,
+    pub pks_y_zeta: Fr,
+    pub acc_x_zeta: Fr,
+    pub acc_y_zeta: Fr,
+    pub acc_x_zeta_omega: Fr,
+    pub acc_y_zeta_omega: Fr,
 
-    pub q_zeta: F,
+    pub q_zeta: Fr,
 }
 
 
 use ark_ff::field_new;
-const H_X: F = field_new!(F, "0");
-const H_Y: F = field_new!(F, "1");
+const H_X: Fr = field_new!(Fr, "0");
+const H_Y: Fr = field_new!(Fr, "1");
 fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
     ark_bls12_377::G1Affine::new(H_X, H_Y, false)
 }

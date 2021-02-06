@@ -1,4 +1,4 @@
-use ark_bw6_761::{Fr as F, BW6_761};
+use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_ff::{FftField, Field, One, Zero};
@@ -67,7 +67,7 @@ impl<'a> Prover<'a> {
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(&apk.into(), b);
 
-        let (pks_x, pks_y): (Vec<F>, Vec<F>) = self.pks.iter()
+        let (pks_x, pks_y): (Vec<Fr>, Vec<Fr>) = self.pks.iter()
             .map(|p| p.0.into_affine())
             .map(|p| (p.x, p.y))
             .unzip();
@@ -81,7 +81,7 @@ impl<'a> Prover<'a> {
             }
         }
 
-        let (mut acc_x, mut acc_y): (Vec<F>, Vec<F>) = acc.iter()
+        let (mut acc_x, mut acc_y): (Vec<Fr>, Vec<Fr>) = acc.iter()
             .map(|p| (p.x, p.y))
             .unzip();
 
@@ -95,14 +95,14 @@ impl<'a> Prover<'a> {
         assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.h);
 
         let mut b = b.to_bits().iter()
-            .map(|b| if *b { F::one() } else { F::zero() })
+            .map(|b| if *b { Fr::one() } else { Fr::zero() })
             .collect::<Vec<_>>();
 
         let n = self.domain_size;
-        let subdomain = Radix2EvaluationDomain::<F>::new(n).unwrap();
+        let subdomain = Radix2EvaluationDomain::<Fr>::new(n).unwrap();
 
         // Extend the computation to the whole domain
-        b.resize_with(n, || F::zero());
+        b.resize_with(n, || Fr::zero());
         // So we don't care about pks, but
         let apk_plus_h_x = acc_x[m];
         let apk_plus_h_y = acc_y[m];
@@ -114,10 +114,10 @@ impl<'a> Prover<'a> {
         acc_x_shifted.rotate_left(1);
         acc_y_shifted.rotate_left(1);
 
-        let mut l1 = vec![F::zero(); n];
-        let mut ln = vec![F::zero(); n];
-        l1[0] = F::one();
-        ln[n-1] = F::one();
+        let mut l1 = vec![Fr::zero(); n];
+        let mut ln = vec![Fr::zero(); n];
+        l1[0] = Fr::one();
+        ln[n-1] = Fr::one();
 
         let b_poly = Evaluations::from_vec_and_domain(b, subdomain).interpolate();
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, subdomain).interpolate();
@@ -139,7 +139,7 @@ impl<'a> Prover<'a> {
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n-1);
 
-        let domain = GeneralEvaluationDomain::<F>::new(4*n).unwrap();
+        let domain = GeneralEvaluationDomain::<Fr>::new(4*n).unwrap();
         assert_eq!(domain.size(), 4*n);
 
         let B = b_poly.evaluate_over_domain_by_ref(domain);
@@ -153,7 +153,7 @@ impl<'a> Prover<'a> {
         let Ln = ln_poly.evaluate_over_domain(domain);
 
         let nB = Evaluations::from_vec_and_domain(
-            B.evals.iter().map(|x| F::one() - x).collect(),
+            B.evals.iter().map(|x| Fr::one() - x).collect(),
             domain
         );
 
@@ -272,7 +272,7 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
-        let nu: F = transcript.get_128_bit_challenge(b"nu");
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu");
 
         let mut curr = nu;
         let mut powers_of_nu = vec![curr];
@@ -320,10 +320,10 @@ mod tests {
     fn test_larger_domain() {
         let rng = &mut test_rng();
         let n = 2;
-        let d1 = GeneralEvaluationDomain::<F>::new(n).unwrap();
-        let d4 = GeneralEvaluationDomain::<F>::new(4*n).unwrap();
+        let d1 = GeneralEvaluationDomain::<Fr>::new(n).unwrap();
+        let d4 = GeneralEvaluationDomain::<Fr>::new(4*n).unwrap();
 
-        let p_evals1 = (0..n).map(|_| F::rand(rng)).collect::<Vec<_>>();
+        let p_evals1 = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
         let p_poly1 = Evaluations::from_vec_and_domain(p_evals1, d1).interpolate();
 
         let p_evals4 = p_poly1.evaluate_over_domain_by_ref(d4);
@@ -336,11 +336,11 @@ mod tests {
     fn test_mul_domain() {
         let rng = &mut test_rng();
         let n = 2;
-        let d1 = GeneralEvaluationDomain::<F>::new(n).unwrap();
-        let d4 = GeneralEvaluationDomain::<F>::new(4*n).unwrap();
+        let d1 = GeneralEvaluationDomain::<Fr>::new(n).unwrap();
+        let d4 = GeneralEvaluationDomain::<Fr>::new(4*n).unwrap();
 
-        let a_evals1 = (0..n).map(|_| F::rand(rng)).collect::<Vec<_>>();
-        let b_evals1 = (0..n).map(|_| F::rand(rng)).collect::<Vec<_>>();
+        let a_evals1 = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
+        let b_evals1 = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
         let a_poly1 = Evaluations::from_vec_and_domain(a_evals1, d1).interpolate();
         let b_poly1 = Evaluations::from_vec_and_domain(b_evals1, d1).interpolate();
         assert_eq!(a_poly1.degree(), n-1);
@@ -359,9 +359,9 @@ mod tests {
     fn test_shift() {
         let rng = &mut test_rng();
         let n = 2;
-        let d = GeneralEvaluationDomain::<F>::new(n).unwrap();
+        let d = GeneralEvaluationDomain::<Fr>::new(n).unwrap();
 
-        let p_evals = (0..n).map(|_| F::rand(rng)).collect::<Vec<_>>();
+        let p_evals = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
         let mut p_evals_shifted = p_evals.clone();
         p_evals_shifted.rotate_left(1);
 
@@ -370,7 +370,7 @@ mod tests {
 
         if let ark_poly::GeneralEvaluationDomain::Radix2(d) = d {
             let omega = d.group_gen;
-            assert_eq!(p.evaluate(&omega), p_shifted.evaluate(&F::one()));
+            assert_eq!(p.evaluate(&omega), p_shifted.evaluate(&Fr::one()));
             let x  =  F::rand(rng);
             assert_eq!(p.evaluate(&(x * omega)), p_shifted.evaluate(&x));
         } else {
