@@ -114,9 +114,6 @@ impl<E, P> KZG10<E, P>
         max_degree: usize,
         rng: &mut R,
     ) -> Params<E> {
-        //TODO: was changed in https://github.com/arkworks-rs/poly-commit/pull/55/files
-        assert!(max_degree > 0, "max_degree should be positive");
-
         let setup_time = start_timer!(|| format!("KZG10::Setup with degree {}", max_degree));
         let beta = E::Fr::rand(rng);
         let g = E::G1Projective::rand(rng);
@@ -364,7 +361,7 @@ mod tests {
     type Bw6Poly = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 
 
-    fn _setup_commit_open_check_test<E, P>()
+    fn _setup_commit_open_check_test<E, P>(max_degree: usize)
         where
             E: PairingEngine,
             P: UVPolynomial<E::Fr, Point=E::Fr>,
@@ -372,12 +369,11 @@ mod tests {
     {
         let rng = &mut test_rng();
 
-        let max_degree = rng.gen_range(0, 123) + 1;
         let params = KZG10::<E, P>::setup(max_degree, rng);
         let pk = params.get_pk();
         let pvk = params.get_vk().prepare();
 
-        let degree = rng.gen_range(0, max_degree) + 1;
+        let degree = rng.gen_range(0, max_degree + 1);
         let poly = P::rand(degree, rng);
         let comm = KZG10::<E, P>::commit(&pk, &poly);
 
@@ -393,7 +389,9 @@ mod tests {
 
     #[test]
     fn setup_commit_open_check_test() {
-        _setup_commit_open_check_test::<BW6_761, Bw6Poly>();
+        _setup_commit_open_check_test::<BW6_761, Bw6Poly>(0);
+        _setup_commit_open_check_test::<BW6_761, Bw6Poly>(1);
+        _setup_commit_open_check_test::<BW6_761, Bw6Poly>(123);
     }
     //
     //
