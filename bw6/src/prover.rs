@@ -38,6 +38,7 @@ pub struct Prover<'a> {
     params: Params,
     pks: &'a[PublicKey],
     preprocessed_transcript: Transcript,
+    domain4x: Radix2EvaluationDomain<Fr>,
 }
 
 impl<'a> Prover<'a> {
@@ -50,17 +51,24 @@ impl<'a> Prover<'a> {
     ) -> Self {
         assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
         assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
+
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
+
         let params = Params {
             domain_size,
             kzg_pk,
             h: point_in_g1_complement(),
         };
+
+        let domain4x =
+            Radix2EvaluationDomain::<Fr>::new(4 * domain_size).unwrap();
+
         Self {
             params,
             pks,
-            preprocessed_transcript: empty_transcript
+            preprocessed_transcript: empty_transcript,
+            domain4x,
         }
     }
 
@@ -152,22 +160,22 @@ impl<'a> Prover<'a> {
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n-1);
 
-        let domain = GeneralEvaluationDomain::<Fr>::new(4*n).unwrap();
-        assert_eq!(domain.size(), 4*n);
 
-        let B = b_poly.evaluate_over_domain_by_ref(domain);
-        let x1 = acc_x_poly.evaluate_over_domain_by_ref(domain);
-        let y1 = acc_y_poly.evaluate_over_domain_by_ref(domain);
-        let x2 = pks_x_poly.evaluate_over_domain_by_ref(domain);
-        let y2 = pks_y_poly.evaluate_over_domain_by_ref(domain);
-        let x3 = acc_x_shifted_poly.evaluate_over_domain(domain);
-        let y3 = acc_y_shifted_poly.evaluate_over_domain(domain);
-        let L1 = l1_poly.evaluate_over_domain(domain);
-        let Ln = ln_poly.evaluate_over_domain(domain);
+        assert_eq!(self.domain4x.size(), 4*n);
+
+        let B = b_poly.evaluate_over_domain_by_ref(self.domain4x);
+        let x1 = acc_x_poly.evaluate_over_domain_by_ref(111);
+        let y1 = acc_y_poly.evaluate_over_domain_by_ref(self.domain4x);
+        let x2 = pks_x_poly.evaluate_over_domain_by_ref(self.domain4x);
+        let y2 = pks_y_poly.evaluate_over_domain_by_ref(self.domain4x);
+        let x3 = acc_x_shifted_poly.evaluate_over_domain(self.domain4x);
+        let y3 = acc_y_shifted_poly.evaluate_over_domain(self.domain4x);
+        let L1 = l1_poly.evaluate_over_domain(self.domain4x);
+        let Ln = ln_poly.evaluate_over_domain(self.domain4x);
 
         let nB = Evaluations::from_vec_and_domain(
             B.evals.iter().map(|x| Fr::one() - x).collect(),
-            domain
+            self.domain4x
         );
 
         let a1 =
@@ -212,11 +220,11 @@ impl<'a> Prover<'a> {
 
 
 
-        let acc_minus_h_x = add_constant(&x1, -self.params.h.x, domain);
-        let acc_minus_h_y = add_constant(&y1, -self.params.h.y, domain);
+        let acc_minus_h_x = add_constant(&x1, -self.params.h.x, self.domain4x);
+        let acc_minus_h_y = add_constant(&y1, -self.params.h.y, self.domain4x);
 
-        let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, domain);
-        let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, domain);
+        let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, self.domain4x);
+        let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, self.domain4x);
 
         let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln);
         let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln);
