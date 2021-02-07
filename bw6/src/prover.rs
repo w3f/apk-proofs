@@ -37,19 +37,60 @@ struct Params {
 struct Domains {
     domain: Radix2EvaluationDomain<Fr>,
     domain4x: Radix2EvaluationDomain<Fr>,
+
+    // First Lagrange basis polynomial L_0 of degree n evaluated over the domain of size 4 * n; L_0(\omega^0) = 1
+    l1: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    // Last  Lagrange basis polynomial L_0 of degree n evaluated over the domain of size 4 * n; L_{n-1}(\omega^{n-1}}) = 1
+    ln: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 }
 
 impl Domains {
+    pub fn new(domain_size: usize) -> Self {
+        let domain =
+            Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
+        let domain4x =
+            Radix2EvaluationDomain::<Fr>::new(4 * domain_size).unwrap();
+
+        let l1 = Self::first_lagrange_basis_polynomial(domain_size);
+        let ln = Self::last_lagrange_basis_polynomial(domain_size);
+        let l1 = Self::_amplify(l1, domain, domain4x);
+        let ln = Self::_amplify(ln, domain, domain4x);
+
+        Domains {
+            domain,
+            domain4x,
+            l1,
+            ln,
+        }
+    }
+
+    pub fn amplify(&self, evals: Vec<Fr>) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
+        Self::_amplify(evals, self.domain, self.domain4x)
+    }
 
     /// Produces evaluations of a degree n polynomial in 4n points, given evaluations in n points.
     /// That allows arithmetic operations with degree n polynomials in evaluations form until the result extends degree 4n.
     // TODO: test
     // takes nlogn + 4nlog(4n) = nlogn + 4nlogn + 8n
     // TODO: can we do better?
-    fn amplify(&self, evals: Vec<Fr>) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
-        let poly = Evaluations::from_vec_and_domain(evals, self.domain).interpolate();
-        let evals4x= poly.evaluate_over_domain(self.domain4x);
+    fn _amplify(evals: Vec<Fr>, domain: Radix2EvaluationDomain<Fr>, domain4x: Radix2EvaluationDomain<Fr>) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
+        let poly = Evaluations::from_vec_and_domain(evals, domain).interpolate();
+        let evals4x= poly.evaluate_over_domain(domain4x);
         evals4x
+    }
+
+    fn first_lagrange_basis_polynomial(domain_size: usize) -> Vec<Fr> {
+        Self::li(0, domain_size)
+    }
+
+    fn last_lagrange_basis_polynomial(domain_size: usize) -> Vec<Fr> {
+        Self::li(domain_size-1, domain_size)
+    }
+
+    fn li (i: usize, domain_size: usize) -> Vec<Fr> {
+        let mut li = vec![Fr::zero(); domain_size];
+        li[i] = Fr::one();
+        li
     }
 }
 
@@ -80,15 +121,7 @@ impl<'a> Prover<'a> {
             h: point_in_g1_complement(),
         };
 
-        let domain =
-            Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
-        let domain4x =
-            Radix2EvaluationDomain::<Fr>::new(4 * domain_size).unwrap();
-
-        let domains = Domains {
-            domain,
-            domain4x
-        };
+        let domains = Domains::new(domain_size);
 
         let prover = Self {
             params,
@@ -161,12 +194,7 @@ impl<'a> Prover<'a> {
         acc_x_shifted.rotate_left(1);
         acc_y_shifted.rotate_left(1);
 
-        let mut l1 = vec![Fr::zero(); n];
-        let mut ln = vec![Fr::zero(); n];
-        l1[0] = Fr::one();
-        ln[n - 1] = Fr::one();
-        let L1 = self.domains.amplify(l1);
-        let Ln = self.domains.amplify(ln);
+
 
         let b_poly = Evaluations::from_vec_and_domain(b, self.domains.domain).interpolate();
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, self.domains.domain).interpolate();
@@ -245,8 +273,8 @@ impl<'a> Prover<'a> {
         let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, self.domains.domain4x);
         let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, self.domains.domain4x);
 
-        let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln);
-        let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln);
+        let a4 = &(&acc_minus_h_x * &self.domains.l1) + &(&acc_minus_h_plus_apk_x * &self.domains.ln);
+        let a5 = &(&acc_minus_h_y * &self.domains.l1) + &(&acc_minus_h_plus_apk_y * &self.domains.ln);
 
         let a1_poly = a1.interpolate();
         let a2_poly = a2.interpolate();
