@@ -34,12 +34,30 @@ struct Params {
     h: ark_bls12_377::G1Affine,
 }
 
-pub struct Prover<'a> {
-    params: Params,
-    pks: &'a[PublicKey],
-    preprocessed_transcript: Transcript,
+struct Domains {
     domain: Radix2EvaluationDomain<Fr>,
     domain4x: Radix2EvaluationDomain<Fr>,
+}
+
+impl Domains {
+
+    /// Produces evaluations of a degree n polynomial in 4n points, given evaluations in n points.
+    /// That allows arithmetic operations with degree n polynomials in evaluations form until the result extends degree 4n.
+    // TODO: test
+    // takes nlogn + 4nlog(4n) = nlogn + 4nlogn + 8n
+    // TODO: can we do better?
+    fn amplify(&self, evals: Vec<Fr>) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
+        let poly = Evaluations::from_vec_and_domain(evals, self.domain).interpolate();
+        let evals4x= poly.evaluate_over_domain(self.domain4x);
+        evals4x
+    }
+}
+
+pub struct Prover<'a> {
+    params: Params,
+    domains: Domains,
+    pks: &'a[PublicKey],
+    preprocessed_transcript: Transcript,
 }
 
 impl<'a> Prover<'a> {
@@ -47,7 +65,7 @@ impl<'a> Prover<'a> {
         domain_size: usize,
         kzg_pk: ProverKey<BW6_761>,
         signer_set_comm: &SignerSetCommitment,
-        pks: &'a[PublicKey],
+        pks: &'a [PublicKey],
         mut empty_transcript: Transcript,
     ) -> Self {
         assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
@@ -67,13 +85,18 @@ impl<'a> Prover<'a> {
         let domain4x =
             Radix2EvaluationDomain::<Fr>::new(4 * domain_size).unwrap();
 
-        Self {
+        let domains = Domains {
+            domain,
+            domain4x
+        };
+
+        let prover = Self {
             params,
+            domains,
             pks,
             preprocessed_transcript: empty_transcript,
-            domain,
-            domain4x,
-        }
+        };
+        prover
     }
 
     #[allow(non_snake_case)]
@@ -97,9 +120,9 @@ impl<'a> Prover<'a> {
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let mut acc = vec![self.params.h; m+1];
+        let mut acc = vec![self.params.h; m + 1];
         for (i, (b, p)) in b.to_bits().iter().zip(self.pks.iter()).enumerate() {
-            acc[i+1] = if *b {
+            acc[i + 1] = if *b {
                 acc[i] + p.0.into_affine()
             } else {
                 acc[i]
@@ -114,8 +137,8 @@ impl<'a> Prover<'a> {
         assert_eq!(b.size(), m);
         assert_eq!(pks_x.len(), m);
         assert_eq!(pks_y.len(), m);
-        assert_eq!(acc_x.len(), m+1);
-        assert_eq!(acc_y.len(), m+1);
+        assert_eq!(acc_x.len(), m + 1);
+        assert_eq!(acc_y.len(), m + 1);
         assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.params.h);
         assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.params.h);
 
@@ -141,15 +164,15 @@ impl<'a> Prover<'a> {
         let mut l1 = vec![Fr::zero(); n];
         let mut ln = vec![Fr::zero(); n];
         l1[0] = Fr::one();
-        ln[n-1] = Fr::one();
-        let L1 = self.amplify(l1);
-        let Ln = self.amplify(ln);
+        ln[n - 1] = Fr::one();
+        let L1 = self.domains.amplify(l1);
+        let Ln = self.domains.amplify(ln);
 
-        let b_poly = Evaluations::from_vec_and_domain(b, self.domain).interpolate();
-        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, self.domain).interpolate();
-        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, self.domain).interpolate();
-        let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, self.domain).interpolate();
-        let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, self.domain).interpolate();
+        let b_poly = Evaluations::from_vec_and_domain(b, self.domains.domain).interpolate();
+        let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, self.domains.domain).interpolate();
+        let pks_y_poly = Evaluations::from_vec_and_domain(pks_y, self.domains.domain).interpolate();
+        let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, self.domains.domain).interpolate();
+        let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, self.domains.domain).interpolate();
 
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
@@ -158,22 +181,22 @@ impl<'a> Prover<'a> {
         let phi = transcript.get_128_bit_challenge(b"phi");
 
         assert_eq!(b_poly.coeffs.len(), n);
-        assert_eq!(b_poly.degree(), n-1);
+        assert_eq!(b_poly.degree(), n - 1);
 
 
-        assert_eq!(self.domain4x.size(), 4*n);
+        assert_eq!(self.domains.domain4x.size(), 4 * n);
 
-        let B = b_poly.evaluate_over_domain_by_ref(self.domain4x);
-        let x1 = acc_x_poly.evaluate_over_domain_by_ref(self.domain4x);
-        let y1 = acc_y_poly.evaluate_over_domain_by_ref(self.domain4x);
-        let x2 = pks_x_poly.evaluate_over_domain_by_ref(self.domain4x);
-        let y2 = pks_y_poly.evaluate_over_domain_by_ref(self.domain4x);
-        let x3 = self.amplify(acc_x_shifted);
-        let y3 = self.amplify(acc_y_shifted);
+        let B = b_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let x1 = acc_x_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let y1 = acc_y_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let x2 = pks_x_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let y2 = pks_y_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let x3 = self.domains.amplify(acc_x_shifted);
+        let y3 = self.domains.amplify(acc_y_shifted);
 
         let nB = Evaluations::from_vec_and_domain(
             B.evals.iter().map(|x| Fr::one() - x).collect(),
-            self.domain4x
+            self.domains.domain4x
         );
 
         let a1 =
@@ -216,13 +239,11 @@ impl<'a> Prover<'a> {
         let a3 = &B * &nB;
 
 
+        let acc_minus_h_x = add_constant(&x1, -self.params.h.x, self.domains.domain4x);
+        let acc_minus_h_y = add_constant(&y1, -self.params.h.y, self.domains.domain4x);
 
-
-        let acc_minus_h_x = add_constant(&x1, -self.params.h.x, self.domain4x);
-        let acc_minus_h_y = add_constant(&y1, -self.params.h.y, self.domain4x);
-
-        let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, self.domain4x);
-        let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, self.domain4x);
+        let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, self.domains.domain4x);
+        let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, self.domains.domain4x);
 
         let a4 = &(&acc_minus_h_x * &L1) + &(&acc_minus_h_plus_apk_x * &Ln);
         let a5 = &(&acc_minus_h_y * &L1) + &(&acc_minus_h_plus_apk_y * &Ln);
@@ -233,19 +254,19 @@ impl<'a> Prover<'a> {
         let a4_poly = a4.interpolate();
         let a5_poly = a5.interpolate();
 
-        assert_eq!(a1_poly.degree(), 4*(n-1));
-        assert_eq!(a2_poly.degree(), 3*(n-1));
-        assert_eq!(a3_poly.degree(), 2*(n-1));
-        assert_eq!(a4_poly.degree(), 2*(n-1));
-        assert_eq!(a5_poly.degree(), 2*(n-1));
+        assert_eq!(a1_poly.degree(), 4 * (n - 1));
+        assert_eq!(a2_poly.degree(), 3 * (n - 1));
+        assert_eq!(a3_poly.degree(), 2 * (n - 1));
+        assert_eq!(a4_poly.degree(), 2 * (n - 1));
+        assert_eq!(a5_poly.degree(), 2 * (n - 1));
 
-        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(self.domain.group_gen_inv, &a1_poly);
-        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(self.domain.group_gen_inv, &a2_poly);
-        assert_eq!(a1_poly_.divide_by_vanishing_poly(self.domain).unwrap().1, DensePolynomial::zero());
-        assert_eq!(a2_poly_.divide_by_vanishing_poly(self.domain).unwrap().1, DensePolynomial::zero());
-        assert_eq!(a3_poly.divide_by_vanishing_poly(self.domain).unwrap().1, DensePolynomial::zero());
-        assert_eq!(a4_poly.divide_by_vanishing_poly(self.domain).unwrap().1, DensePolynomial::zero());
-        assert_eq!(a5_poly.divide_by_vanishing_poly(self.domain).unwrap().1, DensePolynomial::zero());
+        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(self.domains.domain.group_gen_inv, &a1_poly);
+        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(self.domains.domain.group_gen_inv, &a2_poly);
+        assert_eq!(a1_poly_.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+        assert_eq!(a2_poly_.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+        assert_eq!(a3_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+        assert_eq!(a4_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+        assert_eq!(a5_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
 
         let mut curr = phi;
@@ -256,14 +277,14 @@ impl<'a> Prover<'a> {
         }
 
         let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
-        w = &mul_by_x(&w) - &mul(self.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
+        w = &mul_by_x(&w) - &mul(self.domains.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
         w = &w + &mul(powers_of_phi[1], &a3_poly);
         w = &w + &mul(powers_of_phi[2], &a4_poly);
         w = &w + &mul(powers_of_phi[3], &a5_poly);
 
-        let (q_poly, r) = w.divide_by_vanishing_poly(self.domain).unwrap();
+        let (q_poly, r) = w.divide_by_vanishing_poly(self.domains.domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
-        assert_eq!(q_poly.degree(), 3*n-3);
+        assert_eq!(q_poly.degree(), 3 * n - 3);
 
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
@@ -281,7 +302,7 @@ impl<'a> Prover<'a> {
         let acc_y_zeta = acc_y_poly.evaluate(&zeta);
         let q_zeta = q_poly.evaluate(&zeta);
 
-        let zeta_omega = zeta * self.domain.group_gen;
+        let zeta_omega = zeta * self.domains.domain.group_gen;
         let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
         let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
 
@@ -327,17 +348,6 @@ impl<'a> Prover<'a> {
             acc_y_zeta_omega,
             q_zeta,
         }
-    }
-
-    /// Produces evaluations of a degree n polynomial in 4n points, given evaluations in n points.
-    /// That allows arithmetic operations with degree n polynomials in evaluations form until the result extends degree 4n.
-    // TODO: test
-    // takes nlogn + 4nlog(4n) = nlogn + 4nlogn + 8n
-    // TODO: can we do better?
-    fn amplify(&self, evals: Vec<Fr>) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
-        let poly = Evaluations::from_vec_and_domain(evals, self.domain).interpolate();
-        let evals4x= poly.evaluate_over_domain(self.domain4x);
-        evals4x
     }
 }
 
