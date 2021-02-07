@@ -142,6 +142,8 @@ impl<'a> Prover<'a> {
         let mut ln = vec![Fr::zero(); n];
         l1[0] = Fr::one();
         ln[n-1] = Fr::one();
+        let L1 = self.amplify(l1);
+        let Ln = self.amplify(ln);
 
         let b_poly = Evaluations::from_vec_and_domain(b, self.domain).interpolate();
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, self.domain).interpolate();
@@ -154,9 +156,6 @@ impl<'a> Prover<'a> {
         let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
 
         let phi = transcript.get_128_bit_challenge(b"phi");
-
-        let l1_poly = Evaluations::from_vec_and_domain(l1, self.domain).interpolate();
-        let ln_poly = Evaluations::from_vec_and_domain(ln, self.domain).interpolate();
 
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n-1);
@@ -171,8 +170,6 @@ impl<'a> Prover<'a> {
         let y2 = pks_y_poly.evaluate_over_domain_by_ref(self.domain4x);
         let x3 = self.amplify(acc_x_shifted);
         let y3 = self.amplify(acc_y_shifted);
-        let L1 = l1_poly.evaluate_over_domain(self.domain4x);
-        let Ln = ln_poly.evaluate_over_domain(self.domain4x);
 
         let nB = Evaluations::from_vec_and_domain(
             B.evals.iter().map(|x| Fr::one() - x).collect(),
