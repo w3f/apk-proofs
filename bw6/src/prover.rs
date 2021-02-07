@@ -28,11 +28,15 @@ fn add_constant<F: FftField, D: EvaluationDomain<F>>(p: &Evaluations<F, D>, c: F
     Evaluations::from_vec_and_domain(p.evals.iter().map(|x| c + x).collect(), d)
 }
 
-pub struct Prover<'a> {
+struct Params {
     domain_size: usize,
     kzg_pk: ProverKey<BW6_761>,
-    pks: &'a[PublicKey],
     h: ark_bls12_377::G1Affine,
+}
+
+pub struct Prover<'a> {
+    params: Params,
+    pks: &'a[PublicKey],
     preprocessed_transcript: Transcript,
 }
 
@@ -48,7 +52,16 @@ impl<'a> Prover<'a> {
         assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
         // empty_transcript.set_protocol_params(); //TODO
         empty_transcript.set_signer_set(&signer_set_comm);
-        Self { domain_size, kzg_pk, pks, h: point_in_g1_complement(), preprocessed_transcript: empty_transcript }
+        let params = Params {
+            domain_size,
+            kzg_pk,
+            h: point_in_g1_complement(),
+        };
+        Self {
+            params,
+            pks,
+            preprocessed_transcript: empty_transcript
+        }
     }
 
     #[allow(non_snake_case)]
@@ -72,7 +85,7 @@ impl<'a> Prover<'a> {
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let mut acc = vec![self.h; m+1];
+        let mut acc = vec![self.params.h; m+1];
         for (i, (b, p)) in b.to_bits().iter().zip(self.pks.iter()).enumerate() {
             acc[i+1] = if *b {
                 acc[i] + p.0.into_affine()
@@ -91,14 +104,14 @@ impl<'a> Prover<'a> {
         assert_eq!(pks_y.len(), m);
         assert_eq!(acc_x.len(), m+1);
         assert_eq!(acc_y.len(), m+1);
-        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.h);
-        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.h);
+        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.params.h);
+        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.params.h);
 
         let mut b = b.to_bits().iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
             .collect::<Vec<_>>();
 
-        let n = self.domain_size;
+        let n = self.params.domain_size;
         let subdomain = Radix2EvaluationDomain::<Fr>::new(n).unwrap();
 
         // Extend the computation to the whole domain
@@ -125,9 +138,9 @@ impl<'a> Prover<'a> {
         let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, subdomain).interpolate();
         let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, subdomain).interpolate();
 
-        let b_comm = KZG_BW6::commit(&self.kzg_pk, &b_poly);
-        let acc_x_comm = KZG_BW6::commit(&self.kzg_pk, &acc_x_poly);
-        let acc_y_comm = KZG_BW6::commit(&self.kzg_pk, &acc_y_poly);
+        let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
+        let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
+        let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
 
         let phi = transcript.get_128_bit_challenge(b"phi");
 
@@ -199,8 +212,8 @@ impl<'a> Prover<'a> {
 
 
 
-        let acc_minus_h_x = add_constant(&x1, -self.h.x, domain);
-        let acc_minus_h_y = add_constant(&y1, -self.h.y, domain);
+        let acc_minus_h_x = add_constant(&x1, -self.params.h.x, domain);
+        let acc_minus_h_y = add_constant(&y1, -self.params.h.y, domain);
 
         let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, domain);
         let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, domain);
@@ -246,8 +259,8 @@ impl<'a> Prover<'a> {
         assert_eq!(r, DensePolynomial::zero());
         assert_eq!(q_poly.degree(), 3*n-3);
 
-        assert_eq!(self.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
-        let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
+        assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
+        let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
 
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
@@ -282,13 +295,13 @@ impl<'a> Prover<'a> {
         }
 
         let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
-        let w2_proof = KZG_BW6::open(&self.kzg_pk, &w2, zeta_omega);
+        let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
         let mut w1 = &pks_x_poly + &mul(powers_of_nu[0], &pks_y_poly);
         w1 = &w1 + &mul(powers_of_nu[1], &b_poly);
         w1 = &w1 + &mul(powers_of_nu[2], &q_poly);
         w1 = &w1 + &mul(powers_of_nu[3], &w2);
-        let w1_proof = KZG_BW6::open(&self.kzg_pk, &w1, zeta);
+        let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
         Proof {
             b_comm,
