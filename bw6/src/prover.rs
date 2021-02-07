@@ -155,8 +155,6 @@ impl<'a> Prover<'a> {
 
         let phi = transcript.get_128_bit_challenge(b"phi");
 
-        let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, self.domain).interpolate();
-        let acc_y_shifted_poly = Evaluations::from_vec_and_domain(acc_y_shifted, self.domain).interpolate();
         let l1_poly = Evaluations::from_vec_and_domain(l1, self.domain).interpolate();
         let ln_poly = Evaluations::from_vec_and_domain(ln, self.domain).interpolate();
 
@@ -171,8 +169,8 @@ impl<'a> Prover<'a> {
         let y1 = acc_y_poly.evaluate_over_domain_by_ref(self.domain4x);
         let x2 = pks_x_poly.evaluate_over_domain_by_ref(self.domain4x);
         let y2 = pks_y_poly.evaluate_over_domain_by_ref(self.domain4x);
-        let x3 = acc_x_shifted_poly.evaluate_over_domain(self.domain4x);
-        let y3 = acc_y_shifted_poly.evaluate_over_domain(self.domain4x);
+        let x3 = self.amplify(acc_x_shifted);
+        let y3 = self.amplify(acc_y_shifted);
         let L1 = l1_poly.evaluate_over_domain(self.domain4x);
         let Ln = ln_poly.evaluate_over_domain(self.domain4x);
 
@@ -332,6 +330,17 @@ impl<'a> Prover<'a> {
             acc_y_zeta_omega,
             q_zeta,
         }
+    }
+
+    /// Produces evaluations of a degree n polynomial in 4n points, given evaluations in n points.
+    /// That allows arithmetic operations with degree n polynomials in evaluations form until the result extends degree 4n.
+    // TODO: test
+    // takes nlogn + 4nlog(4n) = nlogn + 4nlogn + 8n
+    // TODO: can we do better?
+    fn amplify(&self, evals: Vec<Fr>) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
+        let poly = Evaluations::from_vec_and_domain(evals, self.domain).interpolate();
+        let evals4x= poly.evaluate_over_domain(self.domain4x);
+        evals4x
     }
 }
 
