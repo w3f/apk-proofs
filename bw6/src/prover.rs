@@ -365,24 +365,10 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let mut curr = nu;
-        let mut powers_of_nu = vec![curr];
-        for _ in 0..5 {
-            curr *= &nu;
-            powers_of_nu.push(curr);
-        }
-
-        let mut w2 = DensePolynomial::<Fr>::zero();
-        w2 += &acc_x_poly;
-        w2 += (powers_of_nu[0], &acc_y_poly);
+        let w2 = utils::randomize(nu, &[acc_x_poly, acc_y_poly]);
         let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
-        let mut w1 = DensePolynomial::<Fr>::zero();
-        w1 += &self.session.pks_x_poly;
-        w1 += (powers_of_nu[0], &self.session.pks_y_poly);
-        w1 += (powers_of_nu[1], &b_poly);
-        w1 += (powers_of_nu[2], &q_poly);
-        w1 += (powers_of_nu[3], &w2);
+        let w1 = utils::randomize(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, w2]);
         let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
         Proof {

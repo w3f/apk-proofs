@@ -1,5 +1,5 @@
 use ark_ff::{FftField, batch_inversion};
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, Polynomial};
 
 // Evaluates a polynomial represented as evaluations over a radix-2 domain (aka in Lagrange basis) at a point.
 // f = sum(fi * Li), where Li is the i-th Lagrange basis polynomial, and fi = f(w^i)
@@ -121,6 +121,27 @@ pub fn powers<F: Field>(base: F, max_exp: usize) -> Vec<F> {
     };
     result
 }
+
+
+pub fn randomize<P, F>(
+    r: F,
+    polys: &[P]
+) -> P
+    where
+        F: Field,
+        P: Polynomial<F> {
+    let mut res = P::zero();
+    if polys.is_empty() {
+        return res;
+    }
+    let powers = powers(r, polys.len()-1);
+
+    powers.into_iter().zip(polys).for_each(|(r, p)| {
+        res += (r, p);
+    });
+    res
+}
+
 
 #[cfg(test)]
 mod tests {
