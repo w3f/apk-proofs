@@ -271,7 +271,9 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu");
+        transcript.append_proof_scalar(b"acc_x_zeta_omega", &acc_x_zeta_omega);
+        transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let mut curr = nu;
         let mut powers_of_nu = vec![curr];
