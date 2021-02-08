@@ -307,8 +307,10 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.degree(), 2 * (n - 1));
         assert_eq!(a5_poly.degree(), 2 * (n - 1));
 
-        let a1_poly_ = &mul_by_x(&a1_poly) - &mul(self.domains.domain.group_gen_inv, &a1_poly);
-        let a2_poly_ = &mul_by_x(&a2_poly) - &mul(self.domains.domain.group_gen_inv, &a2_poly);
+        let mut a1_poly_ = mul_by_x(&a1_poly);
+        a1_poly_ += (-self.domains.domain.group_gen_inv, &a1_poly);
+        let mut a2_poly_ = mul_by_x(&a2_poly);
+        a2_poly_ += (-self.domains.domain.group_gen_inv, &a2_poly);
         assert_eq!(a1_poly_.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a2_poly_.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a3_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
@@ -320,13 +322,17 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
-        let powers_of_phi = &utils::powers(phi, 4)[1..];
+        let powers_of_phi = &utils::powers(phi, 4);
 
-        let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
-        w = &mul_by_x(&w) - &mul(self.domains.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
-        w = &w + &mul(powers_of_phi[1], &a3_poly);
-        w = &w + &mul(powers_of_phi[2], &a4_poly);
-        w = &w + &mul(powers_of_phi[3], &a5_poly);
+        let mut a12 = DensePolynomial::<Fr>::zero();
+        a12 += &a1_poly;
+        a12 += (powers_of_phi[1], &a2_poly);
+        // a12 = ai + phi * a2
+        let mut w = mul_by_x(&a12); // w = (ai + phi * a2) * X
+        w += (-self.domains.domain.group_gen_inv, &a12); // w = (ai + phi * a2) * (X - \omega^{n-1})
+        w += (powers_of_phi[2], &a3_poly);
+        w += (powers_of_phi[3], &a4_poly);
+        w += (powers_of_phi[4], &a5_poly);
 
         let (q_poly, r) = w.divide_by_vanishing_poly(self.domains.domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
@@ -366,13 +372,17 @@ impl<'a> Prover<'a> {
             powers_of_nu.push(curr);
         }
 
-        let w2 = &acc_x_poly + &mul(powers_of_nu[0], &acc_y_poly);
+        let mut w2 = DensePolynomial::<Fr>::zero();
+        w2 += &acc_x_poly;
+        w2 += (powers_of_nu[0], &acc_y_poly);
         let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
-        let mut w1 = &self.session.pks_x_poly + &mul(powers_of_nu[0], &self.session.pks_y_poly);
-        w1 = &w1 + &mul(powers_of_nu[1], &b_poly);
-        w1 = &w1 + &mul(powers_of_nu[2], &q_poly);
-        w1 = &w1 + &mul(powers_of_nu[3], &w2);
+        let mut w1 = DensePolynomial::<Fr>::zero();
+        w1 += &self.session.pks_x_poly;
+        w1 += (powers_of_nu[0], &self.session.pks_y_poly);
+        w1 += (powers_of_nu[1], &b_poly);
+        w1 += (powers_of_nu[2], &q_poly);
+        w1 += (powers_of_nu[3], &w2);
         let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
         Proof {
