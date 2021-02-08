@@ -129,8 +129,6 @@ impl<'a> Prover<'a> {
         let acc_x_comm = KZG_BW6::commit(&self.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.kzg_pk, &acc_y_poly);
 
-        let phi = transcript.get_128_bit_challenge(b"phi");
-
         let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
         let acc_y_shifted_poly = Evaluations::from_vec_and_domain(acc_y_shifted, subdomain).interpolate();
         let l1_poly = Evaluations::from_vec_and_domain(l1, subdomain).interpolate();
@@ -228,6 +226,10 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a5_poly.divide_by_vanishing_poly(subdomain).unwrap().1, DensePolynomial::zero());
 
+        transcript.append_proof_point(b"b_comm", &b_comm);
+        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
+        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+        let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
         let mut curr = phi;
         let mut powers_of_phi = vec![curr];
@@ -249,9 +251,6 @@ impl<'a> Prover<'a> {
         assert_eq!(self.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
 
-        transcript.append_proof_point(b"b_comm", &b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
-        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         transcript.append_proof_point(b"q_comm", &q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta");
 
