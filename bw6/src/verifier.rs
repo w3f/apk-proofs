@@ -51,7 +51,7 @@ impl Verifier {
         transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta");
+        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
         let t_accountability = start_timer!(|| "accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
@@ -65,7 +65,9 @@ impl Verifier {
         transcript.append_proof_scalar(b"acc_x_zeta", &proof.acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &proof.acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu");
+        transcript.append_proof_scalar(b"acc_x_zeta_omega", &proof.acc_x_zeta_omega);
+        transcript.append_proof_scalar(b"acc_y_zeta_omega", &proof.acc_y_zeta_omega);
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let t_multiexp = start_timer!(|| "multiexp");
         let nu_repr = nu.into_repr();
