@@ -252,7 +252,7 @@ impl<'a> Prover<'a> {
         let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
 
         transcript.append_proof_point(b"q_comm", &q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta");
+        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
         let b_zeta = b_poly.evaluate(&zeta);
         let pks_x_zeta = pks_x_poly.evaluate(&zeta);
@@ -295,19 +295,20 @@ impl<'a> Prover<'a> {
             b_comm,
             acc_x_comm,
             acc_y_comm,
-            q_comm,
 
-            w1_proof,
-            w2_proof,
+            q_comm,
 
             b_zeta,
             pks_x_zeta,
             pks_y_zeta,
             acc_x_zeta,
             acc_y_zeta,
+            q_zeta,
             acc_x_zeta_omega,
             acc_y_zeta_omega,
-            q_zeta,
+
+            w1_proof,
+            w2_proof,
         }
     }
 }

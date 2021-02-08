@@ -51,7 +51,7 @@ impl Verifier {
         transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta");
+        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
         let t_accountability = start_timer!(|| "accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);

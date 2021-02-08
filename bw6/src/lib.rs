@@ -43,20 +43,20 @@ pub struct Proof {
     b_comm: ark_bw6_761::G1Affine,
     acc_x_comm: ark_bw6_761::G1Affine,
     acc_y_comm: ark_bw6_761::G1Affine,
+    // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
-
+    // Prover receives \zeta, the evaluation point challenge, here
+    b_zeta: Fr,
+    pks_x_zeta: Fr,
+    pks_y_zeta: Fr,
+    acc_x_zeta: Fr,
+    acc_y_zeta: Fr,
+    q_zeta: Fr,
+    acc_x_zeta_omega: Fr,
+    acc_y_zeta_omega: Fr,
+    // Prover receives \nu, the KZG opening batching challenge, here
     w1_proof: ark_bw6_761::G1Affine,
     w2_proof: ark_bw6_761::G1Affine,
-
-    pub b_zeta: Fr,
-    pub pks_x_zeta: Fr,
-    pub pks_y_zeta: Fr,
-    pub acc_x_zeta: Fr,
-    pub acc_y_zeta: Fr,
-    pub acc_x_zeta_omega: Fr,
-    pub acc_y_zeta_omega: Fr,
-
-    pub q_zeta: Fr,
 }
 
 
