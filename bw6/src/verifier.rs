@@ -82,6 +82,8 @@ impl Verifier {
         end_timer!(t_opening_points);
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
+        transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
+        transcript.append_proof_point(b"w2_proof", &proof.w2_proof);
         let fsrng = &mut fiat_shamir_rng(&mut transcript);
         let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
                                                              &[w1_comm, w2_comm],
