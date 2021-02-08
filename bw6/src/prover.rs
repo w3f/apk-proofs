@@ -6,7 +6,7 @@ use ark_poly::{EvaluationDomain, Evaluations, GeneralEvaluationDomain, Polynomia
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -320,12 +320,7 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
-        let mut curr = phi;
-        let mut powers_of_phi = vec![curr];
-        for _ in 0..3 {
-            curr *= &phi;
-            powers_of_phi.push(curr);
-        }
+        let powers_of_phi = &utils::powers(phi, 4)[1..];
 
         let mut w = &a1_poly + &mul(powers_of_phi[0], &a2_poly); // a1 + phi a2
         w = &mul_by_x(&w) - &mul(self.domains.domain.group_gen_inv, &w); // X w - omega_inv w = w (X - omega_inv)
