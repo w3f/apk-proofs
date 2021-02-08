@@ -61,6 +61,14 @@ impl<'a> Session<'a> {
             pks_y_poly_evals_x4,
         }
     }
+
+    fn compute_apk(&self, bitmask: &[bool]) -> ark_bls12_377::G1Projective {
+        bitmask.iter()
+            .zip(self.pks.iter())
+            .filter(|(b, _p)| **b)
+            .map(|(_b, p)| p.0)
+            .sum::<ark_bls12_377::G1Projective>()
+    }
 }
 
 struct Domains {
@@ -169,11 +177,7 @@ impl<'a> Prover<'a> {
         assert_eq!(b.size(), m);
         assert!(b.count_ones() > 0);
 
-        let apk = b.to_bits().iter()
-            .zip(self.session.pks.iter())
-            .filter(|(b, _p)| **b)
-            .map(|(_b, p)| p.0)
-            .sum::<ark_bls12_377::G1Projective>();
+        let apk = self.session.compute_apk(&b.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(&apk.into(), b);
