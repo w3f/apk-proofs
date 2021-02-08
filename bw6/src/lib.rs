@@ -105,7 +105,16 @@ mod tests {
         let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
         end_timer!(pks_commitment_);
 
-        let prover = Prover::new(setup.domain_size, setup.kzg_params.get_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
+        let t_prover_new = start_timer!(|| "prover precomputation");
+        let prover = Prover::new(
+            setup.domain_size,
+            setup.kzg_params.get_pk(),
+            &pks_comm,
+            signer_set.get_all(),
+            Transcript::new(b"apk_proof")
+        );
+        end_timer!(t_prover_new);
+
         let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
