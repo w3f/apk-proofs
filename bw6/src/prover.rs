@@ -227,13 +227,6 @@ impl<'a> Prover<'a> {
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
 
-        let phi = transcript.get_128_bit_challenge(b"phi");
-
-        let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
-        let acc_y_shifted_poly = Evaluations::from_vec_and_domain(acc_y_shifted, subdomain).interpolate();
-        let l1_poly = Evaluations::from_vec_and_domain(l1, subdomain).interpolate();
-        let ln_poly = Evaluations::from_vec_and_domain(ln, subdomain).interpolate();
-
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n - 1);
 
