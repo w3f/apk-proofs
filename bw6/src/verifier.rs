@@ -46,13 +46,12 @@ impl Verifier {
         let mut transcript = self.preprocessed_transcript.clone();
         let rng = &mut test_rng(); //TODO: remove
         transcript.append_public_input(&apk, bitmask);
-        let f = transcript.get_128_bit_challenge(b"phi");
-
         transcript.append_proof_point(b"b_comm", &proof.b_comm);
         transcript.append_proof_point(b"acc_x_comm", &proof.acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
+        let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta");
+        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
         let t_accountability = start_timer!(|| "accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
@@ -66,7 +65,9 @@ impl Verifier {
         transcript.append_proof_scalar(b"acc_x_zeta", &proof.acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &proof.acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu");
+        transcript.append_proof_scalar(b"acc_x_zeta_omega", &proof.acc_x_zeta_omega);
+        transcript.append_proof_scalar(b"acc_y_zeta_omega", &proof.acc_y_zeta_omega);
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let t_multiexp = start_timer!(|| "multiexp");
         let nu_repr = nu.into_repr();
@@ -126,7 +127,7 @@ impl Verifier {
             let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
             let s = zeta - self.domain.group_gen_inv;
-            a1 * s + f * (a2 * s + f * (a3 + f * (a4 + f * a5))) == proof.q_zeta * evals.vanishing_polynomial
+            a1 * s + phi * (a2 * s + phi * (a3 + phi * (a4 + phi * a5))) == proof.q_zeta * evals.vanishing_polynomial
         };
     }
 }

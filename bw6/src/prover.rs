@@ -229,6 +229,11 @@ impl<'a> Prover<'a> {
 
         let phi = transcript.get_128_bit_challenge(b"phi");
 
+        let acc_x_shifted_poly = Evaluations::from_vec_and_domain(acc_x_shifted, subdomain).interpolate();
+        let acc_y_shifted_poly = Evaluations::from_vec_and_domain(acc_y_shifted, subdomain).interpolate();
+        let l1_poly = Evaluations::from_vec_and_domain(l1, subdomain).interpolate();
+        let ln_poly = Evaluations::from_vec_and_domain(ln, subdomain).interpolate();
+
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n - 1);
 
@@ -317,6 +322,10 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
         assert_eq!(a5_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
+        transcript.append_proof_point(b"b_comm", &b_comm);
+        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
+        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+        let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
         let mut curr = phi;
         let mut powers_of_phi = vec![curr];
@@ -338,11 +347,8 @@ impl<'a> Prover<'a> {
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
 
-        transcript.append_proof_point(b"b_comm", &b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
-        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         transcript.append_proof_point(b"q_comm", &q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta");
+        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
         let b_zeta = b_poly.evaluate(&zeta);
         let pks_x_zeta = self.session.pks_x_poly.evaluate(&zeta);
@@ -361,7 +367,9 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu");
+        transcript.append_proof_scalar(b"acc_x_zeta_omega", &acc_x_zeta_omega);
+        transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let mut curr = nu;
         let mut powers_of_nu = vec![curr];
@@ -383,19 +391,20 @@ impl<'a> Prover<'a> {
             b_comm,
             acc_x_comm,
             acc_y_comm,
-            q_comm,
 
-            w1_proof,
-            w2_proof,
+            q_comm,
 
             b_zeta,
             pks_x_zeta,
             pks_y_zeta,
             acc_x_zeta,
             acc_y_zeta,
+            q_zeta,
             acc_x_zeta_omega,
             acc_y_zeta_omega,
-            q_zeta,
+
+            w1_proof,
+            w2_proof,
         }
     }
 }
