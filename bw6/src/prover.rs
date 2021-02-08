@@ -241,7 +241,7 @@ impl<'a> Prover<'a> {
 
         let nB = Evaluations::from_vec_and_domain(
             B.evals.iter().map(|x| Fr::one() - x).collect(),
-            self.domains.domain4x,`
+            self.domains.domain4x,
         );
 
         let a1 =
