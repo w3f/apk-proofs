@@ -170,21 +170,21 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove(&self, b: &Bitmask) -> Proof {
+    pub fn prove(&self, bitmask: &Bitmask) -> Proof {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 
-        assert_eq!(b.size(), m);
-        assert!(b.count_ones() > 0);
+        assert_eq!(bitmask.size(), m);
+        assert!(bitmask.count_ones() > 0);
 
-        let apk = self.session.compute_apk(&b.to_bits());
+        let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&apk.into(), b);
+        transcript.append_public_input(&apk.into(), bitmask);
 
 
         let mut acc = vec![self.params.h; m + 1];
-        for (i, (b, p)) in b.to_bits().iter().zip(self.session.pks.iter()).enumerate() {
+        for (i, (b, p)) in bitmask.to_bits().iter().zip(self.session.pks.iter()).enumerate() {
             acc[i + 1] = if *b {
                 acc[i] + p.0.into_affine()
             } else {
@@ -201,7 +201,7 @@ impl<'a> Prover<'a> {
         assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.params.h);
         assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.params.h);
 
-        let mut b = b.to_bits().iter()
+        let mut b = bitmask.to_bits().iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
             .collect::<Vec<_>>();
 
