@@ -330,10 +330,21 @@ impl<'a> Prover<'a> {
             powers_of_2.iter().map(move |_2k| *rj * _2k)
         ).collect::<Vec<Fr>>();
 
-        let provers_bitmask = b.into_iter().zip(c.iter()).map(|(b, c)| b * c).sum::<Fr>();
+        // let provers_bitmask = b.into_iter().zip(c.iter()).map(|(b, c)| b * c).sum::<Fr>();
         let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
-            .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum();
-        assert_eq!(provers_bitmask, verifiers_bitmask);
+            .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
+        // assert_eq!(provers_bitmask, verifiers_bitmask);
+
+        let acc = b.into_iter().zip(c.iter())
+            .map(|(b, c)| b * c)
+            .scan(Fr::zero(), |mut acc, next| {
+                *acc += next;
+                Some(acc.clone())
+            }).collect::<Vec<Fr>>();
+
+        assert_eq!(acc.len(), n);
+        assert_eq!(acc[n-1], verifiers_bitmask);
+
 
         let c_poly = Evaluations::from_vec_and_domain(c, self.domains.domain).interpolate();
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
