@@ -336,18 +336,19 @@ impl<'a> Prover<'a> {
             .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
         // assert_eq!(provers_bitmask, verifiers_bitmask);
 
-        let acc = b.into_iter().zip(c.iter())
-            .map(|(b, c)| b * c)
+        let acc = b.iter().zip(c.iter())
+            .map(|(b, c)| *b * c)
             .scan(Fr::zero(), |mut acc, next| {
                 *acc += next;
                 Some(acc.clone())
             }).collect::<Vec<Fr>>();
 
         assert_eq!(acc.len(), n);
+        assert_eq!(acc[0], b[0] * c[0]);
         assert_eq!(acc[n-1], verifiers_bitmask);
 
         let mut acc_shifted = acc.clone();
-        acc_shifted.rotate_right(1);
+        acc_shifted.rotate_left(1);
         let mut c_shifted = c.clone();
         c_shifted.rotate_left(1);
 
@@ -357,11 +358,11 @@ impl<'a> Prover<'a> {
         let c_x4 = c_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
         let acc_x4 = acc_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
         let acc_shifted_x4 = self.domains.amplify(acc_shifted);
-        let mut bc_l0 = vec![Fr::zero(); n];
-        bc_l0[0] = verifiers_bitmask;
-        let bc_l0_x4 = self.domains.amplify(bc_l0);
+        let mut bc_ln = vec![Fr::zero(); n];
+        bc_ln[n-1] = verifiers_bitmask;
+        let bc_l0_x4 = self.domains.amplify(bc_ln);
 
-        let a6 = &(&(&acc_x4 - &acc_shifted_x4) - &(&B * &c_x4)) + &(bc_l0_x4);
+        let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_l0_x4);
         let a6_poly = a6.interpolate();
         assert_eq!(a6_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
