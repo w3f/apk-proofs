@@ -386,7 +386,7 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"acc_comm", &acc_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
-        let powers_of_phi = &utils::powers(phi, 4);
+        let powers_of_phi = &utils::powers(phi, 6);
 
         let mut a12 = DensePolynomial::<Fr>::zero();
         a12 += &a1_poly;
@@ -397,6 +397,8 @@ impl<'a> Prover<'a> {
         w += (powers_of_phi[2], &a3_poly);
         w += (powers_of_phi[3], &a4_poly);
         w += (powers_of_phi[4], &a5_poly);
+        w += (powers_of_phi[5], &a6_poly);
+        w += (powers_of_phi[6], &a7_poly);
 
         let (q_poly, r) = w.divide_by_vanishing_poly(self.domains.domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
@@ -414,10 +416,14 @@ impl<'a> Prover<'a> {
         let acc_x_zeta = acc_x_poly.evaluate(&zeta);
         let acc_y_zeta = acc_y_poly.evaluate(&zeta);
         let q_zeta = q_poly.evaluate(&zeta);
+        let c_zeta = c_poly.evaluate(&zeta);
+        let acc_zeta = acc_poly.evaluate(&zeta);
 
         let zeta_omega = zeta * self.domains.domain.group_gen;
         let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
         let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
+        let c_zeta_omega = c_poly.evaluate(&zeta_omega);
+        let acc_zeta_omega = acc_poly.evaluate(&zeta_omega);
 
         transcript.append_proof_scalar(b"b_zeta", &b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
@@ -425,11 +431,15 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
+        transcript.append_proof_scalar(b"c_zeta", &c_zeta);
+        transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
         transcript.append_proof_scalar(b"acc_x_zeta_omega", &acc_x_zeta_omega);
         transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
+        transcript.append_proof_scalar(b"c_zeta_omega", &c_zeta_omega);
+        transcript.append_proof_scalar(b"acc_zeta_omega", &acc_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let w2 = KZG_BW6::randomize_polynomials(nu, &[acc_x_poly, acc_y_poly]);
+        let w2 = KZG_BW6::randomize_polynomials(nu, &[acc_x_poly, acc_y_poly, c_poly, acc_poly]);
         let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
         let w1 = KZG_BW6::randomize_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, w2]);
@@ -451,8 +461,12 @@ impl<'a> Prover<'a> {
             acc_x_zeta,
             acc_y_zeta,
             q_zeta,
+            c_zeta,
+            acc_zeta,
             acc_x_zeta_omega,
             acc_y_zeta_omega,
+            c_zeta_omega,
+            acc_zeta_omega,
             // <- nu
             w1_proof,
             w2_proof,
