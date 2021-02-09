@@ -320,6 +320,20 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+        let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
+
+        let powers_of_2 = utils::powers(Fr::from(2u8), 255);
+        assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
+        let powers_of_r = utils::powers(r, n / 256 - 1);
+        // tensor product (powers_of_r X powers_of_2)
+        let c = powers_of_r.iter().flat_map(|rj|
+            powers_of_2.iter().map(move |_2k| *rj * _2k)
+        ).collect::<Vec<Fr>>();
+
+        let c_poly = Evaluations::from_vec_and_domain(c, self.domains.domain).interpolate();
+        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
+
+        transcript.append_proof_point(b"c_comm", &c_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
         let powers_of_phi = &utils::powers(phi, 4);
@@ -375,9 +389,11 @@ impl<'a> Prover<'a> {
             b_comm,
             acc_x_comm,
             acc_y_comm,
-
+            // r <-
+            c_comm,
+            // phi <-
             q_comm,
-
+            // zeta <-
             b_zeta,
             pks_x_zeta,
             pks_y_zeta,
@@ -386,7 +402,7 @@ impl<'a> Prover<'a> {
             q_zeta,
             acc_x_zeta_omega,
             acc_y_zeta_omega,
-
+            // <- nu
             w1_proof,
             w2_proof,
         }

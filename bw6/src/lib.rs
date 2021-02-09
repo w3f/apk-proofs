@@ -43,6 +43,8 @@ pub struct Proof {
     b_comm: ark_bw6_761::G1Affine,
     acc_x_comm: ark_bw6_761::G1Affine,
     acc_y_comm: ark_bw6_761::G1Affine,
+    // Prover receives r, the bitmask batching challenge, here
+    c_comm: ark_bw6_761::G1Affine,
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
