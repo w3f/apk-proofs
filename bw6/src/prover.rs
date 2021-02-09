@@ -219,7 +219,7 @@ impl<'a> Prover<'a> {
         acc_y_shifted.rotate_left(1);
 
 
-        let b_poly = Evaluations::from_vec_and_domain(b, self.domains.domain).interpolate();
+        let b_poly = Evaluations::from_vec_and_domain(b.clone(), self.domains.domain).interpolate();
         let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, self.domains.domain).interpolate();
         let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, self.domains.domain).interpolate();
 
@@ -329,6 +329,11 @@ impl<'a> Prover<'a> {
         let c = powers_of_r.iter().flat_map(|rj|
             powers_of_2.iter().map(move |_2k| *rj * _2k)
         ).collect::<Vec<Fr>>();
+
+        let provers_bitmask = b.into_iter().zip(c.iter()).map(|(b, c)| b * c).sum::<Fr>();
+        let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
+            .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum();
+        assert_eq!(provers_bitmask, verifiers_bitmask);
 
         let c_poly = Evaluations::from_vec_and_domain(c, self.domains.domain).interpolate();
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
