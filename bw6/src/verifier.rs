@@ -51,6 +51,7 @@ impl Verifier {
         transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
         transcript.append_proof_point(b"c_comm", &proof.c_comm);
+        transcript.append_proof_point(b"acc_comm", &proof.acc_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge

@@ -345,11 +345,28 @@ impl<'a> Prover<'a> {
         assert_eq!(acc.len(), n);
         assert_eq!(acc[n-1], verifiers_bitmask);
 
+        let mut acc_shifted = acc.clone();
+        acc_shifted.rotate_right(1);
 
         let c_poly = Evaluations::from_vec_and_domain(c, self.domains.domain).interpolate();
-        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
+        let acc_poly = Evaluations::from_vec_and_domain(acc, self.domains.domain).interpolate();
 
+        let c_x4 = c_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let acc_x4 = acc_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let acc_shifted_x4 = self.domains.amplify(acc_shifted);
+        let mut bc_l0 = vec![Fr::zero(); n];
+        bc_l0[0] = verifiers_bitmask;
+        let bc_l0_x4 = self.domains.amplify(bc_l0);
+
+        let a6 = &(&(&acc_x4 - &acc_shifted_x4) - &(&B * &c_x4)) + &(bc_l0_x4);
+        let a6_poly = a6.interpolate();
+        assert_eq!(a6_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+
+
+        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
+        let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
         transcript.append_proof_point(b"c_comm", &c_comm);
+        transcript.append_proof_point(b"acc_comm", &acc_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
         let powers_of_phi = &utils::powers(phi, 4);
@@ -407,6 +424,7 @@ impl<'a> Prover<'a> {
             acc_y_comm,
             // r <-
             c_comm,
+            acc_comm,
             // phi <-
             q_comm,
             // zeta <-
