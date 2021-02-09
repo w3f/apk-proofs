@@ -324,6 +324,7 @@ impl<'a> Prover<'a> {
 
         let powers_of_2 = utils::powers(Fr::from(2u8), 255);
         assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
+        let chunks = n / 256;
         let powers_of_r = utils::powers(r, n / 256 - 1);
         // tensor product (powers_of_r X powers_of_2)
         let c = powers_of_r.iter().flat_map(|rj|
@@ -347,6 +348,8 @@ impl<'a> Prover<'a> {
 
         let mut acc_shifted = acc.clone();
         acc_shifted.rotate_right(1);
+        let mut c_shifted = c.clone();
+        c_shifted.rotate_left(1);
 
         let c_poly = Evaluations::from_vec_and_domain(c, self.domains.domain).interpolate();
         let acc_poly = Evaluations::from_vec_and_domain(acc, self.domains.domain).interpolate();
@@ -362,6 +365,20 @@ impl<'a> Prover<'a> {
         let a6_poly = a6.interpolate();
         assert_eq!(a6_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
+        let mut a = vec![Fr::from(2u8); n];
+        a.iter_mut().step_by(256).for_each(|a| *a = r / powers_of_2[255]);
+        a.rotate_left(1);
+
+        let mut ln = vec![Fr::zero(); n];
+        ln[n-1] = Fr::one() - r.pow([chunks as u64]);
+
+        let a_x4 = self.domains.amplify(a);
+        let c_shifted_x4 = self.domains.amplify(c_shifted);
+        let ln_x4 = self.domains.amplify(ln);
+
+        let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
+        let a7_poly = a7.interpolate();
+        assert_eq!(a7_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
         let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
