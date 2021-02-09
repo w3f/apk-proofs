@@ -95,9 +95,12 @@ pub fn mul_then_add<G: AffineCurve>(
 
 pub fn horner<G: AffineCurve>(
     bases: &[G],
-    nu: <G::ScalarField as PrimeField>::BigInt,
-) -> G::Projective {
-    bases.iter().rev().fold(G::Projective::zero(), |acc, b| acc.mul(nu).add_mixed(b))
+    nu: G::ScalarField,
+) -> G {
+    let nu = nu.into_repr();
+    bases.iter().rev().fold(G::Projective::zero(), |acc, b|
+        acc.mul(nu).add_mixed(b)
+    ).into_affine()
 }
 
 pub fn horner_field<F: Field>(
@@ -185,7 +188,7 @@ mod tests {
 
         let powers = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
 
-        assert_eq!(horner(&bases, nu.into_repr()), mul_then_add(&bases, &powers));
+        assert_eq!(horner(&bases, nu), mul_then_add(&bases, &powers));
     }
 
     #[test]
