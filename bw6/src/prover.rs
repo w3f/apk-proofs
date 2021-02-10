@@ -401,7 +401,7 @@ impl<'a> Prover<'a> {
         w += (powers_of_phi[3], &a4_poly);
         w += (powers_of_phi[4], &a5_poly);
         w += (powers_of_phi[5], &a6_poly);
-        // w += (powers_of_phi[6], &a7_poly);
+        w += (powers_of_phi[6], &a7_poly);
 
         let (q_poly, r) = w.divide_by_vanishing_poly(self.domains.domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());

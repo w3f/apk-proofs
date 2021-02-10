@@ -1,7 +1,7 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use ark_ff::{One, PrimeField};
+use ark_ff::{One, PrimeField, Field};
 use ark_std::test_rng;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
@@ -105,6 +105,11 @@ impl Verifier {
 
         let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
             .zip(utils::powers(r, (self.domain.size / 256 - 1) as usize)).map(|(bj, rj)| bj * rj).sum::<Fr>();
+        let a_zeta_omega1 = (zeta_omega.pow([self.domain.size]) - Fr::one()) / (Fr::from(256u16) * (zeta_omega.pow([self.domain.size / 256]) - Fr::one()));
+        let a_zeta_omega2 = utils::powers(zeta_omega, 255).iter().sum::<Fr>() / Fr::from(256u16);
+        assert_eq!(a_zeta_omega1, a_zeta_omega2);
+        let two = Fr::from(2u8);
+        let a = two +  (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
         return {
             let b = proof.b_zeta;
@@ -136,8 +141,10 @@ impl Verifier {
             let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
             // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
             let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + verifiers_bitmask * evals.l_minus_1;
+            // let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
+            let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r.pow([self.domain.size / 256])) * evals.l_minus_1;
             let s = zeta - self.domain.group_gen_inv;
-            let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6], phi);
+            let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
             w == proof.q_zeta * evals.vanishing_polynomial
         };
     }
