@@ -133,7 +133,8 @@ impl Verifier {
             let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
 
             let s = zeta - self.domain.group_gen_inv;
-            a1 * s + phi * (a2 * s + phi * (a3 + phi * (a4 + phi * a5))) == proof.q_zeta * evals.vanishing_polynomial
+            let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5], phi);
+            w == proof.q_zeta * evals.vanishing_polynomial
         };
     }
 }
