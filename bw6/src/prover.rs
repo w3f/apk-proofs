@@ -331,10 +331,10 @@ impl<'a> Prover<'a> {
             powers_of_2.iter().map(move |_2k| *rj * _2k)
         ).collect::<Vec<Fr>>();
 
-        // let provers_bitmask = b.into_iter().zip(c.iter()).map(|(b, c)| b * c).sum::<Fr>();
+        let provers_bitmask = b.iter().zip(c.iter()).map(|(b, c)| *b * c).sum::<Fr>();
         let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
             .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
-        // assert_eq!(provers_bitmask, verifiers_bitmask);
+        assert_eq!(provers_bitmask, verifiers_bitmask);
 
         let mut acc = Vec::with_capacity(n);
         acc.push(Fr::zero());
@@ -347,7 +347,7 @@ impl<'a> Prover<'a> {
         assert_eq!(acc.len(), n);
         assert_eq!(acc[0], Fr::zero());
         assert_eq!(acc[1], b[0] * c[0]);
-        assert_eq!(acc[n-1], verifiers_bitmask);
+        assert_eq!(acc[n-1], verifiers_bitmask - b[n-1] * c[n-1]);
 
         let mut acc_shifted = acc.clone();
         acc_shifted.rotate_left(1);
@@ -363,9 +363,9 @@ impl<'a> Prover<'a> {
         let acc_shifted_x4 = self.domains.amplify(acc_shifted);
         let mut bc_ln = vec![Fr::zero(); n];
         bc_ln[n-1] = verifiers_bitmask;
-        let bc_l0_x4 = self.domains.amplify(bc_ln);
+        let bc_ln_x4 = self.domains.amplify(bc_ln);
 
-        let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_l0_x4);
+        let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_poly = a6.interpolate();
         assert_eq!(a6_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
@@ -400,8 +400,8 @@ impl<'a> Prover<'a> {
         w += (powers_of_phi[2], &a3_poly);
         w += (powers_of_phi[3], &a4_poly);
         w += (powers_of_phi[4], &a5_poly);
-        w += (powers_of_phi[5], &a6_poly);
-        w += (powers_of_phi[6], &a7_poly);
+        // w += (powers_of_phi[5], &a6_poly);
+        // w += (powers_of_phi[6], &a7_poly);
 
         let (q_poly, r) = w.divide_by_vanishing_poly(self.domains.domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
