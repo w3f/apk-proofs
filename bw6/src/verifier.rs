@@ -103,6 +103,9 @@ impl Verifier {
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
 
+        let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
+            .zip(utils::powers(r, (self.domain.size / 256 - 1) as usize)).map(|(bj, rj)| bj * rj).sum::<Fr>();
+
         return {
             let b = proof.b_zeta;
             let x1 = proof.acc_x_zeta;
@@ -131,9 +134,10 @@ impl Verifier {
             let apk_plus_h = self.h + apk;
             let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
             let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
-
+            // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
+            let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + verifiers_bitmask * evals.l_minus_1;
             let s = zeta - self.domain.group_gen_inv;
-            let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5], phi);
+            let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6], phi);
             w == proof.q_zeta * evals.vanishing_polynomial
         };
     }
