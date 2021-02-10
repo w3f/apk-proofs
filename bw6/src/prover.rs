@@ -336,15 +336,17 @@ impl<'a> Prover<'a> {
             .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
         // assert_eq!(provers_bitmask, verifiers_bitmask);
 
-        let acc = b.iter().zip(c.iter())
+        let mut acc = Vec::with_capacity(n);
+        acc.push(Fr::zero());
+        let bc = b.iter().zip(c.iter())
             .map(|(b, c)| *b * c)
-            .scan(Fr::zero(), |mut acc, next| {
-                *acc += next;
-                Some(acc.clone())
-            }).collect::<Vec<Fr>>();
-
+            .take(n-1)
+            .for_each(|x| {
+                acc.push(x + acc.last().unwrap());
+        });
         assert_eq!(acc.len(), n);
-        assert_eq!(acc[0], b[0] * c[0]);
+        assert_eq!(acc[0], Fr::zero());
+        assert_eq!(acc[1], b[0] * c[0]);
         assert_eq!(acc[n-1], verifiers_bitmask);
 
         let mut acc_shifted = acc.clone();
@@ -356,6 +358,7 @@ impl<'a> Prover<'a> {
         let acc_poly = Evaluations::from_vec_and_domain(acc, self.domains.domain).interpolate();
 
         let c_x4 = c_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let c_shifted_x4 = self.domains.amplify(c_shifted);
         let acc_x4 = acc_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
         let acc_shifted_x4 = self.domains.amplify(acc_shifted);
         let mut bc_ln = vec![Fr::zero(); n];
@@ -374,7 +377,6 @@ impl<'a> Prover<'a> {
         ln[n-1] = Fr::one() - r.pow([chunks as u64]);
 
         let a_x4 = self.domains.amplify(a);
-        let c_shifted_x4 = self.domains.amplify(c_shifted);
         let ln_x4 = self.domains.amplify(ln);
 
         let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
