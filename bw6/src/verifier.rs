@@ -56,11 +56,11 @@ impl Verifier {
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
-        let t_accountability = start_timer!(|| "accountability check");
+        let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
         assert_eq!(b_at_zeta, proof.b_zeta);
         // accountability
-        end_timer!(t_accountability);
+        end_timer!(t_linear_accountability);
 
         transcript.append_proof_scalar(b"b_zeta", &proof.b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &proof.pks_x_zeta);
@@ -103,10 +103,31 @@ impl Verifier {
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
 
-        let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
-            .zip(utils::powers(r, (self.domain.size / 256 - 1) as usize)).map(|(bj, rj)| bj * rj).sum::<Fr>();
-        let a_zeta_omega1 = (zeta_omega.pow([self.domain.size]) - Fr::one()) / (Fr::from(256u16) * (zeta_omega.pow([self.domain.size / 256]) - Fr::one()));
-        let a_zeta_omega2 = utils::powers(zeta_omega, 255).iter().sum::<Fr>() / Fr::from(256u16);
+        let bits_in_bitmask_chunk = 256;
+        let bits_in_big_int_limb = 64;
+        assert_eq!(bits_in_bitmask_chunk % bits_in_big_int_limb, 0);
+        let limbs_in_chunk = bits_in_bitmask_chunk / bits_in_big_int_limb;
+        assert_eq!(self.domain.size % bits_in_bitmask_chunk, 0);
+        let chunks_in_bitmask = self.domain.size / bits_in_bitmask_chunk; // TODO: bitmask should be right-padded with 0s to domain_size
+
+        let bits_in_bitmask_chunk_inv = Fr::from(256u16).inverse().unwrap();
+
+        let aggregated_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize).into_iter()
+            .zip(utils::powers(r, (chunks_in_bitmask - 1) as usize))
+            .map(|(bj, rj)| bj * rj)
+            .sum::<Fr>();
+
+        let t_a_zeta_omega1 = start_timer!(|| "A(zw) fraction");
+        let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let zeta_omega_pow_n = zeta_omega_pow_m.pow([bits_in_bitmask_chunk]); // n = domain_size
+        let a_zeta_omega1 = bits_in_bitmask_chunk_inv * (zeta_omega_pow_n - Fr::one()) / (zeta_omega_pow_m - Fr::one());
+        end_timer!(t_a_zeta_omega1);
+
+        let t_a_zeta_omega2 = start_timer!(|| "A(zw) as polynomial");
+        let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let a_zeta_omega2 = bits_in_bitmask_chunk_inv * utils::powers(zeta_omega_pow_m, (bits_in_bitmask_chunk - 1) as usize).iter().sum::<Fr>();
+        end_timer!(t_a_zeta_omega2);
+
         assert_eq!(a_zeta_omega1, a_zeta_omega2);
         let two = Fr::from(2u8);
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
@@ -140,7 +161,7 @@ impl Verifier {
         let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
         let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + verifiers_bitmask * evals.l_minus_1;
+        let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_minus_1;
         // let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
         let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r.pow([self.domain.size / 256])) * evals.l_minus_1;
         let s = zeta - self.domain.group_gen_inv;
