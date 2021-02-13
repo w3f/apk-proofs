@@ -448,6 +448,9 @@ impl<'a> Prover<'a> {
         let w1 = KZG_BW6::randomize_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, w2]);
         let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
+        transcript.append_proof_point(b"w1_proof", &w1_proof);
+        transcript.append_proof_point(b"w2_proof", &w2_proof);
+
         Proof {
             b_comm,
             acc_x_comm,
