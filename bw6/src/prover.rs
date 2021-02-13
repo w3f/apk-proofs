@@ -170,21 +170,21 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove(&self, b: &Bitmask) -> Proof {
+    pub fn prove(&self, bitmask: &Bitmask) -> Proof {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 
-        assert_eq!(b.size(), m);
-        assert!(b.count_ones() > 0);
+        assert_eq!(bitmask.size(), m);
+        assert!(bitmask.count_ones() > 0);
 
-        let apk = self.session.compute_apk(&b.to_bits());
+        let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&apk.into(), b);
+        transcript.append_public_input(&apk.into(), bitmask);
 
 
         let mut acc = vec![self.params.h; m + 1];
-        for (i, (b, p)) in b.to_bits().iter().zip(self.session.pks.iter()).enumerate() {
+        for (i, (b, p)) in bitmask.to_bits().iter().zip(self.session.pks.iter()).enumerate() {
             acc[i + 1] = if *b {
                 acc[i] + p.0.into_affine()
             } else {
@@ -201,7 +201,7 @@ impl<'a> Prover<'a> {
         assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.params.h);
         assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.params.h);
 
-        let mut b = b.to_bits().iter()
+        let mut b = bitmask.to_bits().iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
             .collect::<Vec<_>>();
 
@@ -219,7 +219,7 @@ impl<'a> Prover<'a> {
         acc_y_shifted.rotate_left(1);
 
 
-        let b_poly = Evaluations::from_vec_and_domain(b, self.domains.domain).interpolate();
+        let b_poly = Evaluations::from_vec_and_domain(b.clone(), self.domains.domain).interpolate();
         let acc_x_poly = Evaluations::from_vec_and_domain(acc_x, self.domains.domain).interpolate();
         let acc_y_poly = Evaluations::from_vec_and_domain(acc_y, self.domains.domain).interpolate();
 
@@ -320,9 +320,76 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+        let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
+
+        let powers_of_2 = utils::powers(Fr::from(2u8), 255);
+        assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
+        let chunks = n / 256;
+        let powers_of_r = utils::powers(r, n / 256 - 1);
+        // tensor product (powers_of_r X powers_of_2)
+        let c = powers_of_r.iter().flat_map(|rj|
+            powers_of_2.iter().map(move |_2k| *rj * _2k)
+        ).collect::<Vec<Fr>>();
+
+        let provers_bitmask = b.iter().zip(c.iter()).map(|(b, c)| *b * c).sum::<Fr>();
+        let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
+            .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
+        assert_eq!(provers_bitmask, verifiers_bitmask);
+
+        let mut acc = Vec::with_capacity(n);
+        acc.push(Fr::zero());
+        let bc = b.iter().zip(c.iter())
+            .map(|(b, c)| *b * c)
+            .take(n-1)
+            .for_each(|x| {
+                acc.push(x + acc.last().unwrap());
+        });
+        assert_eq!(acc.len(), n);
+        assert_eq!(acc[0], Fr::zero());
+        assert_eq!(acc[1], b[0] * c[0]);
+        assert_eq!(acc[n-1], verifiers_bitmask - b[n-1] * c[n-1]);
+
+        let mut acc_shifted = acc.clone();
+        acc_shifted.rotate_left(1);
+        let mut c_shifted = c.clone();
+        c_shifted.rotate_left(1);
+
+        let c_poly = Evaluations::from_vec_and_domain(c, self.domains.domain).interpolate();
+        let acc_poly = Evaluations::from_vec_and_domain(acc, self.domains.domain).interpolate();
+
+        let c_x4 = c_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let c_shifted_x4 = self.domains.amplify(c_shifted);
+        let acc_x4 = acc_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
+        let acc_shifted_x4 = self.domains.amplify(acc_shifted);
+        let mut bc_ln = vec![Fr::zero(); n];
+        bc_ln[n-1] = verifiers_bitmask;
+        let bc_ln_x4 = self.domains.amplify(bc_ln);
+
+        let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
+        let a6_poly = a6.interpolate();
+        assert_eq!(a6_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+
+        let mut a = vec![Fr::from(2u8); n];
+        a.iter_mut().step_by(256).for_each(|a| *a = r / powers_of_2[255]);
+        a.rotate_left(1);
+
+        let mut ln = vec![Fr::zero(); n];
+        ln[n-1] = Fr::one() - r.pow([chunks as u64]);
+
+        let a_x4 = self.domains.amplify(a);
+        let ln_x4 = self.domains.amplify(ln);
+
+        let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
+        let a7_poly = a7.interpolate();
+        assert_eq!(a7_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
+
+        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
+        let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
+        transcript.append_proof_point(b"c_comm", &c_comm);
+        transcript.append_proof_point(b"acc_comm", &acc_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
-        let powers_of_phi = &utils::powers(phi, 4);
+        let powers_of_phi = &utils::powers(phi, 6);
 
         let mut a12 = DensePolynomial::<Fr>::zero();
         a12 += &a1_poly;
@@ -333,6 +400,8 @@ impl<'a> Prover<'a> {
         w += (powers_of_phi[2], &a3_poly);
         w += (powers_of_phi[3], &a4_poly);
         w += (powers_of_phi[4], &a5_poly);
+        w += (powers_of_phi[5], &a6_poly);
+        w += (powers_of_phi[6], &a7_poly);
 
         let (q_poly, r) = w.divide_by_vanishing_poly(self.domains.domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
@@ -350,10 +419,14 @@ impl<'a> Prover<'a> {
         let acc_x_zeta = acc_x_poly.evaluate(&zeta);
         let acc_y_zeta = acc_y_poly.evaluate(&zeta);
         let q_zeta = q_poly.evaluate(&zeta);
+        let c_zeta = c_poly.evaluate(&zeta);
+        let acc_zeta = acc_poly.evaluate(&zeta);
 
         let zeta_omega = zeta * self.domains.domain.group_gen;
         let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
         let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
+        let c_zeta_omega = c_poly.evaluate(&zeta_omega);
+        let acc_zeta_omega = acc_poly.evaluate(&zeta_omega);
 
         transcript.append_proof_scalar(b"b_zeta", &b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
@@ -361,11 +434,15 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
+        transcript.append_proof_scalar(b"c_zeta", &c_zeta);
+        transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
         transcript.append_proof_scalar(b"acc_x_zeta_omega", &acc_x_zeta_omega);
         transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
+        transcript.append_proof_scalar(b"c_zeta_omega", &c_zeta_omega);
+        transcript.append_proof_scalar(b"acc_zeta_omega", &acc_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let w2 = KZG_BW6::randomize_polynomials(nu, &[acc_x_poly, acc_y_poly]);
+        let w2 = KZG_BW6::randomize_polynomials(nu, &[acc_x_poly, acc_y_poly, c_poly, acc_poly]);
         let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
         let w1 = KZG_BW6::randomize_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, w2]);
@@ -375,18 +452,25 @@ impl<'a> Prover<'a> {
             b_comm,
             acc_x_comm,
             acc_y_comm,
-
+            // r <-
+            c_comm,
+            acc_comm,
+            // phi <-
             q_comm,
-
+            // zeta <-
             b_zeta,
             pks_x_zeta,
             pks_y_zeta,
             acc_x_zeta,
             acc_y_zeta,
             q_zeta,
+            c_zeta,
+            acc_zeta,
             acc_x_zeta_omega,
             acc_y_zeta_omega,
-
+            c_zeta_omega,
+            acc_zeta_omega,
+            // <- nu
             w1_proof,
             w2_proof,
         }

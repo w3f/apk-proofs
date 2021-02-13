@@ -1,7 +1,7 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use ark_ff::{One, PrimeField};
+use ark_ff::{One, PrimeField, Field};
 use ark_std::test_rng;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
@@ -49,15 +49,18 @@ impl Verifier {
         transcript.append_proof_point(b"b_comm", &proof.b_comm);
         transcript.append_proof_point(b"acc_x_comm", &proof.acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
+        let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
+        transcript.append_proof_point(b"c_comm", &proof.c_comm);
+        transcript.append_proof_point(b"acc_comm", &proof.acc_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
-        let t_accountability = start_timer!(|| "accountability check");
+        let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
         assert_eq!(b_at_zeta, proof.b_zeta);
         // accountability
-        end_timer!(t_accountability);
+        end_timer!(t_linear_accountability);
 
         transcript.append_proof_scalar(b"b_zeta", &proof.b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &proof.pks_x_zeta);
@@ -65,18 +68,22 @@ impl Verifier {
         transcript.append_proof_scalar(b"acc_x_zeta", &proof.acc_x_zeta);
         transcript.append_proof_scalar(b"acc_y_zeta", &proof.acc_y_zeta);
         transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
+        transcript.append_proof_scalar(b"c_zeta", &proof.c_zeta);
+        transcript.append_proof_scalar(b"acc_zeta", &proof.acc_zeta);
         transcript.append_proof_scalar(b"acc_x_zeta_omega", &proof.acc_x_zeta_omega);
         transcript.append_proof_scalar(b"acc_y_zeta_omega", &proof.acc_y_zeta_omega);
+        transcript.append_proof_scalar(b"c_zeta_omega", &proof.c_zeta_omega);
+        transcript.append_proof_scalar(b"acc_zeta_omega", &proof.acc_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let t_multiexp = start_timer!(|| "multiexp");
-        let w2_comm = KZG_BW6::randomize_commitments(nu,&[proof.acc_x_comm, proof.acc_y_comm]);
+        let w2_comm = KZG_BW6::randomize_commitments(nu, &[proof.acc_x_comm, proof.acc_y_comm, proof.c_comm, proof.acc_comm]);
         let w1_comm = KZG_BW6::randomize_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm]);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
-        let w1_zeta = KZG_BW6::randomize_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta]);
-        let w2_zeta_omega = KZG_BW6::randomize_values(nu,&[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega]);
+        let w1_zeta = KZG_BW6::randomize_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta, proof.c_zeta, proof.acc_zeta]);
+        let w2_zeta_omega = KZG_BW6::randomize_values(nu, &[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega, proof.c_zeta_omega, proof.acc_zeta_omega]);
         end_timer!(t_opening_points);
 
         let zeta_omega = zeta * self.domain.group_gen;
@@ -96,37 +103,69 @@ impl Verifier {
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
 
-        return {
-            let b = proof.b_zeta;
-            let x1 = proof.acc_x_zeta;
-            let y1 = proof.acc_y_zeta;
-            let x2 = proof.pks_x_zeta;
-            let y2 = proof.pks_y_zeta;
-            let x3 = proof.acc_x_zeta_omega;
-            let y3 = proof.acc_y_zeta_omega;
+        let bits_in_bitmask_chunk = 256;
+        let bits_in_big_int_limb = 64;
+        assert_eq!(bits_in_bitmask_chunk % bits_in_big_int_limb, 0);
+        let limbs_in_chunk = bits_in_bitmask_chunk / bits_in_big_int_limb;
+        assert_eq!(self.domain.size % bits_in_bitmask_chunk, 0);
+        let chunks_in_bitmask = self.domain.size / bits_in_bitmask_chunk; // TODO: bitmask should be right-padded with 0s to domain_size
 
-            let a1 =
-                b * (
-                    (x1 - x2) * (x1 - x2) * (x1 + x2 + x3)
-                        - (y2 - y1) * (y2 - y1)
-                ) + (Fr::one() - b) * (y3 - y1);
+        let bits_in_bitmask_chunk_inv = Fr::from(256u16).inverse().unwrap();
 
-            let a2 =
-                b * (
-                    (x1 - x2) * (y3 + y1)
-                        - (y2 - y1) * (x3 - x1)
-                ) + (Fr::one() - b) * (x3 - x1);
+        let aggregated_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize).into_iter()
+            .zip(utils::powers(r, (chunks_in_bitmask - 1) as usize))
+            .map(|(bj, rj)| bj * rj)
+            .sum::<Fr>();
 
-            let a3 = b * (Fr::one() - b);
+        let t_a_zeta_omega1 = start_timer!(|| "A(zw) fraction");
+        let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let zeta_omega_pow_n = zeta_omega_pow_m.pow([bits_in_bitmask_chunk]); // n = domain_size
+        let a_zeta_omega1 = bits_in_bitmask_chunk_inv * (zeta_omega_pow_n - Fr::one()) / (zeta_omega_pow_m - Fr::one());
+        end_timer!(t_a_zeta_omega1);
 
-            let evals = utils::lagrange_evaluations(zeta, self.domain);
-            let apk = apk.0.into_affine();
-            let apk_plus_h = self.h + apk;
-            let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
-            let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
+        let t_a_zeta_omega2 = start_timer!(|| "A(zw) as polynomial");
+        let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let a_zeta_omega2 = bits_in_bitmask_chunk_inv * utils::powers(zeta_omega_pow_m, (bits_in_bitmask_chunk - 1) as usize).iter().sum::<Fr>();
+        end_timer!(t_a_zeta_omega2);
 
-            let s = zeta - self.domain.group_gen_inv;
-            a1 * s + phi * (a2 * s + phi * (a3 + phi * (a4 + phi * a5))) == proof.q_zeta * evals.vanishing_polynomial
-        };
+        assert_eq!(a_zeta_omega1, a_zeta_omega2);
+        let two = Fr::from(2u8);
+        let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
+
+
+        let b = proof.b_zeta;
+        let x1 = proof.acc_x_zeta;
+        let y1 = proof.acc_y_zeta;
+        let x2 = proof.pks_x_zeta;
+        let y2 = proof.pks_y_zeta;
+        let x3 = proof.acc_x_zeta_omega;
+        let y3 = proof.acc_y_zeta_omega;
+
+        let a1 =
+            b * (
+                (x1 - x2) * (x1 - x2) * (x1 + x2 + x3)
+                    - (y2 - y1) * (y2 - y1)
+            ) + (Fr::one() - b) * (y3 - y1);
+
+        let a2 =
+            b * (
+                (x1 - x2) * (y3 + y1)
+                    - (y2 - y1) * (x3 - x1)
+            ) + (Fr::one() - b) * (x3 - x1);
+
+        let a3 = b * (Fr::one() - b);
+
+        let evals = utils::lagrange_evaluations(zeta, self.domain);
+        let apk = apk.0.into_affine();
+        let apk_plus_h = self.h + apk;
+        let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
+        let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
+        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
+        let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_minus_1;
+        // let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
+        let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r.pow([self.domain.size / 256])) * evals.l_minus_1;
+        let s = zeta - self.domain.group_gen_inv;
+        let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
+        w == proof.q_zeta * evals.vanishing_polynomial
     }
 }
