@@ -58,7 +58,7 @@ impl Bitmask {
     /// interpreting the lowest bit of the chunk as the least significant (~little-endian).
     /// Panics if the chunk doesn't have the unique representation in the field (chunk size exceeds the field capacity).
     #[allow(dead_code)]
-    fn to_chunks_as_field_elements<F: PrimeField>(&self, limbs_in_chunk: usize) -> Vec<F> {
+    pub fn to_chunks_as_field_elements<F: PrimeField>(&self, limbs_in_chunk: usize) -> Vec<F> {
         let bits_in_chunk = BITS_IN_LIMB * limbs_in_chunk;
         assert!(bits_in_chunk <= F::Params::CAPACITY.try_into().unwrap());
         self.limbs.chunks(limbs_in_chunk).map(limbs_to_field_elements::<F>).collect()

@@ -326,6 +326,27 @@ impl<E, P> KZG10<E, P>
         end_timer!(check_time, || format!("Result: {}", valid));
         valid
     }
+
+    pub fn randomize_polynomials(
+        r: E::Fr,
+        polys: &[P]
+    ) -> P {
+        utils::randomize(r, polys)
+    }
+
+    pub fn randomize_commitments(
+        r: E::Fr,
+        commitments: &[E::G1Affine]
+    ) -> E::G1Affine {
+        utils::horner(commitments, r)
+    }
+
+    pub fn randomize_values(
+        r: E::Fr,
+        values: &[E::Fr]
+    ) -> E::Fr {
+        utils::horner_field(values, r)
+    }
 }
 
 fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(
@@ -352,13 +373,15 @@ fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
 mod tests {
     use super::*;
     use ark_std::test_rng;
+    use ark_poly::Polynomial;
     use ark_poly::univariate::DensePolynomial;
-    use ark_bw6_761::BW6_761;
+    use ark_bw6_761::{BW6_761, Fr};
 
     use rand::Rng;
 
 
     type Bw6Poly = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
+    type KzgBw6 = KZG10<BW6_761, Bw6Poly>;
 
 
     fn _setup_commit_open_check_test<E, P>(max_degree: usize)
@@ -393,6 +416,40 @@ mod tests {
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(1);
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(123);
     }
+
+    #[test]
+    fn additivity_test()
+    {
+        let rng = &mut test_rng();
+        let max_degree = 123;
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let pvk = params.get_vk().prepare();
+
+        let poly1 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
+        let poly2 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
+        let x = Fr::rand(rng);
+        let y1 = poly1.evaluate(&x);
+        let y2 = poly2.evaluate(&x);
+
+        // prover and verifier both know the randomizer
+        let r = Fr::rand(rng);
+
+        // prover
+        let comm1 = KzgBw6::commit(&pk, &poly1);
+        let comm2 = KzgBw6::commit(&pk, &poly2);
+        let agg_poly = KzgBw6::randomize_polynomials(r, &[poly1, poly2]);
+        let agg_proof = KzgBw6::open(&pk, &agg_poly, x);
+
+
+        /// verifier
+        let agg_value = KzgBw6::randomize_values(r, &[y1, y2]);
+        let agg_comm = KzgBw6::randomize_commitments(r, &[comm1, comm2]);
+        let valid = KzgBw6::check(&pvk, &agg_comm, x, agg_value, agg_proof);
+        assert!(valid, "check failed for a valid point");
+    }
+
     //
     //
     //
