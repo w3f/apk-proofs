@@ -77,13 +77,13 @@ impl Verifier {
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let t_multiexp = start_timer!(|| "multiexp");
-        let w2_comm = KZG_BW6::randomize_commitments(nu, &[proof.acc_x_comm, proof.acc_y_comm, proof.c_comm, proof.acc_comm]);
-        let w1_comm = KZG_BW6::randomize_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm]);
+        let w2_comm = KZG_BW6::aggregate_commitments(nu, &[proof.acc_x_comm, proof.acc_y_comm, proof.c_comm, proof.acc_comm]);
+        let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm]);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
-        let w1_zeta = KZG_BW6::randomize_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta, proof.c_zeta, proof.acc_zeta]);
-        let w2_zeta_omega = KZG_BW6::randomize_values(nu, &[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega, proof.c_zeta_omega, proof.acc_zeta_omega]);
+        let w1_zeta = KZG_BW6::aggregate_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta, proof.c_zeta, proof.acc_zeta]);
+        let w2_zeta_omega = KZG_BW6::aggregate_values(nu, &[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega, proof.c_zeta_omega, proof.acc_zeta_omega]);
         end_timer!(t_opening_points);
 
         let zeta_omega = zeta * self.domain.group_gen;

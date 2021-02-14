@@ -442,10 +442,10 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_zeta_omega", &acc_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let w2 = KZG_BW6::randomize_polynomials(nu, &[acc_x_poly, acc_y_poly, c_poly, acc_poly]);
+        let w2 = KZG_BW6::aggregate_polynomials(nu, &[acc_x_poly, acc_y_poly, c_poly, acc_poly]);
         let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
-        let w1 = KZG_BW6::randomize_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, w2]);
+        let w1 = KZG_BW6::aggregate_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, w2]);
         let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
         transcript.append_proof_point(b"w1_proof", &w1_proof);

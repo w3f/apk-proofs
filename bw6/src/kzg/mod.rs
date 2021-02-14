@@ -327,25 +327,28 @@ impl<E, P> KZG10<E, P>
         valid
     }
 
-    pub fn randomize_polynomials(
-        r: E::Fr,
-        polys: &[P]
+    /// Computes p = p0 + (r * p1) + (r^2 * p2) + ... + (r^n * pn)
+    pub fn aggregate_polynomials(
+        randomizer: E::Fr,
+        polynomials: &[P]
     ) -> P {
-        utils::randomize(r, polys)
+        utils::randomize(randomizer, polynomials)
     }
 
-    pub fn randomize_commitments(
-        r: E::Fr,
+    /// Computes C = C0 + (r * C1) + (r^2 * C2) + ... + (r^n * Cn)
+    pub fn aggregate_commitments(
+        randomizer: E::Fr,
         commitments: &[E::G1Affine]
     ) -> E::G1Affine {
-        utils::horner(commitments, r)
+        utils::horner(commitments, randomizer)
     }
 
-    pub fn randomize_values(
-        r: E::Fr,
+    /// Computes v = v0 + (r * v1) + (r^2 * v2) + ... + (r^n * vn)
+    pub fn aggregate_values(
+        randomizer: E::Fr,
         values: &[E::Fr]
     ) -> E::Fr {
-        utils::horner_field(values, r)
+        utils::horner_field(values, randomizer)
     }
 }
 
@@ -418,6 +421,29 @@ mod tests {
     }
 
     #[test]
+    fn commitment_linearity_test()
+    {
+        let rng = &mut test_rng();
+        let max_degree = 123;
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+
+        let poly1 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
+        let poly2 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
+
+        let comm1 = KzgBw6::commit(&pk, &poly1);
+        let comm2 = KzgBw6::commit(&pk, &poly2);
+
+        let r = Fr::rand(rng);
+        let agg_poly = KzgBw6::aggregate_polynomials(r, &[poly1, poly2]);
+        let agg_comm = KzgBw6::aggregate_commitments(r, &[comm1, comm2]);
+
+        let agg_poly_comm = KzgBw6::commit(&pk, &agg_poly);
+        assert_eq!(agg_comm, agg_poly_comm, "Commit(af+bg) == aCommit(f) + bCommit(g)");
+    }
+
+    #[test]
     fn additivity_test()
     {
         let rng = &mut test_rng();
@@ -439,15 +465,19 @@ mod tests {
         // prover
         let comm1 = KzgBw6::commit(&pk, &poly1);
         let comm2 = KzgBw6::commit(&pk, &poly2);
-        let agg_poly = KzgBw6::randomize_polynomials(r, &[poly1, poly2]);
+        let agg_poly = KzgBw6::aggregate_polynomials(r, &[poly1.clone(), poly2.clone()]);
         let agg_proof = KzgBw6::open(&pk, &agg_poly, x);
 
-
-        /// verifier
-        let agg_value = KzgBw6::randomize_values(r, &[y1, y2]);
-        let agg_comm = KzgBw6::randomize_commitments(r, &[comm1, comm2]);
+        // verifier
+        let agg_value = KzgBw6::aggregate_values(r, &[y1, y2]);
+        let agg_comm = KzgBw6::aggregate_commitments(r, &[comm1, comm2]);
         let valid = KzgBw6::check(&pvk, &agg_comm, x, agg_value, agg_proof);
         assert!(valid, "check failed for a valid point");
+
+        // and also // TODO: a separate test
+        let proof1 = KzgBw6::open(&pk, &poly1, x);
+        let proof2 = KzgBw6::open(&pk, &poly2, x);
+        assert_eq!(agg_proof, proof1 + proof2.mul(r).into_affine());
     }
 
     //
