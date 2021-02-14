@@ -2,7 +2,6 @@ use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField, Field};
-use ark_std::test_rng;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
@@ -11,6 +10,7 @@ use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
+use crate::fsrng::fiat_shamir_rng;
 
 
 pub struct Verifier {
@@ -43,8 +43,8 @@ impl Verifier {
     ) -> bool
     {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
+
         let mut transcript = self.preprocessed_transcript.clone();
-        let rng = &mut test_rng(); //TODO: remove
         transcript.append_public_input(&apk, bitmask);
         transcript.append_proof_point(b"b_comm", &proof.b_comm);
         transcript.append_proof_point(b"acc_x_comm", &proof.acc_x_comm);
@@ -88,12 +88,15 @@ impl Verifier {
 
         let zeta_omega = zeta * self.domain.group_gen;
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
+        transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
+        transcript.append_proof_point(b"w2_proof", &proof.w2_proof);
+        let fsrng = &mut fiat_shamir_rng(&mut transcript);
         let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
                                                              &[w1_comm, w2_comm],
                                                              &[zeta, zeta_omega],
                                                              &[w1_zeta, w2_zeta_omega],
                                                              &[proof.w1_proof, proof.w2_proof],
-                                                             rng, //TODO: deterministic
+                                                             fsrng,
         );
         assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
         end_timer!(t_kzg_batch_opening);
@@ -169,3 +172,4 @@ impl Verifier {
         w == proof.q_zeta * evals.vanishing_polynomial
     }
 }
+
