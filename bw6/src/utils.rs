@@ -56,10 +56,11 @@ pub fn barycentric_eval_binary_at<F: FftField>(z: F, evals: &Bitmask, domain: Ra
     z_n * s
 }
 
+/// Values of the polynomials at a point z
 pub struct LagrangeEvaluations<F: FftField> {
-    pub vanishing_polynomial: F,
-    pub l_0: F,
-    pub l_minus_1: F,
+    pub vanishing_polynomial: F, // z^n - 1
+    pub l_first: F, // L_0(z)
+    pub l_last: F, // L_{n-1}(z)
 }
 
 pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>) -> LagrangeEvaluations<F> {
@@ -76,8 +77,8 @@ pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>
     batch_inversion(&mut inv);
     LagrangeEvaluations {
         vanishing_polynomial: z_n_minus_one,
-        l_0: z_n_minus_one_div_n * inv[0],
-        l_minus_1: z_n_minus_one_div_n * inv[1],
+        l_first: z_n_minus_one_div_n * inv[0],
+        l_last: z_n_minus_one_div_n * inv[1],
     }
 }
 
@@ -202,8 +203,8 @@ mod tests {
         let evals = lagrange_evaluations(z, domain);
         assert_eq!(evals.vanishing_polynomial, domain.evaluate_vanishing_polynomial(z));
         let coeffs = domain.evaluate_all_lagrange_coefficients(z);
-        assert_eq!(evals.l_0, coeffs[0]);
-        assert_eq!(evals.l_minus_1, coeffs[n - 1]);
+        assert_eq!(evals.l_first, coeffs[0]);
+        assert_eq!(evals.l_last, coeffs[n - 1]);
     }
 
     #[test]

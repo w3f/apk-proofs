@@ -161,12 +161,12 @@ impl Verifier {
         let evals = utils::lagrange_evaluations(zeta, self.domain);
         let apk = apk.0.into_affine();
         let apk_plus_h = self.h + apk;
-        let a4 = (x1 - self.h.x) * evals.l_0 + (x1 - apk_plus_h.x) * evals.l_minus_1;
-        let a5 = (y1 - self.h.y) * evals.l_0 + (y1 - apk_plus_h.y) * evals.l_minus_1;
+        let a4 = (x1 - self.h.x) * evals.l_first + (x1 - apk_plus_h.x) * evals.l_last;
+        let a5 = (y1 - self.h.y) * evals.l_first + (y1 - apk_plus_h.y) * evals.l_last;
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_minus_1;
+        let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
         // let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
-        let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r.pow([self.domain.size / 256])) * evals.l_minus_1;
+        let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r.pow([self.domain.size / 256])) * evals.l_last;
         let s = zeta - self.domain.group_gen_inv;
         let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
         w == proof.q_zeta * evals.vanishing_polynomial
