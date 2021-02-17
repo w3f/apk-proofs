@@ -170,8 +170,8 @@ impl Verifier {
         let a5 = (y1 - self.h.y) * evals.l_first + (y1 - apk_plus_h.y) * evals.l_last;
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
-        // let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
-        let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r_pow_m) * evals.l_last;
+        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
+        let a7 = proof.c_zeta_omega - proof.c_zeta * a - (Fr::one() - r_pow_m) * evals.l_last;
         let s = zeta - self.domain.group_gen_inv;
         let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
         w == proof.q_zeta * evals.vanishing_polynomial

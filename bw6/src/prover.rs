@@ -386,7 +386,7 @@ impl<'a> Prover<'a> {
         let x_todo = Fr::one() - r.pow([chunks as u64]); //TODO: name
         let ln_x4 = self.domains.l_last_scaled_by(x_todo);
 
-        let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
+        let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7_poly = a7.interpolate();
         assert_eq!(a7_poly.divide_by_vanishing_poly(self.domains.domain).unwrap().1, DensePolynomial::zero());
 
