@@ -76,9 +76,9 @@ struct Domains {
     domain4x: Radix2EvaluationDomain<Fr>,
 
     // First Lagrange basis polynomial L_0 of degree n evaluated over the domain of size 4 * n; L_0(\omega^0) = 1
-    l1: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    // Last  Lagrange basis polynomial L_0 of degree n evaluated over the domain of size 4 * n; L_{n-1}(\omega^{n-1}}) = 1
-    ln: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    l_first_evals_over_4x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    // Last  Lagrange basis polynomial L_{n-1} of degree n evaluated over the domain of size 4 * n; L_{n-1}(\omega^{n-1}}) = 1
+    l_last_evals_over_4x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 }
 
 impl Domains {
@@ -88,16 +88,16 @@ impl Domains {
         let domain4x =
             Radix2EvaluationDomain::<Fr>::new(4 * domain_size).unwrap();
 
-        let l1 = Self::first_lagrange_basis_polynomial(domain_size);
-        let ln = Self::last_lagrange_basis_polynomial(domain_size);
-        let l1 = Self::_amplify(l1, domain, domain4x);
-        let ln = Self::_amplify(ln, domain, domain4x);
+        let l_first = Self::first_lagrange_basis_polynomial(domain_size);
+        let l_last = Self::last_lagrange_basis_polynomial(domain_size);
+        let l_first_evals_over_4x = Self::_amplify(l_first, domain, domain4x);
+        let l_last_evals_over_4x = Self::_amplify(l_last, domain, domain4x);
 
         Domains {
             domain,
             domain4x,
-            l1,
-            ln,
+            l_first_evals_over_4x,
+            l_last_evals_over_4x,
         }
     }
 
@@ -292,8 +292,8 @@ impl<'a> Prover<'a> {
         let acc_minus_h_plus_apk_x = add_constant(&x1, -apk_plus_h_x, self.domains.domain4x);
         let acc_minus_h_plus_apk_y = add_constant(&y1, -apk_plus_h_y, self.domains.domain4x);
 
-        let a4 = &(&acc_minus_h_x * &self.domains.l1) + &(&acc_minus_h_plus_apk_x * &self.domains.ln);
-        let a5 = &(&acc_minus_h_y * &self.domains.l1) + &(&acc_minus_h_plus_apk_y * &self.domains.ln);
+        let a4 = &(&acc_minus_h_x * &self.domains.l_first_evals_over_4x) + &(&acc_minus_h_plus_apk_x * &self.domains.l_last_evals_over_4x);
+        let a5 = &(&acc_minus_h_y * &self.domains.l_first_evals_over_4x) + &(&acc_minus_h_plus_apk_y * &self.domains.l_last_evals_over_4x);
 
         let a1_poly = a1.interpolate();
         let a2_poly = a2.interpolate();
