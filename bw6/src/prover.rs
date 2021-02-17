@@ -105,6 +105,17 @@ impl Domains {
         Self::_amplify(evals, self.domain, self.domain4x)
     }
 
+    /// Degree n polynomial c * L_{n-1} evaluated over domain of size 4 * n.
+    pub fn l_last_scaled_by(&self, c: Fr) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
+        &self.constant_4x(c) * &self.l_last_evals_over_4x
+    }
+
+    fn constant_4x(&self, c: Fr) -> Evaluations<Fr, Radix2EvaluationDomain<Fr>> {
+        // TODO: ConstantEvaluations to save memory
+        let evals = vec![c; self.domain4x.size()];
+        Evaluations::from_vec_and_domain(evals, self.domain4x)
+    }
+
     /// Produces evaluations of a degree n polynomial in 4n points, given evaluations in n points.
     /// That allows arithmetic operations with degree n polynomials in evaluations form until the result extends degree 4n.
     // TODO: test
@@ -361,9 +372,7 @@ impl<'a> Prover<'a> {
         let c_shifted_x4 = self.domains.amplify(c_shifted);
         let acc_x4 = acc_poly.evaluate_over_domain_by_ref(self.domains.domain4x);
         let acc_shifted_x4 = self.domains.amplify(acc_shifted);
-        let mut bc_ln = vec![Fr::zero(); n];
-        bc_ln[n-1] = verifiers_bitmask;
-        let bc_ln_x4 = self.domains.amplify(bc_ln);
+        let bc_ln_x4 = self.domains.l_last_scaled_by(verifiers_bitmask);
 
         let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_poly = a6.interpolate();
@@ -372,12 +381,10 @@ impl<'a> Prover<'a> {
         let mut a = vec![Fr::from(2u8); n];
         a.iter_mut().step_by(256).for_each(|a| *a = r / powers_of_2[255]);
         a.rotate_left(1);
-
-        let mut ln = vec![Fr::zero(); n];
-        ln[n-1] = Fr::one() - r.pow([chunks as u64]);
-
         let a_x4 = self.domains.amplify(a);
-        let ln_x4 = self.domains.amplify(ln);
+
+        let x_todo = Fr::one() - r.pow([chunks as u64]); //TODO: name
+        let ln_x4 = self.domains.l_last_scaled_by(x_todo);
 
         let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
         let a7_poly = a7.interpolate();
@@ -484,6 +491,21 @@ impl<'a> Prover<'a> {
 mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
+
+    #[test]
+    fn test_domains_l_last_scaled_by() {
+        let rng = &mut test_rng();
+        let n = 64;
+
+        let c = Fr::rand(rng);
+
+        let mut c_ln = vec![Fr::zero(); n];
+        c_ln[n-1] = c;
+
+        let domains = Domains::new(n);
+
+        assert_eq!(domains.l_last_scaled_by(c), domains.amplify(c_ln));
+    }
 
     #[test]
     fn test_larger_domain() {
