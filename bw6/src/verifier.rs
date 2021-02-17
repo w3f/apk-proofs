@@ -115,12 +115,17 @@ impl Verifier {
 
         let bits_in_bitmask_chunk_inv = Fr::from(256u16).inverse().unwrap();
 
-        let aggregated_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize).into_iter()
-            .zip(utils::powers(r, (chunks_in_bitmask - 1) as usize))
+        let powers_of_r = utils::powers(r, (chunks_in_bitmask - 1) as usize);
+        let r_pow_m = r * powers_of_r.last().unwrap();
+        let bitmask_chunks = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize);
+        assert_eq!(powers_of_r.len(), bitmask_chunks.len());
+        let aggregated_bitmask = bitmask_chunks.into_iter()
+            .zip(powers_of_r)
             .map(|(bj, rj)| bj * rj)
             .sum::<Fr>();
 
-        let t_a_zeta_omega1 = start_timer!(|| "A(zw) fraction");
+
+        let t_a_zeta_omega1 = start_timer!(|| "A(zw) as fraction");
         let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
         let zeta_omega_pow_n = zeta_omega_pow_m.pow([bits_in_bitmask_chunk]); // n = domain_size
         let a_zeta_omega1 = bits_in_bitmask_chunk_inv * (zeta_omega_pow_n - Fr::one()) / (zeta_omega_pow_m - Fr::one());
@@ -166,7 +171,7 @@ impl Verifier {
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
         // let a7 = &(&(&c_x4 * &a_x4) - &c_shifted_x4) + &ln_x4;
-        let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r.pow([self.domain.size / 256])) * evals.l_last;
+        let a7 = proof.c_zeta * a - proof.c_zeta_omega + (Fr::one() - r_pow_m) * evals.l_last;
         let s = zeta - self.domain.group_gen_inv;
         let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
         w == proof.q_zeta * evals.vanishing_polynomial
