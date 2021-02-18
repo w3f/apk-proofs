@@ -1,6 +1,6 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::ProjectiveCurve;
+use ark_ec::{ProjectiveCurve, AffineCurve};
 use ark_ff::{One, PrimeField, Field};
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
@@ -73,23 +73,31 @@ impl Verifier {
         transcript.append_proof_scalar(b"acc_x_zeta_omega", &proof.acc_x_zeta_omega);
         transcript.append_proof_scalar(b"acc_y_zeta_omega", &proof.acc_y_zeta_omega);
         transcript.append_proof_scalar(b"c_zeta_omega", &proof.c_zeta_omega);
-        transcript.append_proof_scalar(b"acc_zeta_omega", &proof.acc_zeta_omega);
+        transcript.append_proof_scalar(b"r_zeta_omega", &proof.r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
+        let zeta_omega = zeta * self.domain.group_gen;
+
+        let powers_of_phi = utils::powers(phi, 6);
+        // TODO: 128-bit mul
+        let r_comm = proof.acc_comm.mul(powers_of_phi[5]).into_affine();
+        assert!(KZG_BW6::check(&self.kzg_pvk, &r_comm, zeta_omega, proof.r_zeta_omega, proof.proof_r_zeta_omega));
+
         let t_multiexp = start_timer!(|| "multiexp");
-        let w2_comm = KZG_BW6::aggregate_commitments(nu, &[proof.acc_x_comm, proof.acc_y_comm, proof.c_comm, proof.acc_comm]);
-        let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, w2_comm]);
+        let w2_comm = KZG_BW6::aggregate_commitments(nu, &[proof.acc_x_comm, proof.acc_y_comm, proof.c_comm]);
+        let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, proof.acc_comm, w2_comm]);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
-        let w1_zeta = KZG_BW6::aggregate_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_x_zeta, proof.acc_y_zeta, proof.c_zeta, proof.acc_zeta]);
-        let w2_zeta_omega = KZG_BW6::aggregate_values(nu, &[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega, proof.c_zeta_omega, proof.acc_zeta_omega]);
+        let w1_zeta = KZG_BW6::aggregate_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_zeta, proof.acc_x_zeta, proof.acc_y_zeta, proof.c_zeta]);
+        let w2_zeta_omega = KZG_BW6::aggregate_values(nu, &[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega, proof.c_zeta_omega]);
         end_timer!(t_opening_points);
 
-        let zeta_omega = zeta * self.domain.group_gen;
+
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
         transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
         transcript.append_proof_point(b"w2_proof", &proof.w2_proof);
+        transcript.append_proof_point(b"proof_r_zeta_omega", &proof.proof_r_zeta_omega);
         let fsrng = &mut fiat_shamir_rng(&mut transcript);
         let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
                                                              &[w1_comm, w2_comm],
@@ -169,12 +177,12 @@ impl Verifier {
         let a4 = (x1 - self.h.x) * evals.l_first + (x1 - apk_plus_h.x) * evals.l_last;
         let a5 = (y1 - self.h.y) * evals.l_first + (y1 - apk_plus_h.y) * evals.l_last;
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6 = proof.acc_zeta_omega - proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
+        let a6 = -proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7 = proof.c_zeta_omega - proof.c_zeta * a - (Fr::one() - r_pow_m) * evals.l_last;
         let s = zeta - self.domain.group_gen_inv;
         let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
-        w == proof.q_zeta * evals.vanishing_polynomial
+        proof.r_zeta_omega + w == proof.q_zeta * evals.vanishing_polynomial
     }
 }
 
