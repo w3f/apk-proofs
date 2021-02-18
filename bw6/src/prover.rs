@@ -432,7 +432,7 @@ impl<'a> Prover<'a> {
         let zeta_omega = zeta * self.domains.domain.group_gen;
         let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
         let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
-        let c_zeta_omega = c_poly.evaluate(&zeta_omega);
+        // let c_zeta_omega = c_poly.evaluate(&zeta_omega);
         // let acc_zeta_omega = acc_poly.evaluate(&zeta_omega);
 
         // Compute linearization polynomial
@@ -442,11 +442,11 @@ impl<'a> Prover<'a> {
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_lin = acc_poly.clone();
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        // let a7_lin = c_poly;
+        let a7_lin = c_poly.clone();
 
         let mut r_poly = DensePolynomial::<Fr>::zero();
         r_poly += (powers_of_phi[5], &a6_lin);
-        // r_poly += (powers_of_phi[6], &a7_lin);
+        r_poly += (powers_of_phi[6], &a7_lin);
 
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
 
@@ -462,14 +462,13 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
         transcript.append_proof_scalar(b"acc_x_zeta_omega", &acc_x_zeta_omega);
         transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
-        transcript.append_proof_scalar(b"c_zeta_omega", &c_zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let w2 = KZG_BW6::aggregate_polynomials(nu, &[acc_x_poly, acc_y_poly, c_poly]);
+        let w2 = KZG_BW6::aggregate_polynomials(nu, &[acc_x_poly, acc_y_poly]);
         let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
 
-        let w1 = KZG_BW6::aggregate_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, acc_poly, w2]);
+        let w1 = KZG_BW6::aggregate_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, acc_poly, c_poly, w2]);
         let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
         let proof_r_zeta_omega = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
@@ -499,7 +498,6 @@ impl<'a> Prover<'a> {
             acc_zeta,
             acc_x_zeta_omega,
             acc_y_zeta_omega,
-            c_zeta_omega,
             r_zeta_omega,
             // <- nu
             w1_proof,
