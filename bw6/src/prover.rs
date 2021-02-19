@@ -459,7 +459,6 @@ impl<'a> Prover<'a> {
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
 
 
-
         transcript.append_proof_scalar(b"b_zeta", &b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
         transcript.append_proof_scalar(b"pks_y_zeta", &pks_y_zeta);
@@ -471,14 +470,22 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let w1 = KZG_BW6::aggregate_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, acc_poly, c_poly, acc_x_poly, acc_y_poly]);
-        let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
+        let w_poly = KZG_BW6::aggregate_polynomials(nu, &[
+            self.session.pks_x_poly.clone(),
+            self.session.pks_y_poly.clone(),
+            b_poly,
+            q_poly,
+            acc_poly,
+            c_poly,
+            acc_x_poly,
+            acc_y_poly
+        ]);
 
-        let proof_r_zeta_omega = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
+        let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
+        let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
 
-
-        transcript.append_proof_point(b"w1_proof", &w1_proof);
-        transcript.append_proof_point(b"proof_r_zeta_omega", &proof_r_zeta_omega);
+        transcript.append_proof_point(b"w_at_zeta_proof", &w_at_zeta_proof);
+        transcript.append_proof_point(b"r_at_zeta_omega_proof", &r_at_zeta_omega_proof);
 
         Proof {
             b_comm,
@@ -500,8 +507,8 @@ impl<'a> Prover<'a> {
             acc_zeta,
             r_zeta_omega,
             // <- nu
-            w1_proof,
-            proof_r_zeta_omega,
+            w_at_zeta_proof,
+            r_at_zeta_omega_proof,
         }
     }
 }

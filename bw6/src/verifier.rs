@@ -104,22 +104,40 @@ impl Verifier {
         };
 
         let t_multiexp = start_timer!(|| "multiexp");
-        let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, proof.acc_comm, proof.c_comm, proof.acc_x_comm, proof.acc_y_comm]);
+        let w_comm = KZG_BW6::aggregate_commitments(nu, &[
+            self.pks_comm.pks_x_comm,
+            self.pks_comm.pks_y_comm,
+            proof.b_comm,
+            proof.q_comm,
+            proof.acc_comm,
+            proof.c_comm,
+            proof.acc_x_comm,
+            proof.acc_y_comm
+        ]);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
-        let w1_zeta = KZG_BW6::aggregate_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_zeta, proof.c_zeta, proof.acc_x_zeta, proof.acc_y_zeta]);
+        let w_at_zeta = KZG_BW6::aggregate_values(nu, &[
+            proof.pks_x_zeta,
+            proof.pks_y_zeta,
+            proof.b_zeta,
+            proof.q_zeta,
+            proof.acc_zeta,
+            proof.c_zeta,
+            proof.acc_x_zeta,
+            proof.acc_y_zeta
+        ]);
         end_timer!(t_opening_points);
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
-        transcript.append_proof_point(b"proof_r_zeta_omega", &proof.proof_r_zeta_omega);
+        transcript.append_proof_point(b"w_at_zeta_proof", &proof.w_at_zeta_proof);
+        transcript.append_proof_point(b"r_at_zeta_omega_proof", &proof.r_at_zeta_omega_proof);
         let fsrng = &mut fiat_shamir_rng(&mut transcript);
         let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
-                                                             &[w1_comm, r_comm],
+                                                             &[w_comm, r_comm],
                                                              &[zeta, zeta_omega],
-                                                             &[w1_zeta, proof.r_zeta_omega],
-                                                             &[proof.w1_proof, proof.proof_r_zeta_omega],
+                                                             &[w_at_zeta, proof.r_zeta_omega],
+                                                             &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
                                                              fsrng,
         );
         assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
