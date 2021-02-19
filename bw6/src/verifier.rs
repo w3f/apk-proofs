@@ -103,8 +103,6 @@ impl Verifier {
             r_comm.into_affine()
         };
 
-        assert!(KZG_BW6::check(&self.kzg_pvk, &r_comm, zeta_omega, proof.r_zeta_omega, proof.proof_r_zeta_omega));
-
         let t_multiexp = start_timer!(|| "multiexp");
         let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, proof.acc_comm, proof.c_comm, proof.acc_x_comm, proof.acc_y_comm]);
         end_timer!(t_multiexp);
@@ -113,27 +111,24 @@ impl Verifier {
         let w1_zeta = KZG_BW6::aggregate_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_zeta, proof.c_zeta, proof.acc_x_zeta, proof.acc_y_zeta]);
         end_timer!(t_opening_points);
 
-        assert!(KZG_BW6::check(&self.kzg_pvk, &w1_comm, zeta, w1_zeta, proof.w1_proof));
+        let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
+        transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
+        transcript.append_proof_point(b"proof_r_zeta_omega", &proof.proof_r_zeta_omega);
+        let fsrng = &mut fiat_shamir_rng(&mut transcript);
+        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
+                                                             &[w1_comm, r_comm],
+                                                             &[zeta, zeta_omega],
+                                                             &[w1_zeta, proof.r_zeta_omega],
+                                                             &[proof.w1_proof, proof.proof_r_zeta_omega],
+                                                             fsrng,
+        );
+        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
+        end_timer!(t_kzg_batch_opening);
 
-
-        // let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        // transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
-        // transcript.append_proof_point(b"proof_r_zeta_omega", &proof.proof_r_zeta_omega);
-        // let fsrng = &mut fiat_shamir_rng(&mut transcript);
-        // let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
-        //                                                      &[w1_comm, w2_comm],
-        //                                                      &[zeta, zeta_omega],
-        //                                                      &[w1_zeta, w2_zeta_omega],
-        //                                                      &[proof.w1_proof, proof.w2_proof],
-        //                                                      fsrng,
-        // );
-        // assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
-        // end_timer!(t_kzg_batch_opening);
-
-        // let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
-        // endo::subgroup_check(&total_c);
-        // endo::subgroup_check(&total_w);
-        // end_timer!(t_lazy_subgroup_checks);
+        let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
+        endo::subgroup_check(&total_c);
+        endo::subgroup_check(&total_w);
+        end_timer!(t_lazy_subgroup_checks);
 
         let bits_in_bitmask_chunk = 256;
         let bits_in_big_int_limb = 64;
