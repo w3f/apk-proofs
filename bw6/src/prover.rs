@@ -430,7 +430,7 @@ impl<'a> Prover<'a> {
         let acc_zeta = acc_poly.evaluate(&zeta);
 
         let zeta_omega = zeta * self.domains.domain.group_gen;
-        let s = zeta - self.domains.domain.group_gen_inv;
+        let zeta_minus_omega_inv = zeta - self.domains.domain.group_gen_inv;
 
         // Compute linearization polynomial
         // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
@@ -451,8 +451,8 @@ impl<'a> Prover<'a> {
         let a7_lin = c_poly.clone();
 
         let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (s, &a1_lin);
-        r_poly += (s * powers_of_phi[1], &a2_lin);
+        r_poly += (zeta_minus_omega_inv, &a1_lin);
+        r_poly += (zeta_minus_omega_inv * powers_of_phi[1], &a2_lin);
         r_poly += (powers_of_phi[5], &a6_lin);
         r_poly += (powers_of_phi[6], &a7_lin);
 

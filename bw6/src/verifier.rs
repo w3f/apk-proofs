@@ -75,7 +75,7 @@ impl Verifier {
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let zeta_omega = zeta * self.domain.group_gen;
-        let s = zeta - self.domain.group_gen_inv;
+        let zeta_minus_omega_inv = zeta - self.domain.group_gen_inv;
 
         let powers_of_phi = utils::powers(phi, 6);
         // TODO: 128-bit mul
@@ -94,10 +94,10 @@ impl Verifier {
             // a2_lin = b(x1-x2)Y3 + b(y1-y2)X3 + (1-b)X3 // *= phi
             // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
             // Y3 term = (1-b) + b(x1-x2)phi
-            // ...and both multiplied by (\zeta - \omega^{n-1}) = s
+            // ...and both multiplied by (\zeta - \omega^{n-1}) // = zeta_minus_omega_inv
             let mut r_comm = GroupProjective::zero();
-            r_comm += proof.acc_x_comm.mul(s * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
-            r_comm += proof.acc_y_comm.mul(s * ((Fr::one() - b) + b * (x1 - x2) * phi));
+            r_comm += proof.acc_x_comm.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
+            r_comm += proof.acc_y_comm.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
             r_comm += proof.acc_comm.mul(powers_of_phi[5]);
             r_comm += proof.c_comm.mul(powers_of_phi[6]);
             r_comm.into_affine()
@@ -199,7 +199,7 @@ impl Verifier {
         let a6 = -proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7 = -proof.c_zeta * a - (Fr::one() - r_pow_m) * evals.l_last;
-        let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
+        let w = utils::horner_field(&[a1 * zeta_minus_omega_inv, a2 * zeta_minus_omega_inv, a3, a4, a5, a6, a7], phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals.vanishing_polynomial
     }
 }
