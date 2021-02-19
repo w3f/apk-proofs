@@ -80,14 +80,14 @@ impl Verifier {
         let powers_of_phi = utils::powers(phi, 6);
         // TODO: 128-bit mul
 
+        let b = proof.b_zeta;
+        let x1 = proof.acc_x_zeta;
+        let y1 = proof.acc_y_zeta;
+        let x2 = proof.pks_x_zeta;
+        let y2 = proof.pks_y_zeta;
+
         // commitment to the linearization polynomial
         let r_comm = {
-            let b = proof.b_zeta;
-            let x1 = proof.acc_x_zeta;
-            let y1 = proof.acc_y_zeta;
-            let x2 = proof.pks_x_zeta;
-            let y2 = proof.pks_y_zeta;
-
             // X3 := acc_x polynomial
             // Y3 := acc_y polynomial
             // a1_lin = b(x1-x2)^2.X3 + (1-b)Y3
@@ -182,12 +182,6 @@ impl Verifier {
         let two = Fr::from(2u8);
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
-
-        let b = proof.b_zeta;
-        let x1 = proof.acc_x_zeta;
-        let y1 = proof.acc_y_zeta;
-        let x2 = proof.pks_x_zeta;
-        let y2 = proof.pks_y_zeta;
 
         let a1 =
             b * (
