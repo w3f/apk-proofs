@@ -1,7 +1,7 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::{ProjectiveCurve, AffineCurve};
-use ark_ff::{One, PrimeField, Field};
+use ark_ff::{One, PrimeField, Field, Zero};
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
@@ -11,6 +11,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
+use ark_ec::short_weierstrass_jacobian::GroupProjective;
 
 
 pub struct Verifier {
@@ -70,50 +71,69 @@ impl Verifier {
         transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
         transcript.append_proof_scalar(b"c_zeta", &proof.c_zeta);
         transcript.append_proof_scalar(b"acc_zeta", &proof.acc_zeta);
-        transcript.append_proof_scalar(b"acc_x_zeta_omega", &proof.acc_x_zeta_omega);
-        transcript.append_proof_scalar(b"acc_y_zeta_omega", &proof.acc_y_zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &proof.r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let zeta_omega = zeta * self.domain.group_gen;
+        let s = zeta - self.domain.group_gen_inv;
 
         let powers_of_phi = utils::powers(phi, 6);
         // TODO: 128-bit mul
-        let mut r_comm = proof.acc_comm.mul(powers_of_phi[5]);
-        r_comm += proof.c_comm.mul(powers_of_phi[6]);
-        let r_comm = r_comm.into_affine();
+
+        // commitment to the linearization polynomial
+        let r_comm = {
+            let b = proof.b_zeta;
+            let x1 = proof.acc_x_zeta;
+            let y1 = proof.acc_y_zeta;
+            let x2 = proof.pks_x_zeta;
+            let y2 = proof.pks_y_zeta;
+
+            // X3 := acc_x polynomial
+            // Y3 := acc_y polynomial
+            // a1_lin = b(x1-x2)^2.X3 + (1-b)Y3
+            // a2_lin = b(x1-x2)Y3 + b(y1-y2)X3 + (1-b)X3 // *= phi
+            // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
+            // Y3 term = (1-b) + b(x1-x2)phi
+            // ...and both multiplied by (\zeta - \omega^{n-1}) = s
+            let mut r_comm = GroupProjective::zero();
+            r_comm += proof.acc_x_comm.mul(s * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
+            r_comm += proof.acc_y_comm.mul(s * ((Fr::one() - b) + b * (x1 - x2) * phi));
+            r_comm += proof.acc_comm.mul(powers_of_phi[5]);
+            r_comm += proof.c_comm.mul(powers_of_phi[6]);
+            r_comm.into_affine()
+        };
+
         assert!(KZG_BW6::check(&self.kzg_pvk, &r_comm, zeta_omega, proof.r_zeta_omega, proof.proof_r_zeta_omega));
 
         let t_multiexp = start_timer!(|| "multiexp");
-        let w2_comm = KZG_BW6::aggregate_commitments(nu, &[proof.acc_x_comm, proof.acc_y_comm]);
-        let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, proof.acc_comm, proof.c_comm, w2_comm]);
+        let w1_comm = KZG_BW6::aggregate_commitments(nu, &[self.pks_comm.pks_x_comm, self.pks_comm.pks_y_comm, proof.b_comm, proof.q_comm, proof.acc_comm, proof.c_comm, proof.acc_x_comm, proof.acc_y_comm]);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
         let w1_zeta = KZG_BW6::aggregate_values(nu, &[proof.pks_x_zeta, proof.pks_y_zeta, proof.b_zeta, proof.q_zeta, proof.acc_zeta, proof.c_zeta, proof.acc_x_zeta, proof.acc_y_zeta]);
-        let w2_zeta_omega = KZG_BW6::aggregate_values(nu, &[proof.acc_x_zeta_omega, proof.acc_y_zeta_omega]);
         end_timer!(t_opening_points);
 
+        assert!(KZG_BW6::check(&self.kzg_pvk, &w1_comm, zeta, w1_zeta, proof.w1_proof));
 
-        let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
-        transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
-        transcript.append_proof_point(b"w2_proof", &proof.w2_proof);
-        transcript.append_proof_point(b"proof_r_zeta_omega", &proof.proof_r_zeta_omega);
-        let fsrng = &mut fiat_shamir_rng(&mut transcript);
-        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
-                                                             &[w1_comm, w2_comm],
-                                                             &[zeta, zeta_omega],
-                                                             &[w1_zeta, w2_zeta_omega],
-                                                             &[proof.w1_proof, proof.w2_proof],
-                                                             fsrng,
-        );
-        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
-        end_timer!(t_kzg_batch_opening);
 
-        let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
-        endo::subgroup_check(&total_c);
-        endo::subgroup_check(&total_w);
-        end_timer!(t_lazy_subgroup_checks);
+        // let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
+        // transcript.append_proof_point(b"w1_proof", &proof.w1_proof);
+        // transcript.append_proof_point(b"proof_r_zeta_omega", &proof.proof_r_zeta_omega);
+        // let fsrng = &mut fiat_shamir_rng(&mut transcript);
+        // let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
+        //                                                      &[w1_comm, w2_comm],
+        //                                                      &[zeta, zeta_omega],
+        //                                                      &[w1_zeta, w2_zeta_omega],
+        //                                                      &[proof.w1_proof, proof.w2_proof],
+        //                                                      fsrng,
+        // );
+        // assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
+        // end_timer!(t_kzg_batch_opening);
+
+        // let t_lazy_subgroup_checks = start_timer!(|| "2 point lazy subgroup check");
+        // endo::subgroup_check(&total_c);
+        // endo::subgroup_check(&total_w);
+        // end_timer!(t_lazy_subgroup_checks);
 
         let bits_in_bitmask_chunk = 256;
         let bits_in_big_int_limb = 64;
@@ -155,20 +175,18 @@ impl Verifier {
         let y1 = proof.acc_y_zeta;
         let x2 = proof.pks_x_zeta;
         let y2 = proof.pks_y_zeta;
-        let x3 = proof.acc_x_zeta_omega;
-        let y3 = proof.acc_y_zeta_omega;
 
         let a1 =
             b * (
-                (x1 - x2) * (x1 - x2) * (x1 + x2 + x3)
+                (x1 - x2) * (x1 - x2) * (x1 + x2)
                     - (y2 - y1) * (y2 - y1)
-            ) + (Fr::one() - b) * (y3 - y1);
+            ) - (Fr::one() - b) * y1;
 
         let a2 =
             b * (
-                (x1 - x2) * (y3 + y1)
-                    - (y2 - y1) * (x3 - x1)
-            ) + (Fr::one() - b) * (x3 - x1);
+                (x1 - x2) * y1
+                    + (y2 - y1) * x1
+            ) - (Fr::one() - b) * x1;
 
         let a3 = b * (Fr::one() - b);
 
@@ -181,7 +199,6 @@ impl Verifier {
         let a6 = -proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7 = -proof.c_zeta * a - (Fr::one() - r_pow_m) * evals.l_last;
-        let s = zeta - self.domain.group_gen_inv;
         let w = utils::horner_field(&[a1 * s, a2 * s, a3, a4, a5, a6, a7], phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals.vanishing_polynomial
     }

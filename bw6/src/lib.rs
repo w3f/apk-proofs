@@ -58,12 +58,9 @@ pub struct Proof {
     q_zeta: Fr,
     c_zeta: Fr,
     acc_zeta: Fr,
-    acc_x_zeta_omega: Fr,
-    acc_y_zeta_omega: Fr,
     r_zeta_omega: Fr,
     // Prover receives \nu, the KZG opening batching challenge, here
     w1_proof: ark_bw6_761::G1Affine,
-    w2_proof: ark_bw6_761::G1Affine,
     proof_r_zeta_omega: ark_bw6_761::G1Affine,
 }
 

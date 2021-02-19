@@ -401,9 +401,9 @@ impl<'a> Prover<'a> {
         let mut a12 = DensePolynomial::<Fr>::zero();
         a12 += &a1_poly;
         a12 += (powers_of_phi[1], &a2_poly);
-        // a12 = ai + phi * a2
-        let mut w = mul_by_x(&a12); // w = (ai + phi * a2) * X
-        w += (-self.domains.domain.group_gen_inv, &a12); // w = (ai + phi * a2) * (X - \omega^{n-1})
+        // a12 = a1 + phi * a2
+        let mut w = mul_by_x(&a12); // w = (a1 + phi * a2) * X
+        w += (-self.domains.domain.group_gen_inv, &a12); // w = (a1 + phi * a2) * (X - \omega^{n-1})
         w += (powers_of_phi[2], &a3_poly);
         w += (powers_of_phi[3], &a4_poly);
         w += (powers_of_phi[4], &a5_poly);
@@ -430,14 +430,20 @@ impl<'a> Prover<'a> {
         let acc_zeta = acc_poly.evaluate(&zeta);
 
         let zeta_omega = zeta * self.domains.domain.group_gen;
-        let acc_x_zeta_omega = acc_x_poly.evaluate(&zeta_omega);
-        let acc_y_zeta_omega = acc_y_poly.evaluate(&zeta_omega);
-        // let c_zeta_omega = c_poly.evaluate(&zeta_omega);
-        // let acc_zeta_omega = acc_poly.evaluate(&zeta_omega);
+        let s = zeta - self.domains.domain.group_gen_inv;
 
         // Compute linearization polynomial
         // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
         // deg(r) = n, so it can be computed in the monomial basis
+
+        let mut a1_lin = DensePolynomial::<Fr>::zero();
+        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), &acc_x_poly);
+        a1_lin += (Fr::one() - b_zeta, &acc_y_poly);
+
+        let mut a2_lin = DensePolynomial::<Fr>::zero();
+        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), &acc_y_poly);
+        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), &acc_x_poly);
+        a2_lin += (Fr::one() - b_zeta, &acc_x_poly);
 
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_lin = acc_poly.clone();
@@ -445,6 +451,8 @@ impl<'a> Prover<'a> {
         let a7_lin = c_poly.clone();
 
         let mut r_poly = DensePolynomial::<Fr>::zero();
+        r_poly += (s, &a1_lin);
+        r_poly += (s * powers_of_phi[1], &a2_lin);
         r_poly += (powers_of_phi[5], &a6_lin);
         r_poly += (powers_of_phi[6], &a7_lin);
 
@@ -460,22 +468,16 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
         transcript.append_proof_scalar(b"c_zeta", &c_zeta);
         transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
-        transcript.append_proof_scalar(b"acc_x_zeta_omega", &acc_x_zeta_omega);
-        transcript.append_proof_scalar(b"acc_y_zeta_omega", &acc_y_zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-        let w2 = KZG_BW6::aggregate_polynomials(nu, &[acc_x_poly, acc_y_poly]);
-        let w2_proof = KZG_BW6::open(&self.params.kzg_pk, &w2, zeta_omega);
-
-        let w1 = KZG_BW6::aggregate_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, acc_poly, c_poly, w2]);
+        let w1 = KZG_BW6::aggregate_polynomials(nu, &[self.session.pks_x_poly.clone(), self.session.pks_y_poly.clone(), b_poly, q_poly, acc_poly, c_poly, acc_x_poly, acc_y_poly]);
         let w1_proof = KZG_BW6::open(&self.params.kzg_pk, &w1, zeta);
 
         let proof_r_zeta_omega = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
 
 
         transcript.append_proof_point(b"w1_proof", &w1_proof);
-        transcript.append_proof_point(b"w2_proof", &w2_proof);
         transcript.append_proof_point(b"proof_r_zeta_omega", &proof_r_zeta_omega);
 
         Proof {
@@ -496,12 +498,9 @@ impl<'a> Prover<'a> {
             q_zeta,
             c_zeta,
             acc_zeta,
-            acc_x_zeta_omega,
-            acc_y_zeta_omega,
             r_zeta_omega,
             // <- nu
             w1_proof,
-            w2_proof,
             proof_r_zeta_omega,
         }
     }
