@@ -150,11 +150,6 @@ impl<'a> Prover<'a> {
         acc_x.resize_with(n, || apk_plus_h_x);
         acc_y.resize_with(n, || apk_plus_h_y);
 
-        let mut acc_x_shifted = acc_x.clone();
-        let mut acc_y_shifted = acc_y.clone();
-        acc_x_shifted.rotate_left(1);
-        acc_y_shifted.rotate_left(1);
-
         // TODO: move to Session
         let pks = self.session.pks.iter()
             .map(|p| p.0.into_affine())
