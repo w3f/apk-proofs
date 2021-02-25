@@ -12,6 +12,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
+use crate::constraints::{Registers, Constraints};
 
 
 fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
@@ -154,6 +155,8 @@ impl<'a> Prover<'a> {
         acc_x_shifted.rotate_left(1);
         acc_y_shifted.rotate_left(1);
 
+        let registers = Registers::new(b.clone(), &self.domains);
+
 
         let b_poly = self.domains.interpolate(b.clone());
         let acc_x_poly = self.domains.interpolate(acc_x);
@@ -216,8 +219,6 @@ impl<'a> Prover<'a> {
                     &one_minus_b * &(&x3 - &x1)
                 );
 
-        let a3 = &B * &one_minus_b;
-
 
         let acc_minus_h_x = &x1 - &self.domains.constant_4x(self.params.h.x);
         let acc_minus_h_y = &y1 - &self.domains.constant_4x(self.params.h.y);
@@ -232,13 +233,12 @@ impl<'a> Prover<'a> {
 
         let a1_poly = a1.interpolate();
         let a2_poly = a2.interpolate();
-        let a3_poly = a3.interpolate();
+        let a3_poly = Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
         let a4_poly = a4.interpolate();
         let a5_poly = a5.interpolate();
 
         assert_eq!(a1_poly.degree(), 4 * (n - 1));
         assert_eq!(a2_poly.degree(), 3 * (n - 1));
-        assert_eq!(a3_poly.degree(), 2 * (n - 1));
         assert_eq!(a4_poly.degree(), 2 * (n - 1));
         assert_eq!(a5_poly.degree(), 2 * (n - 1));
 
@@ -250,7 +250,6 @@ impl<'a> Prover<'a> {
 
         assert!(self.domains.is_zero(&a1_poly_));
         assert!(self.domains.is_zero(&a2_poly_));
-        assert!(self.domains.is_zero(&a3_poly));
         assert!(self.domains.is_zero(&a4_poly));
         assert!(self.domains.is_zero(&a5_poly));
 

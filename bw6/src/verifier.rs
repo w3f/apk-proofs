@@ -12,6 +12,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use ark_ec::short_weierstrass_jacobian::GroupProjective;
+use crate::constraints::Constraints;
 
 
 pub struct Verifier {
@@ -195,7 +196,7 @@ impl Verifier {
                     + (y2 - y1) * x1
             ) - (Fr::one() - b) * x1;
 
-        let a3 = b * (Fr::one() - b);
+        let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
 
         let evals = utils::lagrange_evaluations(zeta, self.domain);
         let apk = apk.0.into_affine();

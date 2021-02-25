@@ -19,6 +19,7 @@ pub use signer_set::{SignerSet, SignerSetCommitment};
 mod kzg;
 mod fsrng;
 mod domains;
+mod constraints;
 
 mod setup;
 pub use setup::Setup;
