@@ -14,6 +14,9 @@ pub(crate) struct Registers<'a> {
     // aggregate public key rolling sum coordinates
     apk_acc_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    // TODO: not really registers
+    apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 }
 
 impl<'a> Registers<'a> {
@@ -22,6 +25,11 @@ impl<'a> Registers<'a> {
                pks: (Vec<Fr>, Vec<Fr>),
                apk_acc: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
+        let mut apk_acc_x_shifted = apk_acc.0.clone();
+        let mut apk_acc_y_shifted = apk_acc.1.clone();
+        apk_acc_x_shifted.rotate_left(1);
+        apk_acc_y_shifted.rotate_left(1);
+
         Self {
             domains,
             bitmask: domains.amplify(bitmask),
@@ -29,6 +37,8 @@ impl<'a> Registers<'a> {
             pks_y: domains.amplify(pks.1),
             apk_acc_x: domains.amplify(apk_acc.0),
             apk_acc_y: domains.amplify(apk_acc.1),
+            apk_acc_x_shifted: domains.amplify(apk_acc_x_shifted),
+            apk_acc_y_shifted: domains.amplify(apk_acc_y_shifted),
         }
     }
 }
@@ -47,10 +57,58 @@ impl Constraints {
         bitmask_at_zeta * (Fr::one() - bitmask_at_zeta)
     }
 
-    // pub fn compute_conditional_affine_addition_constraint_polynomials(registers: &Registers) ->
-    // (DensePolynomial<Fr>, DensePolynomial<Fr>) {
-    //
-    // }
+    pub fn compute_conditional_affine_addition_constraint_polynomials(registers: &Registers) ->
+    (DensePolynomial<Fr>, DensePolynomial<Fr>) {
+        let b = &registers.bitmask;
+        let mut one_minus_b = registers.domains.constant_4x(Fr::one());
+        one_minus_b -= b;
+
+        let x1 = &registers.apk_acc_x;
+        let y1 = &registers.apk_acc_y;
+        let x2 = &registers.pks_x;
+        let y2 = &registers.pks_y;
+        let x3 = &registers.apk_acc_x_shifted;
+        let y3 = &registers.apk_acc_y_shifted;
+
+        let c1 =
+            &(
+                b *
+                    &(
+                        &(
+                            &(
+                                &(x1 - x2) * &(x1 - x2)
+                            ) *
+                                &(
+                                    &(x1 + x2) + x3
+                                )
+                        ) -
+                            &(
+                                &(y2 - y1) * &(y2 - y1)
+                            )
+                    )
+            ) +
+                &(
+                    &one_minus_b * &(y3 - y1)
+                );
+
+        let c2 =
+            &(
+                b *
+                    &(
+                        &(
+                            &(x1 - x2) * &(y3 + y1)
+                        ) -
+                            &(
+                                &(y2 - y1) * &(x3 - x1)
+                            )
+                    )
+            ) +
+                &(
+                    &one_minus_b * &(x3 - x1)
+                );
+
+        (c1.interpolate(), c2.interpolate())
+    }
 }
 
 #[cfg(test)]

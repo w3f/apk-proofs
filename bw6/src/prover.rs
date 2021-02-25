@@ -180,55 +180,9 @@ impl<'a> Prover<'a> {
         assert_eq!(b_poly.degree(), n - 1);
 
 
-
         let B = self.domains.amplify_polynomial(&b_poly);
         let x1 = self.domains.amplify_polynomial(&acc_x_poly);
         let y1 = self.domains.amplify_polynomial(&acc_y_poly);
-        let x2 = self.session.pks_x_poly_evals_x4.clone();
-        let y2 = self.session.pks_y_poly_evals_x4.clone();
-        let x3 = self.domains.amplify(acc_x_shifted);
-        let y3 = self.domains.amplify(acc_y_shifted);
-
-        let mut one_minus_b = self.domains.constant_4x(Fr::one());
-        one_minus_b -= &B;
-
-        let a1 =
-            &(
-                &B *
-                    &(
-                        &(
-                            &(
-                                &(&x1 - &x2) * &(&x1 - &x2)
-                            ) *
-                                &(
-                                    &(&x1 + &x2) + &x3
-                                )
-                        ) -
-                            &(
-                                &(&y2 - &y1) * &(&y2 - &y1)
-                            )
-                    )
-            ) +
-                &(
-                    &one_minus_b * &(&y3 - &y1)
-                );
-
-        let a2 =
-            &(
-                &B *
-                    &(
-                        &(
-                            &(&x1 - &x2) * &(&y3 + &y1)
-                        ) -
-                            &(
-                                &(&y2 - &y1) * &(&x3 - &x1)
-                            )
-                    )
-            ) +
-                &(
-                    &one_minus_b * &(&x3 - &x1)
-                );
-
 
         let acc_minus_h_x = &x1 - &self.domains.constant_4x(self.params.h.x);
         let acc_minus_h_y = &y1 - &self.domains.constant_4x(self.params.h.y);
@@ -241,8 +195,7 @@ impl<'a> Prover<'a> {
         let a5 = &(&acc_minus_h_y * &self.domains.l_first_evals_over_4x)
             + &(&acc_minus_h_plus_apk_y * &self.domains.l_last_evals_over_4x);
 
-        let a1_poly = a1.interpolate();
-        let a2_poly = a2.interpolate();
+        let (a1_poly, a2_poly) = Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
         let a3_poly = Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
         let a4_poly = a4.interpolate();
         let a5_poly = a5.interpolate();
