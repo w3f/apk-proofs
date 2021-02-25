@@ -8,19 +8,27 @@ use ark_ff::One;
 pub(crate) struct Registers<'a> {
     domains: &'a Domains,
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    // // public keys' coordinates
-    // pks_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    // pks_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    // // aggregate public key rolling sum coordinates
-    // apk_acc_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    // apk_acc_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    // public keys' coordinates
+    pks_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    pks_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    // aggregate public key rolling sum coordinates
+    apk_acc_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    apk_acc_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 }
 
 impl<'a> Registers<'a> {
-    pub fn new(bitmask: Vec<Fr>, domains: &'a Domains) -> Self {
+    pub fn new(domains: &'a Domains,
+               bitmask: Vec<Fr>,
+               pks: (Vec<Fr>, Vec<Fr>),
+               apk_acc: (Vec<Fr>, Vec<Fr>),
+    ) -> Self {
         Self {
             domains,
             bitmask: domains.amplify(bitmask),
+            pks_x: domains.amplify(pks.0),
+            pks_y: domains.amplify(pks.1),
+            apk_acc_x: domains.amplify(apk_acc.0),
+            apk_acc_y: domains.amplify(apk_acc.1),
         }
     }
 }
@@ -38,6 +46,11 @@ impl Constraints {
     pub fn evaluate_bitmask_booleanity_constraint(bitmask_at_zeta: Fr) -> Fr {
         bitmask_at_zeta * (Fr::one() - bitmask_at_zeta)
     }
+
+    // pub fn compute_conditional_affine_addition_constraint_polynomials(registers: &Registers) ->
+    // (DensePolynomial<Fr>, DensePolynomial<Fr>) {
+    //
+    // }
 }
 
 #[cfg(test)]
@@ -56,6 +69,10 @@ mod tests {
             .collect::<Vec<_>>()
     }
 
+    fn dummy_registers(n: usize) -> (Vec<Fr>, Vec<Fr>) {
+        (vec![Fr::zero(); n], vec![Fr::zero(); n])
+    }
+
     #[test]
     fn test_bitmask_booleanity_constraint() {
         let rng = &mut test_rng();
@@ -64,7 +81,12 @@ mod tests {
 
 
         let good_bitmask = random_bitmask(rng, n);
-        let registers = Registers::new(good_bitmask, &domains);
+        let registers = Registers::new(
+            &domains,
+            good_bitmask,
+            dummy_registers(n),
+            dummy_registers(n)
+        );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
@@ -73,7 +95,12 @@ mod tests {
 
         let mut bad_bitmask = random_bitmask(rng, n);
         bad_bitmask[0] = Fr::rand(rng);
-        let registers = Registers::new(bad_bitmask, &domains);
+        let registers = Registers::new(
+            &domains,
+            bad_bitmask,
+            dummy_registers(n),
+            dummy_registers(n)
+        );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
         assert_eq!(constraint_poly.degree(), 2 * (n - 1));

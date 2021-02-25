@@ -155,8 +155,18 @@ impl<'a> Prover<'a> {
         acc_x_shifted.rotate_left(1);
         acc_y_shifted.rotate_left(1);
 
-        let registers = Registers::new(b.clone(), &self.domains);
+        // TODO: move to Session
+        let pks = self.session.pks.iter()
+            .map(|p| p.0.into_affine())
+            .map(|p| (p.x, p.y))
+            .unzip();
 
+        let registers = Registers::new(
+            &self.domains,
+            b.clone(),
+            pks,
+            (acc_x.clone(), acc_y.clone()),
+        );
 
         let b_poly = self.domains.interpolate(b.clone());
         let acc_x_poly = self.domains.interpolate(acc_x);
