@@ -447,37 +447,6 @@ mod tests {
 
 
     #[test]
-    fn test_domains_l_last_scaled_by() {
-        let rng = &mut test_rng();
-        let n = 64;
-
-        let c = Fr::rand(rng);
-
-        let mut c_ln = vec![Fr::zero(); n];
-        c_ln[n-1] = c;
-
-        let domains = Domains::new(n);
-
-        assert_eq!(domains.l_last_scaled_by(c), domains.amplify(c_ln));
-    }
-
-    #[test]
-    fn test_larger_domain() {
-        let rng = &mut test_rng();
-        let n = 2;
-        let d1 = GeneralEvaluationDomain::<Fr>::new(n).unwrap();
-        let d4 = GeneralEvaluationDomain::<Fr>::new(4 * n).unwrap();
-
-        let p_evals1 = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
-        let p_poly1 = Evaluations::from_vec_and_domain(p_evals1, d1).interpolate();
-
-        let p_evals4 = p_poly1.evaluate_over_domain_by_ref(d4);
-        let p_poly4 = p_evals4.interpolate();
-
-        assert_eq!(p_poly1, p_poly4);
-    }
-
-    #[test]
     fn test_mul_domain() {
         let rng = &mut test_rng();
         let n = 2;

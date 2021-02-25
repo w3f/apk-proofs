@@ -106,3 +106,41 @@ impl Domains {
         li
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ark_std::{test_rng, UniformRand};
+
+    #[test]
+    fn test_amplify() {
+        let rng = &mut test_rng();
+        let n = 64;
+
+        let domains = Domains::new(n);
+
+        let evals = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
+        let poly = domains.interpolate(evals.clone());
+
+        let evals4x_from_poly = domains.amplify_polynomial(&poly);
+        let evals4x_from_vec = domains.amplify(evals);
+
+        assert_eq!(evals4x_from_poly, evals4x_from_vec);
+        assert_eq!(evals4x_from_poly.interpolate(), poly);
+    }
+
+    #[test]
+    fn test_domains_l_last_scaled_by() {
+        let rng = &mut test_rng();
+        let n = 64;
+
+        let c = Fr::rand(rng);
+
+        let mut c_ln = vec![Fr::zero(); n];
+        c_ln[n - 1] = c;
+
+        let domains = Domains::new(n);
+
+        assert_eq!(domains.l_last_scaled_by(c), domains.amplify(c_ln));
+    }
+}
