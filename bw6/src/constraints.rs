@@ -30,6 +30,21 @@ impl<'a> Registers<'a> {
         apk_acc_x_shifted.rotate_left(1);
         apk_acc_y_shifted.rotate_left(1);
 
+        Self::new_unchecked(
+            domains,
+            bitmask,
+            pks,
+            apk_acc,
+            (apk_acc_x_shifted, apk_acc_y_shifted),
+        )
+    }
+
+    fn new_unchecked(domains: &'a Domains,
+                     bitmask: Vec<Fr>,
+                     pks: (Vec<Fr>, Vec<Fr>),
+                     apk_acc: (Vec<Fr>, Vec<Fr>),
+                     apk_acc_shifted: (Vec<Fr>, Vec<Fr>),
+    ) -> Self {
         Self {
             domains,
             bitmask: domains.amplify(bitmask),
@@ -37,8 +52,8 @@ impl<'a> Registers<'a> {
             pks_y: domains.amplify(pks.1),
             apk_acc_x: domains.amplify(apk_acc.0),
             apk_acc_y: domains.amplify(apk_acc.1),
-            apk_acc_x_shifted: domains.amplify(apk_acc_x_shifted),
-            apk_acc_y_shifted: domains.amplify(apk_acc_y_shifted),
+            apk_acc_x_shifted: domains.amplify(apk_acc_shifted.0),
+            apk_acc_y_shifted: domains.amplify(apk_acc_shifted.1),
         }
     }
 }
