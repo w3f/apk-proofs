@@ -16,6 +16,8 @@ pub struct Domains {
     pub omega: Fr,
     /// \omega^{n-1}
     pub omega_inv: Fr,
+    /// The smaller domain size.
+    pub size: usize,
 }
 
 impl Domains {
@@ -24,8 +26,6 @@ impl Domains {
             Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
         let domain4x =
             Radix2EvaluationDomain::<Fr>::new(4 * domain_size).unwrap();
-        let omega = domain.group_gen;
-        let omega_inv = domain.group_gen_inv;
 
         let l_first = Self::first_lagrange_basis_polynomial(domain_size);
         let l_last = Self::last_lagrange_basis_polynomial(domain_size);
@@ -37,8 +37,9 @@ impl Domains {
             domain4x,
             l_first_evals_over_4x,
             l_last_evals_over_4x,
-            omega,
-            omega_inv,
+            omega: domain.group_gen,
+            omega_inv: domain.group_gen_inv,
+            size: domain.size(),
         }
     }
 
