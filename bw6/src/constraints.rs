@@ -2,7 +2,8 @@ use ark_poly::{Evaluations, Radix2EvaluationDomain};
 use ark_bw6_761::Fr;
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::One;
+use ark_ff::{One, Zero};
+use crate::Bitmask;
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 pub(crate) struct Registers<'a> {
@@ -21,10 +22,14 @@ pub(crate) struct Registers<'a> {
 
 impl<'a> Registers<'a> {
     pub fn new(domains: &'a Domains,
-               bitmask: Vec<Fr>,
+               bitmask: &Bitmask,
                pks: (Vec<Fr>, Vec<Fr>),
                apk_acc: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
+        let mut bitmask = bitmask.to_bits_as_field_elements();
+        bitmask.resize(domains.size, Fr::zero());
+
+
         let mut apk_acc_x_shifted = apk_acc.0.clone();
         let mut apk_acc_y_shifted = apk_acc.1.clone();
         apk_acc_x_shifted.rotate_left(1);
@@ -131,15 +136,15 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use ark_std::rand::{Rng, rngs::StdRng};
-    use ark_ff::{Zero, Fp384};
     use ark_poly::Polynomial;
-    use ark_bls12_377::FqParameters;
+    use crate::tests::random_bits;
 
-    fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fp384<FqParameters>> {
+    // TODO: there's crate::tests::random_bits
+    fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
         (0..n)
             .map(|_| rng.gen_bool(2.0 / 3.0))
             .map(|b| if b { Fr::one() } else { Fr::zero() })
-            .collect::<Vec<_>>()
+            .collect()
     }
 
     fn dummy_registers(n: usize) -> (Vec<Fr>, Vec<Fr>) {
@@ -153,10 +158,10 @@ mod tests {
         let domains = Domains::new(n);
 
 
-        let good_bitmask = random_bitmask(rng, n);
+        let good_bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
         let registers = Registers::new(
             &domains,
-            good_bitmask,
+            &good_bitmask,
             dummy_registers(n),
             dummy_registers(n)
         );
@@ -168,9 +173,10 @@ mod tests {
 
         let mut bad_bitmask = random_bitmask(rng, n);
         bad_bitmask[0] = Fr::rand(rng);
-        let registers = Registers::new(
+        let registers = Registers::new_unchecked(
             &domains,
             bad_bitmask,
+            dummy_registers(n),
             dummy_registers(n),
             dummy_registers(n)
         );

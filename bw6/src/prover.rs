@@ -158,7 +158,7 @@ impl<'a> Prover<'a> {
 
         let registers = Registers::new(
             &self.domains,
-            b.clone(),
+            bitmask,
             pks,
             (acc_x.clone(), acc_y.clone()),
         );
