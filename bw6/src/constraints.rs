@@ -1,8 +1,10 @@
 use ark_poly::{Evaluations, Radix2EvaluationDomain};
-use ark_bw6_761::Fr;
-use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero};
+use ark_bw6_761::Fr;
+use ark_bls12_377::G1Affine;
+
+use crate::domains::Domains;
 use crate::Bitmask;
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
@@ -23,12 +25,15 @@ pub(crate) struct Registers<'a> {
 impl<'a> Registers<'a> {
     pub fn new(domains: &'a Domains,
                bitmask: &Bitmask,
-               pks: (Vec<Fr>, Vec<Fr>),
+               pks: Vec<G1Affine>,
                apk_acc: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
         let mut bitmask = bitmask.to_bits_as_field_elements();
         bitmask.resize(domains.size, Fr::zero());
 
+        let pks = pks.iter()
+            .map(|p| (p.x, p.y))
+            .unzip();
 
         let mut apk_acc_x_shifted = apk_acc.0.clone();
         let mut apk_acc_y_shifted = apk_acc.1.clone();
@@ -137,6 +142,8 @@ mod tests {
     use ark_std::{test_rng, UniformRand};
     use ark_std::rand::{Rng, rngs::StdRng};
     use ark_poly::Polynomial;
+    use ark_bls12_377::G1Projective;
+    use ark_ec::ProjectiveCurve;
     use crate::tests::random_bits;
 
     // TODO: there's crate::tests::random_bits
@@ -144,6 +151,13 @@ mod tests {
         (0..n)
             .map(|_| rng.gen_bool(2.0 / 3.0))
             .map(|b| if b { Fr::one() } else { Fr::zero() })
+            .collect()
+    }
+
+    fn random_pks(n: usize, rng: &mut StdRng) -> Vec<G1Affine> {
+        (0..n)
+            .map(|_| G1Projective::rand(rng))
+            .map(|p| p.into_affine())
             .collect()
     }
 
@@ -162,7 +176,7 @@ mod tests {
         let registers = Registers::new(
             &domains,
             &good_bitmask,
-            dummy_registers(n),
+            random_pks(n, rng),
             dummy_registers(n)
         );
         let constraint_poly =

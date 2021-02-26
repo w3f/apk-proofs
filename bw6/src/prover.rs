@@ -153,8 +153,7 @@ impl<'a> Prover<'a> {
         // TODO: move to Session
         let pks = self.session.pks.iter()
             .map(|p| p.0.into_affine())
-            .map(|p| (p.x, p.y))
-            .unzip();
+            .collect();
 
         let registers = Registers::new(
             &self.domains,
