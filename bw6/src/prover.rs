@@ -190,8 +190,6 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.degree(), 2 * (n - 1));
         assert_eq!(a5_poly.degree(), 2 * (n - 1));
 
-        assert!(self.domains.is_zero(&a1_poly));
-        assert!(self.domains.is_zero(&a2_poly));
         assert!(self.domains.is_zero(&a4_poly));
         assert!(self.domains.is_zero(&a5_poly));
 

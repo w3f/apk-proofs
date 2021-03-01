@@ -264,6 +264,7 @@ mod tests {
         let n = 64;
         let domains = Domains::new(n);
 
+
         let bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
         let registers = Registers::new(
             &domains,
@@ -274,5 +275,9 @@ mod tests {
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
         assert_eq!(constraint_polys.0.degree(), 4 * n - 3);
         assert_eq!(constraint_polys.1.degree(), 3 * n - 2);
+        assert!(domains.is_zero(&constraint_polys.0));
+        assert!(domains.is_zero(&constraint_polys.1));
+
+        // TODO: negative test?
     }
 }
