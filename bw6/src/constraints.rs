@@ -240,4 +240,23 @@ mod tests {
         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
         assert!(!domains.is_zero(&constraint_poly));
     }
+
+
+    #[test]
+    fn test_conditional_affine_addition_constraints() {
+        let rng = &mut test_rng();
+        let n = 64;
+        let domains = Domains::new(n);
+
+        let bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
+        let registers = Registers::new(
+            &domains,
+            &bitmask,
+            random_pks(n, rng),
+        );
+        let constraint_polys =
+            Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
+        assert_eq!(constraint_polys.0.degree(), 4 * (n - 1));
+        assert_eq!(constraint_polys.1.degree(), 3 * (n - 1));
+    }
 }

@@ -192,8 +192,6 @@ impl<'a> Prover<'a> {
         let a4_poly = a4.interpolate();
         let a5_poly = a5.interpolate();
 
-        assert_eq!(a1_poly.degree(), 4 * (n - 1));
-        assert_eq!(a2_poly.degree(), 3 * (n - 1));
         assert_eq!(a4_poly.degree(), 2 * (n - 1));
         assert_eq!(a5_poly.degree(), 2 * (n - 1));
 
