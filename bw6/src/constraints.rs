@@ -1,6 +1,6 @@
-use ark_poly::{Evaluations, Radix2EvaluationDomain};
+use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::{One, Zero};
+use ark_ff::{One, Zero, Field};
 use ark_bw6_761::Fr;
 use ark_bls12_377::G1Affine;
 
@@ -174,8 +174,24 @@ impl Constraints {
                     &one_minus_b * &(x3 - x1)
                 );
 
-        (c1.interpolate(), c2.interpolate())
+        let c1_poly = c1.interpolate();
+        let c2_poly = c2.interpolate();
+
+        // Multiply by selector polynomial
+        // ci *= (X - \omega^{n-1})
+        let mut a1_poly_ = mul_by_x(&c1_poly);
+        a1_poly_ += (-registers.domains.omega_inv, &c1_poly);
+        let mut a2_poly_ = mul_by_x(&c2_poly);
+        a2_poly_ += (-registers.domains.omega_inv, &c2_poly);
+        (a1_poly_, a2_poly_)
     }
+}
+
+// TODO: implement multiplication by a sparse polynomial in arkworks?
+fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
+    let mut px = vec![F::zero()];
+    px.extend_from_slice(&p.coeffs);
+    DensePolynomial::from_coefficients_vec(px)
 }
 
 #[cfg(test)]
@@ -256,7 +272,7 @@ mod tests {
         );
         let constraint_polys =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
-        assert_eq!(constraint_polys.0.degree(), 4 * (n - 1));
-        assert_eq!(constraint_polys.1.degree(), 3 * (n - 1));
+        assert_eq!(constraint_polys.0.degree(), 4 * n - 3);
+        assert_eq!(constraint_polys.1.degree(), 3 * n - 2);
     }
 }

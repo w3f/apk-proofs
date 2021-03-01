@@ -15,11 +15,6 @@ use crate::domains::Domains;
 use crate::constraints::{Registers, Constraints};
 
 
-fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
-    let mut px = vec![F::zero()];
-    px.extend_from_slice(&p.coeffs);
-    DensePolynomial::from_coefficients_vec(px)
-}
 
 
 struct Params {
@@ -195,14 +190,8 @@ impl<'a> Prover<'a> {
         assert_eq!(a4_poly.degree(), 2 * (n - 1));
         assert_eq!(a5_poly.degree(), 2 * (n - 1));
 
-        // ai *= (X - \omega^{n-1})
-        let mut a1_poly_ = mul_by_x(&a1_poly);
-        a1_poly_ += (-self.domains.omega_inv, &a1_poly);
-        let mut a2_poly_ = mul_by_x(&a2_poly);
-        a2_poly_ += (-self.domains.omega_inv, &a2_poly);
-
-        assert!(self.domains.is_zero(&a1_poly_));
-        assert!(self.domains.is_zero(&a2_poly_));
+        assert!(self.domains.is_zero(&a1_poly));
+        assert!(self.domains.is_zero(&a2_poly));
         assert!(self.domains.is_zero(&a4_poly));
         assert!(self.domains.is_zero(&a5_poly));
 
@@ -275,13 +264,8 @@ impl<'a> Prover<'a> {
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
         let powers_of_phi = &utils::powers(phi, 6);
-
-        let mut a12 = DensePolynomial::<Fr>::zero();
-        a12 += &a1_poly;
-        a12 += (powers_of_phi[1], &a2_poly);
-        // a12 = a1 + phi * a2
-        let mut w = mul_by_x(&a12); // w = (a1 + phi * a2) * X
-        w += (-self.domains.omega_inv, &a12); // w = (a1 + phi * a2) * (X - \omega^{n-1})
+        let mut w = a1_poly;
+        w += (powers_of_phi[1], &a2_poly);
         w += (powers_of_phi[2], &a3_poly);
         w += (powers_of_phi[3], &a4_poly);
         w += (powers_of_phi[4], &a5_poly);
