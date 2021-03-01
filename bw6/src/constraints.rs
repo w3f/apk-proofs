@@ -185,6 +185,40 @@ impl Constraints {
         a2_poly_ += (-registers.domains.omega_inv, &c2_poly);
         (a1_poly_, a2_poly_)
     }
+
+    pub fn evaluate_conditional_affine_addition_constraints(
+        b: Fr,
+        x1: Fr,
+        y1: Fr,
+        x2: Fr,
+        y2: Fr,
+        x3: Fr,
+        y3: Fr,
+    ) -> (Fr, Fr) {
+        let c1 =
+            b * (
+                (x1 - x2) * (x1 - x2) * (x1 + x2 + x3)
+                    - (y2 - y1) * (y2 - y1)
+            ) + (Fr::one() - b) * (y3 - y1);
+
+        let c2 =
+            b * (
+                (x1 - x2) * (y3 + y1)
+                    - (y2 - y1) * (x3 - x1)
+            ) + (Fr::one() - b) * (x3 - x1);
+
+        (c1, c2)
+    }
+
+    pub fn evaluate_conditional_affine_addition_constraints_linearized(
+        b: Fr,
+        x1: Fr,
+        y1: Fr,
+        x2: Fr,
+        y2: Fr,
+    ) -> (Fr, Fr) {
+        Self::evaluate_conditional_affine_addition_constraints(b, x1, y1, x2, y2, Fr::zero(), Fr::zero())
+    }
 }
 
 // TODO: implement multiplication by a sparse polynomial in arkworks?
@@ -229,7 +263,6 @@ mod tests {
         let n = 64;
         let domains = Domains::new(n);
 
-
         let good_bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
         let registers = Registers::new(
             &domains,
@@ -240,7 +273,6 @@ mod tests {
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
         assert!(domains.is_zero(&constraint_poly));
-
 
         let mut bad_bitmask = random_bitmask(rng, n);
         bad_bitmask[0] = Fr::rand(rng);
@@ -257,13 +289,11 @@ mod tests {
         assert!(!domains.is_zero(&constraint_poly));
     }
 
-
     #[test]
     fn test_conditional_affine_addition_constraints() {
         let rng = &mut test_rng();
         let n = 64;
         let domains = Domains::new(n);
-
 
         let bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
         let registers = Registers::new(

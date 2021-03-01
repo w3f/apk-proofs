@@ -184,18 +184,7 @@ impl Verifier {
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
 
-        let a1 =
-            b * (
-                (x1 - x2) * (x1 - x2) * (x1 + x2)
-                    - (y2 - y1) * (y2 - y1)
-            ) - (Fr::one() - b) * y1;
-
-        let a2 =
-            b * (
-                (x1 - x2) * y1
-                    + (y2 - y1) * x1
-            ) - (Fr::one() - b) * x1;
-
+        let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(b, x1, y1, x2, y2);
         let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
 
         let evals = utils::lagrange_evaluations(zeta, self.domain);
