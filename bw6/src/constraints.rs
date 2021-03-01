@@ -108,6 +108,11 @@ impl<'a> Registers<'a> {
     pub fn get_partial_sums_register_polynomials(&self) -> (DensePolynomial<Fr>, DensePolynomial<Fr>) {
         (self.apk_acc_x.interpolate_by_ref(), self.apk_acc_y.interpolate_by_ref())
     }
+
+    // TODO: interpolate over the smaller domain
+    pub fn get_bitmask_register_polynomial(&self) -> DensePolynomial<Fr> {
+        self.bitmask.interpolate_by_ref()
+    }
 }
 
 pub(crate) struct Constraints {}
@@ -273,6 +278,12 @@ mod tests {
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
         assert!(domains.is_zero(&constraint_poly));
+        let zeta = Fr::rand(rng);
+        let bitmask_at_zeta = registers.get_bitmask_register_polynomial().evaluate(&zeta);
+        assert_eq!(
+            Constraints::evaluate_bitmask_booleanity_constraint(bitmask_at_zeta),
+            constraint_poly.evaluate(&zeta)
+        );
 
         let mut bad_bitmask = random_bitmask(rng, n);
         bad_bitmask[0] = Fr::rand(rng);

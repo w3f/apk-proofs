@@ -150,13 +150,9 @@ impl<'a> Prover<'a> {
             .map(|p| p.0.into_affine())
             .collect();
 
-        let registers = Registers::new(
-            &self.domains,
-            bitmask,
-            pks,
-        );
+        let registers = Registers::new(&self.domains, bitmask, pks);
 
-        let b_poly = self.domains.interpolate(b.clone());
+        let b_poly = registers.get_bitmask_register_polynomial();
         let (acc_x_poly, acc_y_poly) = registers.get_partial_sums_register_polynomials();
 
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
