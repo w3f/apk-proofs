@@ -159,12 +159,10 @@ impl<'a> Prover<'a> {
             &self.domains,
             bitmask,
             pks,
-            (acc_x.clone(), acc_y.clone()),
         );
 
         let b_poly = self.domains.interpolate(b.clone());
-        let acc_x_poly = self.domains.interpolate(acc_x);
-        let acc_y_poly = self.domains.interpolate(acc_y);
+        let (acc_x_poly, acc_y_poly) = registers.get_partial_sums_register_polynomials();
 
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);

@@ -5,7 +5,8 @@ use ark_bw6_761::Fr;
 use ark_bls12_377::G1Affine;
 
 use crate::domains::Domains;
-use crate::Bitmask;
+use crate::{Bitmask, point_in_g1_complement};
+use ark_ec::short_weierstrass_jacobian::GroupAffine;
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 pub(crate) struct Registers<'a> {
@@ -26,8 +27,44 @@ impl<'a> Registers<'a> {
     pub fn new(domains: &'a Domains,
                bitmask: &Bitmask,
                pks: Vec<G1Affine>,
-               apk_acc: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
+        let m = pks.len();
+        let n = domains.size;
+
+        assert_eq!(bitmask.size(), m);
+        let h = point_in_g1_complement();
+        let mut acc = vec![h; m + 1];
+        for (i, (b, p)) in bitmask.to_bits().iter().zip(pks.clone()).enumerate() {
+            acc[i + 1] = if *b {
+                acc[i] + p
+            } else {
+                acc[i]
+            }
+        }
+
+        let (mut acc_x, mut acc_y): (Vec<Fr>, Vec<Fr>) = acc.iter()
+            .map(|p| (p.x, p.y))
+            .unzip();
+
+        assert_eq!(acc_x.len(), m + 1);
+        assert_eq!(acc_y.len(), m + 1);
+        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
+        // assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + h);
+
+        let mut b = bitmask.to_bits().iter()
+            .map(|b| if *b { Fr::one() } else { Fr::zero() })
+            .collect::<Vec<_>>();
+
+        // Extend the computation to the whole domain
+        b.resize_with(n, || Fr::zero());
+        // So we don't care about pks, but
+        let apk_plus_h_x = acc_x[m];
+        let apk_plus_h_y = acc_y[m];
+        acc_x.resize_with(n, || apk_plus_h_x);
+        acc_y.resize_with(n, || apk_plus_h_y);
+
+
+
         let mut bitmask = bitmask.to_bits_as_field_elements();
         bitmask.resize(domains.size, Fr::zero());
 
@@ -35,8 +72,8 @@ impl<'a> Registers<'a> {
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let mut apk_acc_x_shifted = apk_acc.0.clone();
-        let mut apk_acc_y_shifted = apk_acc.1.clone();
+        let mut apk_acc_x_shifted = acc_x.clone();
+        let mut apk_acc_y_shifted = acc_y.clone();
         apk_acc_x_shifted.rotate_left(1);
         apk_acc_y_shifted.rotate_left(1);
 
@@ -44,7 +81,7 @@ impl<'a> Registers<'a> {
             domains,
             bitmask,
             pks,
-            apk_acc,
+            (acc_x, acc_y),
             (apk_acc_x_shifted, apk_acc_y_shifted),
         )
     }
@@ -65,6 +102,11 @@ impl<'a> Registers<'a> {
             apk_acc_x_shifted: domains.amplify(apk_acc_shifted.0),
             apk_acc_y_shifted: domains.amplify(apk_acc_shifted.1),
         }
+    }
+
+    // TODO: interpolate over the smaller domain
+    pub fn get_partial_sums_register_polynomials(&self) -> (DensePolynomial<Fr>, DensePolynomial<Fr>) {
+        (self.apk_acc_x.interpolate_by_ref(), self.apk_acc_y.interpolate_by_ref())
     }
 }
 
@@ -177,7 +219,6 @@ mod tests {
             &domains,
             &good_bitmask,
             random_pks(n, rng),
-            dummy_registers(n)
         );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
