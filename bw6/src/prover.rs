@@ -178,10 +178,12 @@ impl<'a> Prover<'a> {
         let a5 = &(&acc_minus_h_y * &self.domains.l_first_evals_over_4x)
             + &(&acc_minus_h_plus_apk_y * &self.domains.l_last_evals_over_4x);
 
-        let (a1_poly, a2_poly) = Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
-        let a3_poly = Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
-        let a4_poly = a4.interpolate();
-        let a5_poly = a5.interpolate();
+        let (a1_poly, a2_poly) =
+            Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
+        let a3_poly =
+            Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
+        let (a4_poly, a5_poly) =
+            Constraints::compute_public_inputs_constraint_polynomials(&registers);
 
         assert_eq!(a4_poly.degree(), 2 * (n - 1));
         assert_eq!(a5_poly.degree(), 2 * (n - 1));

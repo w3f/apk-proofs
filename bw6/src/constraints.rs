@@ -21,6 +21,7 @@ pub(crate) struct Registers<'a> {
     // TODO: not really registers
     apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    apk_plus_h: G1Affine,
 }
 
 impl<'a> Registers<'a> {
@@ -92,6 +93,8 @@ impl<'a> Registers<'a> {
                      apk_acc: (Vec<Fr>, Vec<Fr>),
                      apk_acc_shifted: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
+        // TODO: lol this is really ugly
+        let apk_plus_h = GroupAffine::new(*apk_acc.0.last().unwrap(), *apk_acc.1.last().unwrap(), false);
         Self {
             domains,
             bitmask: domains.amplify(bitmask),
@@ -101,6 +104,7 @@ impl<'a> Registers<'a> {
             apk_acc_y: domains.amplify(apk_acc.1),
             apk_acc_x_shifted: domains.amplify(apk_acc_shifted.0),
             apk_acc_y_shifted: domains.amplify(apk_acc_shifted.1),
+            apk_plus_h,
         }
     }
 
@@ -223,6 +227,30 @@ impl Constraints {
         y2: Fr,
     ) -> (Fr, Fr) {
         Self::evaluate_conditional_affine_addition_constraints(b, x1, y1, x2, y2, Fr::zero(), Fr::zero())
+    }
+
+    // TODO: better name
+    pub fn compute_public_inputs_constraint_polynomials(registers: &Registers) ->
+    (DensePolynomial<Fr>, DensePolynomial<Fr>) {
+        let h = point_in_g1_complement();
+        let x1 = &registers.apk_acc_x;
+        let y1 = &registers.apk_acc_y;
+
+        let acc_minus_h_x = x1 - &registers.domains.constant_4x(h.x);
+        let acc_minus_h_y = y1 - &registers.domains.constant_4x(h.y);
+
+        let acc_minus_h_plus_apk_x =
+            x1 - &registers.domains.constant_4x(registers.apk_plus_h.x);
+        let acc_minus_h_plus_apk_y =
+            y1 - &registers.domains.constant_4x(registers.apk_plus_h.y);
+
+        let a4 = &(&acc_minus_h_x * &registers.domains.l_first_evals_over_4x)
+            + &(&acc_minus_h_plus_apk_x * &registers.domains.l_last_evals_over_4x);
+        let a5 = &(&acc_minus_h_y * &registers.domains.l_first_evals_over_4x)
+            + &(&acc_minus_h_plus_apk_y * &registers.domains.l_last_evals_over_4x);
+        let a4_poly = a4.interpolate();
+        let a5_poly = a5.interpolate();
+        (a4_poly, a5_poly)
     }
 }
 
