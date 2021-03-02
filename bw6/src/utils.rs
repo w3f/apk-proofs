@@ -63,6 +63,7 @@ pub struct LagrangeEvaluations<F: FftField> {
     pub l_last: F, // L_{n-1}(z)
 }
 
+//TODO: move to domains
 pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>) -> LagrangeEvaluations<F> {
     // TODO: reuse this code with barycentric_eval methods
     let mut z_n = z; // z^n, n=2^d - domain size, so squarings only

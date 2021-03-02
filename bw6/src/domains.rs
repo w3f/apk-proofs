@@ -5,7 +5,8 @@ use ark_bw6_761::Fr;
 use ark_bls12_377::Fq;
 
 pub struct Domains {
-    domain: Radix2EvaluationDomain<Fr>, // TODO: separate type?
+    //TODO: remove pub
+    pub domain: Radix2EvaluationDomain<Fr>, // TODO: separate type?
     domain4x: Radix2EvaluationDomain<Fr>, // TODO: separate type?
 
     /// First Lagrange basis polynomial L_0 of degree n evaluated over the domain of size 4 * n; L_0(\omega^0) = 1

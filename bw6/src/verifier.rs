@@ -183,21 +183,18 @@ impl Verifier {
         let two = Fr::from(2u8);
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
-
+        let apk = apk.0.into_affine();
+        let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
         let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(b, x1, y1, x2, y2);
         let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
+        let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
 
-        let evals = utils::lagrange_evaluations(zeta, self.domain);
-        let apk = apk.0.into_affine();
-        let apk_plus_h = self.h + apk;
-        let a4 = (x1 - self.h.x) * evals.l_first + (x1 - apk_plus_h.x) * evals.l_last;
-        let a5 = (y1 - self.h.y) * evals.l_first + (y1 - apk_plus_h.y) * evals.l_last;
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6 = -proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals.l_last;
+        let a6 = -proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals_at_zeta.l_last;
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7 = -proof.c_zeta * a - (Fr::one() - r_pow_m) * evals.l_last;
+        let a7 = -proof.c_zeta * a - (Fr::one() - r_pow_m) * evals_at_zeta.l_last;
         let w = utils::horner_field(&[a1 * zeta_minus_omega_inv, a2 * zeta_minus_omega_inv, a3, a4, a5, a6, a7], phi);
-        proof.r_zeta_omega + w == proof.q_zeta * evals.vanishing_polynomial
+        proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
 }
 

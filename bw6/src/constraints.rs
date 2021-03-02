@@ -7,6 +7,7 @@ use ark_bls12_377::G1Affine;
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement};
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
+use crate::utils::LagrangeEvaluations;
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 pub(crate) struct Registers<'a> {
@@ -252,6 +253,19 @@ impl Constraints {
         let a5_poly = a5.interpolate();
         (a4_poly, a5_poly)
     }
+
+    pub fn evaluate_public_inputs_constraints(
+        apk: G1Affine,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        x1: Fr,
+        y1: Fr,
+    ) -> (Fr, Fr) {
+        let h = point_in_g1_complement();
+        let apk_plus_h = h + apk;
+        let c1 = (x1 - h.x) * evals_at_zeta.l_first + (x1 - apk_plus_h.x) * evals_at_zeta.l_last;
+        let c2 = (y1 - h.y) * evals_at_zeta.l_first + (y1 - apk_plus_h.y) * evals_at_zeta.l_last;
+        (c1, c2)
+    }
 }
 
 // TODO: implement multiplication by a sparse polynomial in arkworks?
@@ -268,8 +282,9 @@ mod tests {
     use ark_std::rand::{Rng, rngs::StdRng};
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
-    use ark_ec::ProjectiveCurve;
+    use ark_ec::{ProjectiveCurve, AffineCurve};
     use crate::tests::random_bits;
+    use crate::utils;
 
     // TODO: there's crate::tests::random_bits
     fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
@@ -346,7 +361,7 @@ mod tests {
         assert_eq!(constraint_polys.1.degree(), 3 * n - 2);
         assert!(domains.is_zero(&constraint_polys.0));
         assert!(domains.is_zero(&constraint_polys.1));
-
+        // TODO: eval test
         // TODO: negative test?
     }
 
@@ -356,11 +371,13 @@ mod tests {
         let n = 64;
         let domains = Domains::new(n);
 
-        let bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
+        let bits = random_bits(n, 0.5, rng);
+        let bitmask = Bitmask::from_bits(&bits);
+        let pks = random_pks(n, rng);
         let registers = Registers::new(
             &domains,
             &bitmask,
-            random_pks(n, rng),
+            pks.clone(),
         );
         let constraint_polys =
             Constraints::compute_public_inputs_constraint_polynomials(&registers);
@@ -368,6 +385,22 @@ mod tests {
         assert_eq!(constraint_polys.1.degree(), 2 * n - 2);
         assert!(domains.is_zero(&constraint_polys.0));
         assert!(domains.is_zero(&constraint_polys.1));
+
+        //TODO: reuse smth else
+        let apk = bits.iter()
+            .zip(pks)
+            .filter(|(&b, _p)| b)
+            .map(|(_b, p)| p.into_projective())
+            .sum::<ark_bls12_377::G1Projective>().into_affine();
+        let zeta = Fr::rand(rng);
+        let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
+        let acc_polys = registers.get_partial_sums_register_polynomials();
+        let (x1, y1) = (acc_polys.0.evaluate(&zeta), acc_polys.1.evaluate(&zeta));
+        // TODO: fix
+        // assert_eq!(
+        //     Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
+        //     (constraint_polys.0.evaluate(&zeta), constraint_polys.1.evaluate(&zeta))
+        // );
 
         // TODO: negative test?
     }
