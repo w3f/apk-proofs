@@ -349,4 +349,26 @@ mod tests {
 
         // TODO: negative test?
     }
+
+    #[test]
+    fn test_public_inputs_constraints() {
+        let rng = &mut test_rng();
+        let n = 64;
+        let domains = Domains::new(n);
+
+        let bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
+        let registers = Registers::new(
+            &domains,
+            &bitmask,
+            random_pks(n, rng),
+        );
+        let constraint_polys =
+            Constraints::compute_public_inputs_constraint_polynomials(&registers);
+        assert_eq!(constraint_polys.0.degree(), 2 * n - 2);
+        assert_eq!(constraint_polys.1.degree(), 2 * n - 2);
+        assert!(domains.is_zero(&constraint_polys.0));
+        assert!(domains.is_zero(&constraint_polys.1));
+
+        // TODO: negative test?
+    }
 }

@@ -148,12 +148,6 @@ impl<'a> Prover<'a> {
         let (a4_poly, a5_poly) =
             Constraints::compute_public_inputs_constraint_polynomials(&registers);
 
-        assert_eq!(a4_poly.degree(), 2 * (n - 1));
-        assert_eq!(a5_poly.degree(), 2 * (n - 1));
-
-        assert!(self.domains.is_zero(&a4_poly));
-        assert!(self.domains.is_zero(&a5_poly));
-
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
