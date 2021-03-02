@@ -115,35 +115,12 @@ impl<'a> Prover<'a> {
         transcript.append_public_input(&apk.into(), bitmask);
 
 
-        let mut acc = vec![self.params.h; m + 1];
-        for (i, (b, p)) in bitmask.to_bits().iter().zip(self.session.pks.iter()).enumerate() {
-            acc[i + 1] = if *b {
-                acc[i] + p.0.into_affine()
-            } else {
-                acc[i]
-            }
-        }
-
-        let (mut acc_x, mut acc_y): (Vec<Fr>, Vec<Fr>) = acc.iter()
-            .map(|p| (p.x, p.y))
-            .unzip();
-
-        assert_eq!(acc_x.len(), m + 1);
-        assert_eq!(acc_y.len(), m + 1);
-        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.params.h);
-        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.params.h);
-
         let mut b = bitmask.to_bits().iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
             .collect::<Vec<_>>();
 
         // Extend the computation to the whole domain
         b.resize_with(n, || Fr::zero());
-        // So we don't care about pks, but
-        let apk_plus_h_x = acc_x[m];
-        let apk_plus_h_y = acc_y[m];
-        acc_x.resize_with(n, || apk_plus_h_x);
-        acc_y.resize_with(n, || apk_plus_h_y);
 
         // TODO: move to Session
         let pks = self.session.pks.iter()
@@ -162,21 +139,7 @@ impl<'a> Prover<'a> {
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n - 1);
 
-
         let B = self.domains.amplify_polynomial(&b_poly);
-        let x1 = self.domains.amplify_polynomial(&acc_x_poly);
-        let y1 = self.domains.amplify_polynomial(&acc_y_poly);
-
-        let acc_minus_h_x = &x1 - &self.domains.constant_4x(self.params.h.x);
-        let acc_minus_h_y = &y1 - &self.domains.constant_4x(self.params.h.y);
-
-        let acc_minus_h_plus_apk_x = &x1 - &self.domains.constant_4x(apk_plus_h_x);
-        let acc_minus_h_plus_apk_y = &y1 - &self.domains.constant_4x(apk_plus_h_y);
-
-        let a4 = &(&acc_minus_h_x * &self.domains.l_first_evals_over_4x)
-            + &(&acc_minus_h_plus_apk_x * &self.domains.l_last_evals_over_4x);
-        let a5 = &(&acc_minus_h_y * &self.domains.l_first_evals_over_4x)
-            + &(&acc_minus_h_plus_apk_y * &self.domains.l_last_evals_over_4x);
 
         let (a1_poly, a2_poly) =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
