@@ -284,11 +284,12 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
         let n = registers.domains.size;
-        assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
+        let bits_in_bitmask_chunk = 256;  //256 is the highest power of 2 that fits field bit capacity //TODO: const
+        assert_eq!(n % bits_in_bitmask_chunk, 0); // n is a power of 2
 
         let r = bitmask_chunks_aggregation_challenge;
-        let c = Self::build_multipacking_mask_register(n, r);
-        let acc = Self::build_partial_inner_products_register(bitmask, n, &c);
+        let c = Self::build_multipacking_mask_register(n, bits_in_bitmask_chunk, r);
+        let acc = Self::build_partial_inner_products_register(n, &bitmask, &c);
 
         Self::new_unchecked(
             registers,
@@ -297,27 +298,6 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
             acc,
             vec![],
         )
-    }
-
-    fn build_partial_inner_products_register(bitmask: Vec<Fr>, n: usize, c: &Vec<Fr>) -> Vec<Fr> {
-        let mut acc = Vec::with_capacity(n);
-        acc.push(Fr::zero());
-        bitmask.iter().zip(c.iter())
-            .map(|(b, c)| *b * c)
-            .take(n - 1)
-            .for_each(|x| {
-                acc.push(x + acc.last().unwrap());
-            });
-        acc
-    }
-
-    fn build_multipacking_mask_register(n: usize, r: Fr) -> Vec<Fr> {
-        let powers_of_2 = utils::powers(Fr::from(2u8), 255);
-        let powers_of_r = utils::powers(r, n / 256 - 1);
-        // tensor product (powers_of_r X powers_of_2)
-        powers_of_r.iter().flat_map(|rj|
-            powers_of_2.iter().map(move |_2k| *rj * _2k)
-        ).collect::<Vec<Fr>>()
     }
 
     fn new_unchecked(
@@ -334,6 +314,32 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
             acc: registers.domains.amplify(acc),
             acc_shifted: registers.domains.amplify(acc_shifted),
         }
+    }
+
+    //TODO: comment
+    fn build_multipacking_mask_register(domain_size: usize, chunk_size: usize, randomizer: Fr) -> Vec<Fr> {
+        let powers_of_2 = utils::powers(Fr::from(2u8), chunk_size - 1);
+        let powers_of_r = utils::powers(randomizer, domain_size / chunk_size - 1);
+        // tensor product (powers_of_r X powers_of_2)
+        powers_of_r.iter().flat_map(|rj|
+            powers_of_2.iter().map(move |_2k| *rj * _2k)
+        ).collect::<Vec<Fr>>()
+    }
+
+    /// Returns length n vec (0, a[0]b[0],...,a[n-2]b[n-2]), where n is domain size
+    fn build_partial_inner_products_register(domain_size: usize, a: &Vec<Fr>, b: &Vec<Fr>) -> Vec<Fr> {
+        // we ignore the last elements but still...
+        assert_eq!(a.len(), domain_size);
+        assert_eq!(b.len(), domain_size);
+        let mut acc = Vec::with_capacity(domain_size);
+        acc.push(Fr::zero());
+        a.iter().zip(b.iter())
+            .map(|(a, b)| *a * b)
+            .take(domain_size - 1)
+            .for_each(|x| {
+                acc.push(x + acc.last().unwrap());
+            });
+        acc
     }
 
     // TODO: interpolate over the smaller domain
@@ -485,4 +491,23 @@ mod tests {
 
         // TODO: negative test?
     }
+
+    #[test]
+    fn test_multipacking_mask_register() {
+        let r = Fr::rand(&mut test_rng());
+        let two = Fr::from(2u8);
+        let multipacking_mask = SuccinctlyAccountableRegisters::build_multipacking_mask_register(4, 2, r);
+        assert_eq!(multipacking_mask, vec![Fr::one(), two, r, r * two]);
+    }
+
+    #[test]
+    fn test_partial_inner_products_register() {
+        let from_u8_vec = |v: [u8; 4]| v.iter().map(|&x| Fr::from(x)).collect::<Vec<Fr>>();
+        let a = from_u8_vec([1, 2, 3, 4]);
+        let b = from_u8_vec([5, 6, 7, 8]);
+        let partial_inner_product = SuccinctlyAccountableRegisters::build_partial_inner_products_register(4, &a, &b);
+        assert_eq!(partial_inner_product, from_u8_vec([0, 1 * 5, 1 * 5 + 2 * 6, 1 * 5 + 2 * 6 + 3 * 7]));
+    }
+
+
 }
