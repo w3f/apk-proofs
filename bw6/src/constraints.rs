@@ -32,6 +32,7 @@ impl<'a> Registers<'a> {
     ) -> Self {
         let m = pks.len();
         let n = domains.size;
+        assert!(m + 1 <= n);  // keyset_size + 1 <= domain_size (accounts for partial sums acc initial value)
 
         assert_eq!(bitmask.size(), m);
         let h = point_in_g1_complement();
@@ -309,13 +310,14 @@ mod tests {
     fn test_bitmask_booleanity_constraint() {
         let rng = &mut test_rng();
         let n = 64;
+        let m = n - 1;
         let domains = Domains::new(n);
 
-        let good_bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
+        let good_bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
         let registers = Registers::new(
             &domains,
             &good_bitmask,
-            random_pks(n, rng),
+            random_pks(m, rng),
         );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
@@ -328,7 +330,7 @@ mod tests {
             constraint_poly.evaluate(&zeta)
         );
 
-        let mut bad_bitmask = random_bitmask(rng, n);
+        let mut bad_bitmask = random_bitmask(rng, m);
         bad_bitmask[0] = Fr::rand(rng);
         let registers = Registers::new_unchecked(
             &domains,
@@ -347,13 +349,14 @@ mod tests {
     fn test_conditional_affine_addition_constraints() {
         let rng = &mut test_rng();
         let n = 64;
+        let m = n - 1;
         let domains = Domains::new(n);
 
-        let bitmask = Bitmask::from_bits(&random_bits(n, 0.5, rng));
+        let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
         let registers = Registers::new(
             &domains,
             &bitmask,
-            random_pks(n, rng),
+            random_pks(m, rng),
         );
         let constraint_polys =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
@@ -369,11 +372,12 @@ mod tests {
     fn test_public_inputs_constraints() {
         let rng = &mut test_rng();
         let n = 64;
+        let m = n - 1;
         let domains = Domains::new(n);
 
-        let bits = random_bits(n, 0.5, rng);
+        let bits = random_bits(m, 0.5, rng);
         let bitmask = Bitmask::from_bits(&bits);
-        let pks = random_pks(n, rng);
+        let pks = random_pks(m, rng);
         let registers = Registers::new(
             &domains,
             &bitmask,
@@ -396,11 +400,10 @@ mod tests {
         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
         let acc_polys = registers.get_partial_sums_register_polynomials();
         let (x1, y1) = (acc_polys.0.evaluate(&zeta), acc_polys.1.evaluate(&zeta));
-        // TODO: fix
-        // assert_eq!(
-        //     Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
-        //     (constraint_polys.0.evaluate(&zeta), constraint_polys.1.evaluate(&zeta))
-        // );
+        assert_eq!(
+            Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
+            (constraint_polys.0.evaluate(&zeta), constraint_polys.1.evaluate(&zeta))
+        );
 
         // TODO: negative test?
     }
