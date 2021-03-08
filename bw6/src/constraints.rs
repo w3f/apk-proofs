@@ -1,8 +1,8 @@
 use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::{One, Zero, Field};
+use ark_ff::{One, Zero, Field, Fp384};
 use ark_bw6_761::Fr;
-use ark_bls12_377::G1Affine;
+use ark_bls12_377::{G1Affine, FqParameters};
 
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils};
@@ -280,7 +280,7 @@ pub(crate) struct SuccinctlyAccountableRegisters<'a> {
 
 impl<'a> SuccinctlyAccountableRegisters<'a> {
     pub fn new(registers: Registers<'a>,
-               bitmask: &Bitmask,
+               bitmask: Vec<Fr>,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
         let n = registers.domains.size;
@@ -288,14 +288,27 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
 
         let r = bitmask_chunks_aggregation_challenge;
         let c = Self::build_multipacking_mask_register(n, r);
+        let acc = Self::build_partial_inner_products_register(bitmask, n, &c);
 
         Self::new_unchecked(
             registers,
             c,
             vec![],
-            vec![],
+            acc,
             vec![],
         )
+    }
+
+    fn build_partial_inner_products_register(bitmask: Vec<Fr>, n: usize, c: &Vec<Fr>) -> Vec<Fr> {
+        let mut acc = Vec::with_capacity(n);
+        acc.push(Fr::zero());
+        bitmask.iter().zip(c.iter())
+            .map(|(b, c)| *b * c)
+            .take(n - 1)
+            .for_each(|x| {
+                acc.push(x + acc.last().unwrap());
+            });
+        acc
     }
 
     fn build_multipacking_mask_register(n: usize, r: Fr) -> Vec<Fr> {
