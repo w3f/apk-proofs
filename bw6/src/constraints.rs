@@ -5,7 +5,7 @@ use ark_bw6_761::Fr;
 use ark_bls12_377::G1Affine;
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement};
+use crate::{Bitmask, point_in_g1_complement, utils};
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use crate::utils::LagrangeEvaluations;
 
@@ -281,15 +281,30 @@ pub(crate) struct SuccinctlyAccountableRegisters<'a> {
 impl<'a> SuccinctlyAccountableRegisters<'a> {
     pub fn new(registers: Registers<'a>,
                bitmask: &Bitmask,
+               bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
+        let n = registers.domains.size;
+        assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
+
+        let r = bitmask_chunks_aggregation_challenge;
+        let c = Self::build_multipacking_mask_register(n, r);
 
         Self::new_unchecked(
             registers,
-            vec![],
+            c,
             vec![],
             vec![],
             vec![],
         )
+    }
+
+    fn build_multipacking_mask_register(n: usize, r: Fr) -> Vec<Fr> {
+        let powers_of_2 = utils::powers(Fr::from(2u8), 255);
+        let powers_of_r = utils::powers(r, n / 256 - 1);
+        // tensor product (powers_of_r X powers_of_2)
+        powers_of_r.iter().flat_map(|rj|
+            powers_of_2.iter().map(move |_2k| *rj * _2k)
+        ).collect::<Vec<Fr>>()
     }
 
     fn new_unchecked(
