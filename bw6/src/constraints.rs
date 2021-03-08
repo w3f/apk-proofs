@@ -291,12 +291,17 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         let c = Self::build_multipacking_mask_register(n, bits_in_bitmask_chunk, r);
         let acc = Self::build_partial_inner_products_register(n, &bitmask, &c);
 
+        let mut c_shifted = c.clone();
+        c_shifted.rotate_left(1);
+        let mut acc_shifted = acc.clone();
+        acc_shifted.rotate_left(1);
+
         Self::new_unchecked(
             registers,
             c,
-            vec![],
+            c_shifted,
             acc,
-            vec![],
+            acc_shifted,
         )
     }
 
