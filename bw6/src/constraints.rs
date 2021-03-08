@@ -276,9 +276,13 @@ pub(crate) struct SuccinctlyAccountableRegisters<'a> {
     c_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     acc: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     acc_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+
+    bitmask_chunks_aggregated: Fr,
 }
 
 impl<'a> SuccinctlyAccountableRegisters<'a> {
+
+    // TODO: remove bitmask arg
     pub fn new(registers: Registers<'a>,
                bitmask: Vec<Fr>,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
@@ -290,6 +294,10 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         let r = bitmask_chunks_aggregation_challenge;
         let c = Self::build_multipacking_mask_register(n, bits_in_bitmask_chunk, r);
         let acc = Self::build_partial_inner_products_register(n, &bitmask, &c);
+        let bitmask_chunks_aggregated = bitmask.iter()
+            .zip(c.iter())
+            .map(|(&b, c)| b * c)
+            .sum::<Fr>();
 
         let mut c_shifted = c.clone();
         c_shifted.rotate_left(1);
@@ -302,6 +310,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
             c_shifted,
             acc,
             acc_shifted,
+            bitmask_chunks_aggregated,
         )
     }
 
@@ -311,6 +320,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         c_shifted: Vec<Fr>,
         acc: Vec<Fr>,
         acc_shifted: Vec<Fr>,
+        bitmask_chunks_aggregated: Fr,
     ) -> Self {
         Self {
             registers: registers.clone(), //TODO: fix
@@ -318,6 +328,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
             c_shifted: registers.domains.amplify(c_shifted),
             acc: registers.domains.amplify(acc),
             acc_shifted: registers.domains.amplify(acc_shifted),
+            bitmask_chunks_aggregated
         }
     }
 
@@ -355,6 +366,35 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
     // TODO: interpolate over the smaller domain
     pub fn get_partial_inner_products_register_polynomial(&self) -> DensePolynomial<Fr> {
         self.acc.interpolate_by_ref()
+    }
+
+    pub fn compute_inner_product_constraint_polynomial(&self) -> DensePolynomial<Fr> {
+        let bc_ln_x4 = self.registers.domains.l_last_scaled_by(self.bitmask_chunks_aggregated);
+        let constraint = &(&(&self.acc_shifted - &self.acc) - &(&self.registers.bitmask * &self.c)) + &bc_ln_x4;
+        constraint.interpolate()
+    }
+
+    pub fn evaluate_inner_product_constraint() -> Fr {
+        Fr::zero()
+    }
+
+    pub fn compute_multipacking_mask_constraint_polynomial(&self, r: Fr) -> DensePolynomial<Fr> {
+        let n = self.registers.domains.size;
+        let chunks = n / 256; //TODO: consts
+        let mut a = vec![Fr::from(2u8); n];
+        a.iter_mut().step_by(256).for_each(|a| *a = r / Fr::from(2u8).pow([255u64]));
+        a.rotate_left(1);
+        let a_x4 = self.registers.domains.amplify(a);
+
+        let x_todo = Fr::one() - r.pow([chunks as u64]); //TODO: name
+        let ln_x4 = self.registers.domains.l_last_scaled_by(x_todo);
+
+        let a7 = &(&self.c_shifted - &(&self.c * &a_x4)) - &ln_x4;
+        a7.interpolate()
+    }
+
+    pub fn evaluate_multipacking_mask_constraint() -> Fr {
+        Fr::zero()
     }
 }
 
@@ -514,5 +554,30 @@ mod tests {
         assert_eq!(partial_inner_product, from_u8_vec([0, 1 * 5, 1 * 5 + 2 * 6, 1 * 5 + 2 * 6 + 3 * 7]));
     }
 
+    #[test]
+    fn test_multipacking_mask_constraint() {
+        let rng = &mut test_rng();
+        let n = 256;
+        let m = n - 1;
+        let domains = Domains::new(n);
 
+        let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
+        let registers = Registers::new(
+            &domains,
+            &bitmask,
+            random_pks(m, rng),
+        );
+
+        let mut b = bitmask.to_bits_as_field_elements();
+        b.resize_with(n, || Fr::zero());
+        let r = Fr::rand(rng);
+        let acc_registers = SuccinctlyAccountableRegisters::new(
+            registers,
+            b,
+            r
+        );
+        let constraint_poly = acc_registers.compute_multipacking_mask_constraint_polynomial(r);
+        assert_eq!(constraint_poly.degree(), 2 * n - 2);
+        assert!(domains.is_zero(&constraint_poly));
+    }
 }

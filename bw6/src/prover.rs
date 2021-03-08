@@ -12,7 +12,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, Constraints};
+use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters};
 
 
 
@@ -153,62 +153,12 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
 
-        let powers_of_2 = utils::powers(Fr::from(2u8), 255);
-        assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
-        let chunks = n / 256;
-        let powers_of_r = utils::powers(r, n / 256 - 1);
-        // tensor product (powers_of_r X powers_of_2)
-        let c = powers_of_r.iter().flat_map(|rj|
-            powers_of_2.iter().map(move |_2k| *rj * _2k)
-        ).collect::<Vec<Fr>>();
+        let acc_registers = SuccinctlyAccountableRegisters::new(registers, b, r);
+        let a6_poly = acc_registers.compute_inner_product_constraint_polynomial();
+        let a7_poly = acc_registers.compute_multipacking_mask_constraint_polynomial(r);
 
-        let provers_bitmask = b.iter().zip(c.iter()).map(|(b, c)| *b * c).sum::<Fr>();
-        let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
-            .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
-        assert_eq!(provers_bitmask, verifiers_bitmask);
-
-        let mut acc = Vec::with_capacity(n);
-        acc.push(Fr::zero());
-        b.iter().zip(c.iter())
-            .map(|(b, c)| *b * c)
-            .take(n-1)
-            .for_each(|x| {
-                acc.push(x + acc.last().unwrap());
-        });
-        assert_eq!(acc.len(), n);
-        assert_eq!(acc[0], Fr::zero());
-        assert_eq!(acc[1], b[0] * c[0]);
-        assert_eq!(acc[n-1], verifiers_bitmask - b[n-1] * c[n-1]);
-
-        let mut acc_shifted = acc.clone();
-        acc_shifted.rotate_left(1);
-        let mut c_shifted = c.clone();
-        c_shifted.rotate_left(1);
-
-        let c_poly = self.domains.interpolate(c);
-        let acc_poly = self.domains.interpolate(acc);
-
-        let c_x4 = self.domains.amplify_polynomial(&c_poly);
-        let c_shifted_x4 = self.domains.amplify(c_shifted);
-        let acc_x4 = self.domains.amplify_polynomial(&acc_poly);
-        let acc_shifted_x4 = self.domains.amplify(acc_shifted);
-        let bc_ln_x4 = self.domains.l_last_scaled_by(verifiers_bitmask);
-
-        let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6_poly = a6.interpolate();
-        assert!(self.domains.is_zero(&a6_poly));
-
-        let mut a = vec![Fr::from(2u8); n];
-        a.iter_mut().step_by(256).for_each(|a| *a = r / powers_of_2[255]);
-        a.rotate_left(1);
-        let a_x4 = self.domains.amplify(a);
-
-        let x_todo = Fr::one() - r.pow([chunks as u64]); //TODO: name
-        let ln_x4 = self.domains.l_last_scaled_by(x_todo);
-
-        let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7_poly = a7.interpolate();
-        assert!(self.domains.is_zero(&a7_poly));
+        let c_poly = acc_registers.get_multipacking_mask_register_polynomial();
+        let acc_poly = acc_registers.get_partial_inner_products_register_polynomial();
 
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
         let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
