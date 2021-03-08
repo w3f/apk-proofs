@@ -10,6 +10,7 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use crate::utils::LagrangeEvaluations;
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
+#[derive(Clone)] //TODO: remove
 pub(crate) struct Registers<'a> {
     domains: &'a Domains,
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -266,6 +267,55 @@ impl Constraints {
         let c1 = (x1 - h.x) * evals_at_zeta.l_first + (x1 - apk_plus_h.x) * evals_at_zeta.l_last;
         let c2 = (y1 - h.y) * evals_at_zeta.l_first + (y1 - apk_plus_h.y) * evals_at_zeta.l_last;
         (c1, c2)
+    }
+}
+
+pub(crate) struct SuccinctlyAccountableRegisters<'a> {
+    registers: Registers<'a>,
+    c: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    c_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    acc: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    acc_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+}
+
+impl<'a> SuccinctlyAccountableRegisters<'a> {
+    pub fn new(registers: Registers<'a>,
+               bitmask: &Bitmask,
+    ) -> Self {
+
+        Self::new_unchecked(
+            registers,
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+        )
+    }
+
+    fn new_unchecked(
+        registers: Registers<'a>,
+        c: Vec<Fr>,
+        c_shifted: Vec<Fr>,
+        acc: Vec<Fr>,
+        acc_shifted: Vec<Fr>,
+    ) -> Self {
+        Self {
+            registers: registers.clone(), //TODO: fix
+            c: registers.domains.amplify(c),
+            c_shifted: registers.domains.amplify(c_shifted),
+            acc: registers.domains.amplify(acc),
+            acc_shifted: registers.domains.amplify(acc_shifted),
+        }
+    }
+
+    // TODO: interpolate over the smaller domain
+    pub fn get_multipacking_mask_register_polynomial(&self) -> DensePolynomial<Fr> {
+        self.c.interpolate_by_ref()
+    }
+
+    // TODO: interpolate over the smaller domain
+    pub fn get_partial_inner_products_register_polynomial(&self) -> DensePolynomial<Fr> {
+        self.acc.interpolate_by_ref()
     }
 }
 
