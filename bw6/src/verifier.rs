@@ -12,7 +12,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use ark_ec::short_weierstrass_jacobian::GroupProjective;
-use crate::constraints::Constraints;
+use crate::constraints::{Constraints, SuccinctlyAccountableRegisters};
 
 
 pub struct Verifier {
@@ -189,10 +189,21 @@ impl Verifier {
         let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
         let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
 
-        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6 = -proof.acc_zeta - proof.b_zeta * proof.c_zeta + aggregated_bitmask * evals_at_zeta.l_last;
-        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7 = -proof.c_zeta * a - (Fr::one() - r_pow_m) * evals_at_zeta.l_last;
+        let a6 = SuccinctlyAccountableRegisters::evaluate_inner_product_constraint_linearized(
+            aggregated_bitmask,
+            &evals_at_zeta,
+            proof.b_zeta,
+            proof.c_zeta,
+            proof.acc_zeta
+        );
+
+        let a7 = SuccinctlyAccountableRegisters::evaluate_multipacking_mask_constraint_linearized(
+            a,
+            r_pow_m,
+            evals_at_zeta,
+            proof.c_zeta
+        );
+
         let w = utils::horner_field(&[a1 * zeta_minus_omega_inv, a2 * zeta_minus_omega_inv, a3, a4, a5, a6, a7], phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }

@@ -374,8 +374,25 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         constraint.interpolate()
     }
 
-    pub fn evaluate_inner_product_constraint() -> Fr {
-        Fr::zero()
+    pub fn evaluate_inner_product_constraint(
+        bitmask_chunks_aggregated: Fr,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        b_zeta: Fr,
+        c_zeta: Fr,
+        acc_zeta: Fr,
+        acc_zeta_omega: Fr,
+    ) -> Fr {
+        acc_zeta_omega - acc_zeta - b_zeta * c_zeta + bitmask_chunks_aggregated * evals_at_zeta.l_last
+    }
+
+    pub fn evaluate_inner_product_constraint_linearized(
+        bitmask_chunks_aggregated: Fr,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        b_zeta: Fr,
+        c_zeta: Fr,
+        acc_zeta: Fr
+    ) -> Fr {
+        Self::evaluate_inner_product_constraint(bitmask_chunks_aggregated, evals_at_zeta, b_zeta, c_zeta, acc_zeta, Fr::zero())
     }
 
     pub fn compute_multipacking_mask_constraint_polynomial(&self, r: Fr) -> DensePolynomial<Fr> {
@@ -393,8 +410,23 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         a7.interpolate()
     }
 
-    pub fn evaluate_multipacking_mask_constraint() -> Fr {
-        Fr::zero()
+    pub fn evaluate_multipacking_mask_constraint(
+        a: Fr,
+        r_pow_m: Fr,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        c_zeta: Fr,
+        c_zeta_omega: Fr
+    ) -> Fr {
+        c_zeta_omega - c_zeta * a - (Fr::one() - r_pow_m) * evals_at_zeta.l_last
+    }
+
+    pub fn evaluate_multipacking_mask_constraint_linearized(
+        a: Fr,
+        r_pow_m: Fr,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        c_zeta: Fr,
+    ) -> Fr {
+        Self::evaluate_multipacking_mask_constraint(a, r_pow_m, evals_at_zeta, c_zeta, Fr::zero())
     }
 }
 
