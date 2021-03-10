@@ -139,8 +139,6 @@ impl<'a> Prover<'a> {
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n - 1);
 
-        let B = self.domains.amplify_polynomial(&b_poly);
-
         let (a1_poly, a2_poly) =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
         let a3_poly =
