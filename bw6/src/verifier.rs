@@ -200,7 +200,7 @@ impl Verifier {
         let a7 = SuccinctlyAccountableRegisters::evaluate_multipacking_mask_constraint_linearized(
             a,
             r_pow_m,
-            evals_at_zeta,
+            &evals_at_zeta,
             proof.c_zeta
         );
 
