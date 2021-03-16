@@ -165,13 +165,15 @@ impl<'a> Prover<'a> {
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
 
         let powers_of_phi = &utils::powers(phi, 6);
-        let mut w = a1_poly;
-        w += (powers_of_phi[1], &a2_poly);
-        w += (powers_of_phi[2], &a3_poly);
-        w += (powers_of_phi[3], &a4_poly);
-        w += (powers_of_phi[4], &a5_poly);
-        w += (powers_of_phi[5], &a6_poly);
-        w += (powers_of_phi[6], &a7_poly);
+        let w = utils::randomize(phi, &[
+            a1_poly,
+            a2_poly,
+            a3_poly,
+            a4_poly,
+            a5_poly,
+            a6_poly,
+            a7_poly,
+        ]);
 
         let (q_poly, r) = self.domains.compute_quotient(&w);
         assert_eq!(r, DensePolynomial::zero());
