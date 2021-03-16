@@ -1,6 +1,6 @@
 use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::{One, Zero, Field, Fp384};
+use ark_ff::{One, Zero, Field, Fp384, BigInteger};
 use ark_bw6_761::Fr;
 use ark_bls12_377::{G1Affine, FqParameters};
 
@@ -8,6 +8,13 @@ use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils};
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use crate::utils::LagrangeEvaluations;
+
+#[derive(Clone)] //TODO: remove
+struct BasicRegisterPolynomials {
+    bitmask: DensePolynomial<Fr>,
+    keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+    partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+}
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 #[derive(Clone)] //TODO: remove
@@ -24,6 +31,7 @@ pub(crate) struct Registers<'a> {
     apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_plus_h: G1Affine,
+    polynomials: BasicRegisterPolynomials,
 }
 
 impl<'a> Registers<'a> {
@@ -98,16 +106,32 @@ impl<'a> Registers<'a> {
     ) -> Self {
         // TODO: lol this is really ugly
         let apk_plus_h = GroupAffine::new(*apk_acc.0.last().unwrap(), *apk_acc.1.last().unwrap(), false);
+
+        let bitmask_polynomial = domains.interpolate(bitmask);
+        let keyset_polynomial = (
+            domains.interpolate(pks.0),
+            domains.interpolate(pks.1),
+        );
+        let partial_sums_polynomial = (
+            domains.interpolate(apk_acc.0),
+            domains.interpolate(apk_acc.1),
+        );
+
         Self {
             domains,
-            bitmask: domains.amplify(bitmask),
-            pks_x: domains.amplify(pks.0),
-            pks_y: domains.amplify(pks.1),
-            apk_acc_x: domains.amplify(apk_acc.0),
-            apk_acc_y: domains.amplify(apk_acc.1),
+            bitmask: domains.amplify_polynomial(&bitmask_polynomial),
+            pks_x: domains.amplify_polynomial(&keyset_polynomial.0),
+            pks_y: domains.amplify_polynomial(&keyset_polynomial.1),
+            apk_acc_x: domains.amplify_polynomial(&partial_sums_polynomial.0),
+            apk_acc_y: domains.amplify_polynomial(&partial_sums_polynomial.1),
             apk_acc_x_shifted: domains.amplify(apk_acc_shifted.0),
             apk_acc_y_shifted: domains.amplify(apk_acc_shifted.1),
             apk_plus_h,
+            polynomials: BasicRegisterPolynomials {
+                bitmask: bitmask_polynomial,
+                keyset: keyset_polynomial,
+                partial_sums: partial_sums_polynomial,
+            },
         }
     }
 
