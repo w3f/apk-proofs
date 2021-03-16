@@ -185,7 +185,8 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"q_comm", &q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
-        let register_evaluations = registers.polynomials.evaluate(zeta);
+        let register_evaluations = registers.evaluate_register_polynomials(zeta);
+        let acc_register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
 
         let b_zeta = register_evaluations.bitmask;
         let pks_x_zeta = register_evaluations.keyset.0;
@@ -193,8 +194,8 @@ impl<'a> Prover<'a> {
         let acc_x_zeta = register_evaluations.partial_sums.0;
         let acc_y_zeta = register_evaluations.partial_sums.1;
         let q_zeta = q_poly.evaluate(&zeta);
-        let c_zeta = c_poly.evaluate(&zeta);
-        let acc_zeta = acc_poly.evaluate(&zeta);
+        let c_zeta = acc_register_evaluations.c;
+        let acc_zeta = acc_register_evaluations.acc;
 
         let zeta_omega = zeta * self.domains.omega;
         let zeta_minus_omega_inv = zeta - self.domains.omega_inv;

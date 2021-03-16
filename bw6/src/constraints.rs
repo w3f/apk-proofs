@@ -2,7 +2,7 @@ use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero, Field, Fp384, BigInteger};
 use ark_bw6_761::Fr;
-use ark_bls12_377::{G1Affine, FqParameters};
+use ark_bls12_377::{G1Affine, FqParameters, Fq};
 
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils};
@@ -32,8 +32,28 @@ impl BasicRegisterPolynomials {
     }
 }
 
+pub(crate) struct SuccinctAccountableRegisterPolynomials {
+    c_poly: DensePolynomial<Fr>,
+    acc_poly: DensePolynomial<Fr>,
+}
+
+pub(crate) struct SuccinctAccountableRegisterEvaluations {
+    pub c: Fr,
+    pub acc: Fr,
+}
+
+impl SuccinctAccountableRegisterPolynomials {
+    pub fn evaluate(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
+        SuccinctAccountableRegisterEvaluations {
+            c: self.c_poly.evaluate(&point),
+            acc: self.acc_poly.evaluate(&point),
+        }
+    }
+}
+
 pub(crate) trait Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
+    fn evaluate_register_polynomials(&self, point: Fr) -> E;
     fn compute_linearization_polynomial(&self, evaluations: E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 }
 
@@ -168,6 +188,9 @@ impl<'a> Registers<'a> {
 }
 
 impl Piop<BasicRegisterEvaluations> for Registers<'_> {
+    fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
+        self.polynomials.evaluate(point)
+    }
 
     // Compute linearization polynomial
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
@@ -350,6 +373,7 @@ pub(crate) struct SuccinctlyAccountableRegisters<'a> {
     acc_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 
     bitmask_chunks_aggregated: Fr,
+    pub polynomials: SuccinctAccountableRegisterPolynomials,
 }
 
 impl<'a> SuccinctlyAccountableRegisters<'a> {
@@ -394,13 +418,19 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         acc_shifted: Vec<Fr>,
         bitmask_chunks_aggregated: Fr,
     ) -> Self {
+        let c_polynomial = registers.domains.interpolate(c);
+        let acc_polynomial = registers.domains.interpolate(acc);
         Self {
             registers: registers.clone(), //TODO: fix
-            c: registers.domains.amplify(c),
+            c: registers.domains.amplify_polynomial(&c_polynomial),
             c_shifted: registers.domains.amplify(c_shifted),
-            acc: registers.domains.amplify(acc),
+            acc: registers.domains.amplify_polynomial(&acc_polynomial),
             acc_shifted: registers.domains.amplify(acc_shifted),
-            bitmask_chunks_aggregated
+            bitmask_chunks_aggregated,
+            polynomials: SuccinctAccountableRegisterPolynomials {
+                c_poly: c_polynomial,
+                acc_poly: acc_polynomial,
+            }
         }
     }
 
@@ -501,6 +531,15 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         Self::evaluate_multipacking_mask_constraint(a, r_pow_m, evals_at_zeta, c_zeta, Fr::zero())
     }
 }
+
+
+impl SuccinctlyAccountableRegisters<'_> {
+    pub fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
+        self.polynomials.evaluate(point)
+    }
+}
+
+
 
 // TODO: implement multiplication by a sparse polynomial in arkworks?
 fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
