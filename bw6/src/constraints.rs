@@ -1,4 +1,4 @@
-use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial};
+use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero, Field, Fp384, BigInteger};
 use ark_bw6_761::Fr;
@@ -10,10 +10,31 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
-struct BasicRegisterPolynomials {
+pub(crate) struct BasicRegisterPolynomials {
     bitmask: DensePolynomial<Fr>,
     keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+}
+
+pub(crate) struct BasicRegisterEvaluations {
+    pub bitmask: Fr,
+    pub keyset: (Fr, Fr),
+    pub partial_sums: (Fr, Fr),
+}
+
+impl BasicRegisterPolynomials {
+    pub fn evaluate(&self, point: Fr) -> BasicRegisterEvaluations {
+        BasicRegisterEvaluations {
+            bitmask: self.bitmask.evaluate(&point),
+            keyset: (self.keyset.0.evaluate(&point), self.keyset.1.evaluate(&point)),
+            partial_sums: (self.partial_sums.0.evaluate(&point), self.partial_sums.1.evaluate(&point)),
+        }
+    }
+}
+
+pub(crate) trait Piop<E> {
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn compute_linearization_polynomial(&self, evaluations: E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 }
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
@@ -31,7 +52,7 @@ pub(crate) struct Registers<'a> {
     apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_plus_h: G1Affine,
-    polynomials: BasicRegisterPolynomials,
+    pub polynomials: BasicRegisterPolynomials,
 }
 
 impl<'a> Registers<'a> {
@@ -143,6 +164,33 @@ impl<'a> Registers<'a> {
     // TODO: interpolate over the smaller domain
     pub fn get_bitmask_register_polynomial(&self) -> DensePolynomial<Fr> {
         self.bitmask.interpolate_by_ref()
+    }
+}
+
+impl Piop<BasicRegisterEvaluations> for Registers<'_> {
+
+    // Compute linearization polynomial
+    // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
+    // deg(r) = n, so it can be computed in the monomial basis
+    fn compute_linearization_polynomial(&self, evaluations: BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+        let b_zeta = evaluations.bitmask;
+        let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
+        let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
+        let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;
+
+        let mut a1_lin = DensePolynomial::<Fr>::zero();
+        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
+        a1_lin += (Fr::one() - b_zeta, acc_y_poly);
+
+        let mut a2_lin = DensePolynomial::<Fr>::zero();
+        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
+        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
+        a2_lin += (Fr::one() - b_zeta, acc_x_poly);
+
+        let mut r_poly = DensePolynomial::<Fr>::zero();
+        r_poly += (zeta_minus_omega_inv, &a1_lin);
+        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
+        r_poly
     }
 }
 

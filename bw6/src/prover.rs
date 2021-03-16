@@ -12,7 +12,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters};
+use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, Piop};
 
 
 
@@ -151,7 +151,7 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
 
-        let acc_registers = SuccinctlyAccountableRegisters::new(registers, b, r);
+        let acc_registers = SuccinctlyAccountableRegisters::new(registers.clone(), b, r);
         let a6_poly = acc_registers.compute_inner_product_constraint_polynomial();
         let a7_poly = acc_registers.compute_multipacking_mask_constraint_polynomial(r);
 
@@ -185,11 +185,13 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"q_comm", &q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
-        let b_zeta = b_poly.evaluate(&zeta);
-        let pks_x_zeta = self.session.pks_x_poly.evaluate(&zeta);
-        let pks_y_zeta = self.session.pks_y_poly.evaluate(&zeta);
-        let acc_x_zeta = acc_x_poly.evaluate(&zeta);
-        let acc_y_zeta = acc_y_poly.evaluate(&zeta);
+        let register_evaluations = registers.polynomials.evaluate(zeta);
+
+        let b_zeta = register_evaluations.bitmask;
+        let pks_x_zeta = register_evaluations.keyset.0;
+        let pks_y_zeta = register_evaluations.keyset.1;
+        let acc_x_zeta = register_evaluations.partial_sums.0;
+        let acc_y_zeta = register_evaluations.partial_sums.1;
         let q_zeta = q_poly.evaluate(&zeta);
         let c_zeta = c_poly.evaluate(&zeta);
         let acc_zeta = acc_poly.evaluate(&zeta);
@@ -197,27 +199,12 @@ impl<'a> Prover<'a> {
         let zeta_omega = zeta * self.domains.omega;
         let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
 
-        // Compute linearization polynomial
-        // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
-        // deg(r) = n, so it can be computed in the monomial basis
-
-        let mut a1_lin = DensePolynomial::<Fr>::zero();
-        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), &acc_x_poly);
-        a1_lin += (Fr::one() - b_zeta, &acc_y_poly);
-
-        let mut a2_lin = DensePolynomial::<Fr>::zero();
-        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), &acc_y_poly);
-        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), &acc_x_poly);
-        a2_lin += (Fr::one() - b_zeta, &acc_x_poly);
-
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_lin = acc_poly.clone();
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7_lin = c_poly.clone();
 
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (zeta_minus_omega_inv, &a1_lin);
-        r_poly += (zeta_minus_omega_inv * powers_of_phi[1], &a2_lin);
+        let mut r_poly = registers.compute_linearization_polynomial(register_evaluations, phi, zeta_minus_omega_inv);
         r_poly += (powers_of_phi[5], &a6_lin);
         r_poly += (powers_of_phi[6], &a7_lin);
 
