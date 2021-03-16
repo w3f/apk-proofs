@@ -185,32 +185,22 @@ impl<'a> Prover<'a> {
         transcript.append_proof_point(b"q_comm", &q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
-        let register_evaluations = registers.evaluate_register_polynomials(zeta);
-        let acc_register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
+        let register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
 
-        let b_zeta = register_evaluations.bitmask;
-        let pks_x_zeta = register_evaluations.keyset.0;
-        let pks_y_zeta = register_evaluations.keyset.1;
-        let acc_x_zeta = register_evaluations.partial_sums.0;
-        let acc_y_zeta = register_evaluations.partial_sums.1;
+        let b_zeta = register_evaluations.basic_evaluations.bitmask;
+        let pks_x_zeta = register_evaluations.basic_evaluations.keyset.0;
+        let pks_y_zeta = register_evaluations.basic_evaluations.keyset.1;
+        let acc_x_zeta = register_evaluations.basic_evaluations.partial_sums.0;
+        let acc_y_zeta = register_evaluations.basic_evaluations.partial_sums.1;
+        let c_zeta = register_evaluations.c;
+        let acc_zeta = register_evaluations.acc;
         let q_zeta = q_poly.evaluate(&zeta);
-        let c_zeta = acc_register_evaluations.c;
-        let acc_zeta = acc_register_evaluations.acc;
 
         let zeta_omega = zeta * self.domains.omega;
         let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
 
-        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6_lin = acc_poly.clone();
-        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7_lin = c_poly.clone();
-
-        let mut r_poly = registers.compute_linearization_polynomial(register_evaluations, phi, zeta_minus_omega_inv);
-        r_poly += (powers_of_phi[5], &a6_lin);
-        r_poly += (powers_of_phi[6], &a7_lin);
-
+        let r_poly = acc_registers.compute_linearization_polynomial(register_evaluations, phi, zeta_minus_omega_inv);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
-
 
         transcript.append_proof_scalar(b"b_zeta", &b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);

@@ -35,11 +35,14 @@ impl BasicRegisterPolynomials {
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
     c_poly: DensePolynomial<Fr>,
     acc_poly: DensePolynomial<Fr>,
+    basic_polynomials: BasicRegisterPolynomials,
 }
 
+//TODO: remove pubs
 pub(crate) struct SuccinctAccountableRegisterEvaluations {
     pub c: Fr,
     pub acc: Fr,
+    pub basic_evaluations: BasicRegisterEvaluations,
 }
 
 impl SuccinctAccountableRegisterPolynomials {
@@ -47,6 +50,7 @@ impl SuccinctAccountableRegisterPolynomials {
         SuccinctAccountableRegisterEvaluations {
             c: self.c_poly.evaluate(&point),
             acc: self.acc_poly.evaluate(&point),
+            basic_evaluations: self.basic_polynomials.evaluate(point)
         }
     }
 }
@@ -430,6 +434,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
             polynomials: SuccinctAccountableRegisterPolynomials {
                 c_poly: c_polynomial,
                 acc_poly: acc_polynomial,
+                basic_polynomials: registers.polynomials
             }
         }
     }
@@ -533,13 +538,24 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
 }
 
 
-impl SuccinctlyAccountableRegisters<'_> {
-    pub fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
+impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters<'_> {
+    fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         self.polynomials.evaluate(point)
     }
+
+    fn compute_linearization_polynomial(&self, evaluations: SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+        let powers_of_phi = &utils::powers(phi, 6);
+        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
+        let a6_lin = &self.polynomials.acc_poly;
+        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
+        let a7_lin = &self.polynomials.c_poly;
+
+        let mut r_poly = self.registers.compute_linearization_polynomial(evaluations.basic_evaluations, phi, zeta_minus_omega_inv);
+        r_poly += (powers_of_phi[5], a6_lin);
+        r_poly += (powers_of_phi[6], a7_lin);
+        r_poly
+    }
 }
-
-
 
 // TODO: implement multiplication by a sparse polynomial in arkworks?
 fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
