@@ -141,7 +141,7 @@ impl<'a> Prover<'a> {
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
-        let acc_registers = SuccinctlyAccountableRegisters::wrap(registers.clone(), b, r);
+        let acc_registers = SuccinctlyAccountableRegisters::wrap(registers, b, r);
         let c_poly = acc_registers.get_multipacking_mask_register_polynomial();
         let acc_poly = acc_registers.get_partial_inner_products_register_polynomial();
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
