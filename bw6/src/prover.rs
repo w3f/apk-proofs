@@ -127,34 +127,30 @@ impl<'a> Prover<'a> {
             .map(|p| p.0.into_affine())
             .collect();
 
+        // 1. Compute and commit to the basic registers.
         let registers = Registers::new(&self.domains, bitmask, pks);
-
         let b_poly = registers.get_bitmask_register_polynomial();
         let (acc_x_poly, acc_y_poly) = registers.get_partial_sums_register_polynomials();
-
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
-
-        assert_eq!(b_poly.coeffs.len(), n);
-        assert_eq!(b_poly.degree(), n - 1);
-
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
-        let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
 
+        // 2. Receive bitmask aggregation challenge,
+        // compute and commit to succinct accountability registers.
+        let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         let acc_registers = SuccinctlyAccountableRegisters::wrap(registers.clone(), b, r);
-
         let c_poly = acc_registers.get_multipacking_mask_register_polynomial();
         let acc_poly = acc_registers.get_partial_inner_products_register_polynomial();
-
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
         let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
         transcript.append_proof_point(b"c_comm", &c_comm);
         transcript.append_proof_point(b"acc_comm", &acc_comm);
 
-        // commit to the quotient polynomial
+        // 3. Receive constraint aggregation challenge,
+        // compute and commit to the quotient polynomial.
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         let q_poly = acc_registers.compute_quotient_polynomial(phi, &self.domains);
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
@@ -162,10 +158,11 @@ impl<'a> Prover<'a> {
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
         transcript.append_proof_point(b"q_comm", &q_comm);
 
-        // evaluate register polynomials amd the quotient polynomial
+        // 4. Receive the evaluation point,
+        // evaluate register polynomials and the quotient polynomial,
+        // and commit to the evaluations.
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
         let register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
-
         let b_zeta = register_evaluations.basic_evaluations.bitmask;
         let pks_x_zeta = register_evaluations.basic_evaluations.keyset.0;
         let pks_y_zeta = register_evaluations.basic_evaluations.keyset.1;
@@ -173,15 +170,7 @@ impl<'a> Prover<'a> {
         let acc_y_zeta = register_evaluations.basic_evaluations.partial_sums.1;
         let c_zeta = register_evaluations.c;
         let acc_zeta = register_evaluations.acc;
-
         let q_zeta = q_poly.evaluate(&zeta);
-
-        let zeta_omega = zeta * self.domains.omega;
-        let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
-
-        let r_poly = acc_registers.compute_linearization_polynomial(register_evaluations, phi, zeta_minus_omega_inv);
-        let r_zeta_omega = r_poly.evaluate(&zeta_omega);
-
         transcript.append_proof_scalar(b"b_zeta", &b_zeta);
         transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
         transcript.append_proof_scalar(b"pks_y_zeta", &pks_y_zeta);
@@ -190,9 +179,21 @@ impl<'a> Prover<'a> {
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
         transcript.append_proof_scalar(b"c_zeta", &c_zeta);
         transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
-        transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
+        // 5. Compute the linearization polynomial,
+        // evaluate it at the shifted evaluation point,
+        // and commit to the evaluation.
+        let zeta_omega = zeta * self.domains.omega;
+        let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
+        let r_poly = acc_registers.compute_linearization_polynomial(register_evaluations, phi, zeta_minus_omega_inv);
+        let r_zeta_omega = r_poly.evaluate(&zeta_omega);
+        transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
+
+        // 6. Receive the polynomials aggregation challenge,
+        // open the aggregated polynomial at the evaluation point,
+        // and the linearization polynomial at the shifted evaluation point,
+        // and commit to the opening proofs.
+        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &[
             self.session.pks_x_poly.clone(),
             self.session.pks_y_poly.clone(),
@@ -203,13 +204,12 @@ impl<'a> Prover<'a> {
             acc_x_poly,
             acc_y_poly
         ]);
-
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
         let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
-
         transcript.append_proof_point(b"w_at_zeta_proof", &w_at_zeta_proof);
         transcript.append_proof_point(b"r_at_zeta_omega_proof", &r_at_zeta_omega_proof);
 
+        // Finally, compose the proof.
         Proof {
             b_comm,
             acc_x_comm,
