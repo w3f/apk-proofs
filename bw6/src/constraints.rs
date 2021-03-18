@@ -59,7 +59,22 @@ pub(crate) trait Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn evaluate_register_polynomials(&self, point: Fr) -> E;
     fn compute_linearization_polynomial(&self, evaluations: E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
+
+    //TODO: remove domains param
+    fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
+        let w = utils::randomize(phi, &self.compute_constraint_polynomials());
+        let (q_poly, r) = domains.compute_quotient(&w);
+        assert_eq!(r, DensePolynomial::zero());
+        q_poly
+    }
 }
+
+pub(crate) trait PiopDecorator<'a, E>: Piop<E> {
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn wrap(registers: Registers<'a>, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
+}
+
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 #[derive(Clone)] //TODO: remove
@@ -218,6 +233,16 @@ impl Piop<BasicRegisterEvaluations> for Registers<'_> {
         r_poly += (zeta_minus_omega_inv, &a1_lin);
         r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
         r_poly
+    }
+
+    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
+        let (a1_poly, a2_poly) =
+            Constraints::compute_conditional_affine_addition_constraint_polynomials(self);
+        let a3_poly =
+            Constraints::compute_bitmask_booleanity_constraint_polynomial(self);
+        let (a4_poly, a5_poly) =
+            Constraints::compute_public_inputs_constraint_polynomials(self);
+        vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
     }
 }
 
@@ -378,6 +403,7 @@ pub(crate) struct SuccinctlyAccountableRegisters<'a> {
 
     bitmask_chunks_aggregated: Fr,
     pub polynomials: SuccinctAccountableRegisterPolynomials,
+    r: Fr,
 }
 
 impl<'a> SuccinctlyAccountableRegisters<'a> {
@@ -411,6 +437,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
             acc,
             acc_shifted,
             bitmask_chunks_aggregated,
+            r
         )
     }
 
@@ -421,6 +448,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         acc: Vec<Fr>,
         acc_shifted: Vec<Fr>,
         bitmask_chunks_aggregated: Fr,
+        r: Fr
     ) -> Self {
         let c_polynomial = registers.domains.interpolate(c);
         let acc_polynomial = registers.domains.interpolate(acc);
@@ -435,7 +463,8 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
                 c_poly: c_polynomial,
                 acc_poly: acc_polynomial,
                 basic_polynomials: registers.polynomials
-            }
+            },
+            r
         }
     }
 
@@ -502,15 +531,15 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
         Self::evaluate_inner_product_constraint(bitmask_chunks_aggregated, evals_at_zeta, b_zeta, c_zeta, acc_zeta, Fr::zero())
     }
 
-    pub fn compute_multipacking_mask_constraint_polynomial(&self, r: Fr) -> DensePolynomial<Fr> {
+    pub fn compute_multipacking_mask_constraint_polynomial(&self) -> DensePolynomial<Fr> {
         let n = self.registers.domains.size;
         let chunks = n / 256; //TODO: consts
         let mut a = vec![Fr::from(2u8); n];
-        a.iter_mut().step_by(256).for_each(|a| *a = r / Fr::from(2u8).pow([255u64]));
+        a.iter_mut().step_by(256).for_each(|a| *a = self.r / Fr::from(2u8).pow([255u64]));
         a.rotate_left(1);
         let a_x4 = self.registers.domains.amplify(a);
 
-        let x_todo = Fr::one() - r.pow([chunks as u64]); //TODO: name
+        let x_todo = Fr::one() - self.r.pow([chunks as u64]); //TODO: name
         let ln_x4 = self.registers.domains.l_last_scaled_by(x_todo);
 
         let a7 = &(&self.c_shifted - &(&self.c * &a_x4)) - &ln_x4;
@@ -554,6 +583,20 @@ impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegis
         r_poly += (powers_of_phi[5], a6_lin);
         r_poly += (powers_of_phi[6], a7_lin);
         r_poly
+    }
+
+    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
+        let mut constraints = self.registers.compute_constraint_polynomials();
+        let a6_poly = self.compute_inner_product_constraint_polynomial();
+        let a7_poly = self.compute_multipacking_mask_constraint_polynomial();
+        constraints.extend(vec![a6_poly, a7_poly]);
+        constraints
+    }
+}
+
+impl <'a> PiopDecorator<'a, SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters<'a> {
+    fn wrap(registers: Registers<'a>, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
+        SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
 }
 
@@ -735,7 +778,7 @@ mod tests {
             b,
             r
         );
-        let constraint_poly = acc_registers.compute_multipacking_mask_constraint_polynomial(r);
+        let constraint_poly = acc_registers.compute_multipacking_mask_constraint_polynomial();
         assert_eq!(constraint_poly.degree(), 2 * n - 2);
         assert!(domains.is_zero(&constraint_poly));
     }

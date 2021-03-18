@@ -12,7 +12,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, Piop};
+use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, Piop, PiopDecorator};
 
 
 
@@ -139,21 +139,12 @@ impl<'a> Prover<'a> {
         assert_eq!(b_poly.coeffs.len(), n);
         assert_eq!(b_poly.degree(), n - 1);
 
-        let (a1_poly, a2_poly) =
-            Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
-        let a3_poly =
-            Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
-        let (a4_poly, a5_poly) =
-            Constraints::compute_public_inputs_constraint_polynomials(&registers);
-
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
 
-        let acc_registers = SuccinctlyAccountableRegisters::new(registers.clone(), b, r);
-        let a6_poly = acc_registers.compute_inner_product_constraint_polynomial();
-        let a7_poly = acc_registers.compute_multipacking_mask_constraint_polynomial(r);
+        let acc_registers = SuccinctlyAccountableRegisters::wrap(registers.clone(), b, r);
 
         let c_poly = acc_registers.get_multipacking_mask_register_polynomial();
         let acc_poly = acc_registers.get_partial_inner_products_register_polynomial();
@@ -162,29 +153,17 @@ impl<'a> Prover<'a> {
         let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
         transcript.append_proof_point(b"c_comm", &c_comm);
         transcript.append_proof_point(b"acc_comm", &acc_comm);
+
+        // commit to the quotient polynomial
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
-
-        let powers_of_phi = &utils::powers(phi, 6);
-        let w = utils::randomize(phi, &[
-            a1_poly,
-            a2_poly,
-            a3_poly,
-            a4_poly,
-            a5_poly,
-            a6_poly,
-            a7_poly,
-        ]);
-
-        let (q_poly, r) = self.domains.compute_quotient(&w);
-        assert_eq!(r, DensePolynomial::zero());
-        assert_eq!(q_poly.degree(), 3 * n - 3);
-
+        let q_poly = acc_registers.compute_quotient_polynomial(phi, &self.domains);
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
+        assert_eq!(q_poly.degree(), 3 * n - 3);
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
-
         transcript.append_proof_point(b"q_comm", &q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
+        // evaluate register polynomials amd the quotient polynomial
+        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
         let register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
 
         let b_zeta = register_evaluations.basic_evaluations.bitmask;
@@ -194,6 +173,7 @@ impl<'a> Prover<'a> {
         let acc_y_zeta = register_evaluations.basic_evaluations.partial_sums.1;
         let c_zeta = register_evaluations.c;
         let acc_zeta = register_evaluations.acc;
+
         let q_zeta = q_poly.evaluate(&zeta);
 
         let zeta_omega = zeta * self.domains.omega;
