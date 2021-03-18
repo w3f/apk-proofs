@@ -4,6 +4,7 @@ use ark_ff::{Zero, One};
 use ark_bw6_761::Fr;
 use ark_bls12_377::Fq;
 
+#[derive(Clone)]
 pub struct Domains {
     //TODO: remove pub
     pub domain: Radix2EvaluationDomain<Fr>, // TODO: separate type?

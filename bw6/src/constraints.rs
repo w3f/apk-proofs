@@ -70,16 +70,16 @@ pub(crate) trait Piop<E> {
     }
 }
 
-pub(crate) trait PiopDecorator<'a, E>: Piop<E> {
+pub(crate) trait PiopDecorator<E>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
-    fn wrap(registers: Registers<'a>, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
+    fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
 }
 
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 #[derive(Clone)] //TODO: remove
-pub(crate) struct Registers<'a> {
-    domains: &'a Domains,
+pub(crate) struct Registers {
+    domains: Domains,
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     // public keys' coordinates
     pks_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -94,8 +94,8 @@ pub(crate) struct Registers<'a> {
     pub polynomials: BasicRegisterPolynomials,
 }
 
-impl<'a> Registers<'a> {
-    pub fn new(domains: &'a Domains,
+impl Registers {
+    pub fn new(domains: Domains,
                bitmask: &Bitmask,
                pks: Vec<G1Affine>,
     ) -> Self {
@@ -158,7 +158,7 @@ impl<'a> Registers<'a> {
         )
     }
 
-    fn new_unchecked(domains: &'a Domains,
+    fn new_unchecked(domains: Domains,
                      bitmask: Vec<Fr>,
                      pks: (Vec<Fr>, Vec<Fr>),
                      apk_acc: (Vec<Fr>, Vec<Fr>),
@@ -178,7 +178,7 @@ impl<'a> Registers<'a> {
         );
 
         Self {
-            domains,
+            domains: domains.clone(),
             bitmask: domains.amplify_polynomial(&bitmask_polynomial),
             pks_x: domains.amplify_polynomial(&keyset_polynomial.0),
             pks_y: domains.amplify_polynomial(&keyset_polynomial.1),
@@ -206,7 +206,7 @@ impl<'a> Registers<'a> {
     }
 }
 
-impl Piop<BasicRegisterEvaluations> for Registers<'_> {
+impl Piop<BasicRegisterEvaluations> for Registers {
     fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
         self.polynomials.evaluate(point)
     }
@@ -394,8 +394,8 @@ impl Constraints {
     }
 }
 
-pub(crate) struct SuccinctlyAccountableRegisters<'a> {
-    registers: Registers<'a>,
+pub(crate) struct SuccinctlyAccountableRegisters {
+    registers: Registers,
     c: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     c_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     acc: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -406,10 +406,10 @@ pub(crate) struct SuccinctlyAccountableRegisters<'a> {
     r: Fr,
 }
 
-impl<'a> SuccinctlyAccountableRegisters<'a> {
+impl SuccinctlyAccountableRegisters {
 
     // TODO: remove bitmask arg
-    pub fn new(registers: Registers<'a>,
+    pub fn new(registers: Registers,
                bitmask: Vec<Fr>,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
@@ -442,7 +442,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
     }
 
     fn new_unchecked(
-        registers: Registers<'a>,
+        registers: Registers,
         c: Vec<Fr>,
         c_shifted: Vec<Fr>,
         acc: Vec<Fr>,
@@ -567,7 +567,7 @@ impl<'a> SuccinctlyAccountableRegisters<'a> {
 }
 
 
-impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters<'_> {
+impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
     fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         self.polynomials.evaluate(point)
     }
@@ -594,8 +594,8 @@ impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegis
     }
 }
 
-impl <'a> PiopDecorator<'a, SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters<'a> {
-    fn wrap(registers: Registers<'a>, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
+impl PiopDecorator<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
+    fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
 }
@@ -646,7 +646,7 @@ mod tests {
 
         let good_bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
         let registers = Registers::new(
-            &domains,
+            domains.clone(),
             &good_bitmask,
             random_pks(m, rng),
         );
@@ -664,7 +664,7 @@ mod tests {
         let mut bad_bitmask = random_bitmask(rng, m);
         bad_bitmask[0] = Fr::rand(rng);
         let registers = Registers::new_unchecked(
-            &domains,
+            domains.clone(),
             bad_bitmask,
             dummy_registers(n),
             dummy_registers(n),
@@ -685,7 +685,7 @@ mod tests {
 
         let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
         let registers = Registers::new(
-            &domains,
+            domains.clone(),
             &bitmask,
             random_pks(m, rng),
         );
@@ -710,7 +710,7 @@ mod tests {
         let bitmask = Bitmask::from_bits(&bits);
         let pks = random_pks(m, rng);
         let registers = Registers::new(
-            &domains,
+            domains.clone(),
             &bitmask,
             pks.clone(),
         );
@@ -765,7 +765,7 @@ mod tests {
 
         let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
         let registers = Registers::new(
-            &domains,
+            domains.clone(),
             &bitmask,
             random_pks(m, rng),
         );
