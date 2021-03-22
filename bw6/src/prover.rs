@@ -163,13 +163,6 @@ impl<'a> Prover<'a> {
         // and commit to the evaluations.
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
         let register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
-        let b_zeta = register_evaluations.basic_evaluations.bitmask;
-        let pks_x_zeta = register_evaluations.basic_evaluations.keyset.0;
-        let pks_y_zeta = register_evaluations.basic_evaluations.keyset.1;
-        let acc_x_zeta = register_evaluations.basic_evaluations.partial_sums.0;
-        let acc_y_zeta = register_evaluations.basic_evaluations.partial_sums.1;
-        let c_zeta = register_evaluations.c;
-        let acc_zeta = register_evaluations.acc;
         let q_zeta = q_poly.evaluate(&zeta);
         transcript.append_evals(&register_evaluations);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
