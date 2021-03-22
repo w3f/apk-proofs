@@ -54,14 +54,7 @@ pub struct Proof {
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
     register_evaluations: SuccinctAccountableRegisterEvaluations,
-    b_zeta: Fr,
-    pks_x_zeta: Fr,
-    pks_y_zeta: Fr,
-    acc_x_zeta: Fr,
-    acc_y_zeta: Fr,
     q_zeta: Fr,
-    c_zeta: Fr,
-    acc_zeta: Fr,
     r_zeta_omega: Fr,
     // Prover receives \nu, the KZG opening batching challenge, here
     w_at_zeta_proof: ark_bw6_761::G1Affine,

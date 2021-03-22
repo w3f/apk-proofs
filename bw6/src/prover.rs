@@ -216,14 +216,7 @@ impl<'a> Prover<'a> {
             q_comm,
             // zeta <-
             register_evaluations,
-            b_zeta,
-            pks_x_zeta,
-            pks_y_zeta,
-            acc_x_zeta,
-            acc_y_zeta,
             q_zeta,
-            c_zeta,
-            acc_zeta,
             r_zeta_omega,
             // <- nu
             w_at_zeta_proof,
