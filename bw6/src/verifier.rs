@@ -75,11 +75,10 @@ impl Verifier {
         let powers_of_phi = utils::powers(phi, 6);
         // TODO: 128-bit mul
 
-        let b = proof.b_zeta;
-        let x1 = proof.acc_x_zeta;
-        let y1 = proof.acc_y_zeta;
-        let x2 = proof.pks_x_zeta;
-        let y2 = proof.pks_y_zeta;
+        let basic_evals = &proof.register_evaluations.basic_evaluations;
+        let b = basic_evals.bitmask;
+        let (x1, y1) = basic_evals.partial_sums;
+        let (x2, y2) = basic_evals.keyset;
 
         // commitment to the linearization polynomial
         let r_comm = {
