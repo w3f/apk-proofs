@@ -94,6 +94,39 @@ impl SuccinctAccountableRegisterEvaluations {
         res.extend(vec![self.c, self.acc]);
         res
     }
+
+    pub fn evaluate_constraint_polynomials(
+        &self,
+        apk: G1Affine,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        zeta_minus_omega_inv: Fr,
+        a: Fr,
+        r_pow_m: Fr,
+        aggregated_bitmask: Fr,
+    ) -> Vec<Fr> {
+        let b = self.basic_evaluations.bitmask;
+        let acc = self.acc;
+        let c = self.c;
+
+        let a6 = SuccinctlyAccountableRegisters::evaluate_inner_product_constraint_linearized(
+            aggregated_bitmask,
+            &evals_at_zeta,
+            b,
+            c,
+            acc,
+        );
+
+        let a7 = SuccinctlyAccountableRegisters::evaluate_multipacking_mask_constraint_linearized(
+            a,
+            r_pow_m,
+            &evals_at_zeta,
+            c,
+        );
+
+        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, zeta_minus_omega_inv);
+        res.extend(vec![a6, a7]);
+        res
+    }
 }
 
 pub(crate) trait Piop<E> {

@@ -180,29 +180,8 @@ impl Verifier {
 
         let apk = apk.0.into_affine();
         let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
-        let basic_constraint_polynomial_evals = proof.register_evaluations.basic_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, zeta_minus_omega_inv);
-        let a1 = basic_constraint_polynomial_evals[0];
-        let a2 = basic_constraint_polynomial_evals[1];
-        let a3 = basic_constraint_polynomial_evals[2];
-        let a4 = basic_constraint_polynomial_evals[3];
-        let a5 = basic_constraint_polynomial_evals[4];
-
-        let a6 = SuccinctlyAccountableRegisters::evaluate_inner_product_constraint_linearized(
-            aggregated_bitmask,
-            &evals_at_zeta,
-            b,
-            c,
-            acc,
-        );
-
-        let a7 = SuccinctlyAccountableRegisters::evaluate_multipacking_mask_constraint_linearized(
-            a,
-            r_pow_m,
-            &evals_at_zeta,
-            c,
-        );
-
-        let w = utils::horner_field(&[a1, a2, a3, a4, a5, a6, a7], phi);
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, zeta_minus_omega_inv, a, r_pow_m, aggregated_bitmask);
+        let w = utils::horner_field(&constraint_polynomial_evals, phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
 }
