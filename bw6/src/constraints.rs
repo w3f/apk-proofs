@@ -2,6 +2,7 @@ use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero, Field, Fp384, BigInteger};
 use ark_bw6_761::Fr;
+use ark_ec::AffineCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_bls12_377::{G1Affine, FqParameters, Fq};
 
@@ -62,12 +63,11 @@ impl BasicRegisterEvaluations {
             self.partial_sums.1,
         ]
     }
-    
-    pub fn evaluate_constraint_polynomials(
-        &self,
-        apk: G1Affine,
-        evals_at_zeta: &LagrangeEvaluations<Fr>,
-        zeta_minus_omega_inv: Fr,
+
+    pub fn evaluate_constraint_polynomials(&self,
+                                           apk: G1Affine,
+                                           evals_at_zeta: &LagrangeEvaluations<Fr>,
+                                           zeta_minus_omega_inv: Fr,
     ) -> Vec<Fr> {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;
@@ -77,6 +77,28 @@ impl BasicRegisterEvaluations {
         let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
         let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
         vec![a1, a2, a3, a4, a5]
+    }
+
+    pub fn restore_commitment_to_linearization_polynomial(&self,
+                                                          phi: Fr,
+                                                          zeta_minus_omega_inv: Fr,
+                                                          acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
+    ) -> ark_bw6_761::G1Projective {
+        let b = self.bitmask;
+        let (x1, y1) = self.partial_sums;
+        let (x2, y2) = self.keyset;
+
+        let mut r_comm = ark_bw6_761::G1Projective::zero();
+        // X3 := acc_x polynomial
+        // Y3 := acc_y polynomial
+        // a1_lin = b(x1-x2)^2.X3 + (1-b)Y3
+        // a2_lin = b(x1-x2)Y3 + b(y1-y2)X3 + (1-b)X3 // *= phi
+        // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
+        // Y3 term = (1-b) + b(x1-x2)phi
+        // ...and both multiplied by (\zeta - \omega^{n-1}) // = zeta_minus_omega_inv
+        r_comm += acc_comm.0.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
+        r_comm += acc_comm.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
+        r_comm
     }
 }
 
@@ -127,6 +149,21 @@ impl SuccinctAccountableRegisterEvaluations {
         res.extend(vec![a6, a7]);
         res
     }
+
+    pub fn restore_commitment_to_linearization_polynomial(&self,
+                                                          phi: Fr,
+                                                          zeta_minus_omega_inv: Fr,
+                                                          acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
+                                                          acc_comm2: ark_bw6_761::G1Affine,
+                                                          c_comm: ark_bw6_761::G1Affine,
+    ) -> ark_bw6_761::G1Projective {
+        let powers_of_phi = utils::powers(phi, 6);
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, acc_comm);
+        r_comm += acc_comm2.mul(powers_of_phi[5]);
+        r_comm += c_comm.mul(powers_of_phi[6]);
+        r_comm
+    }
+
 }
 
 pub(crate) trait Piop<E> {

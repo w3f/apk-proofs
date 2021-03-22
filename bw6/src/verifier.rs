@@ -80,24 +80,14 @@ impl Verifier {
         let zeta_omega = zeta * self.domain.group_gen;
         let zeta_minus_omega_inv = zeta - self.domain.group_gen_inv;
 
-        let powers_of_phi = utils::powers(phi, 6);
         // TODO: 128-bit mul
-        // commitment to the linearization polynomial
-        let r_comm = {
-            // X3 := acc_x polynomial
-            // Y3 := acc_y polynomial
-            // a1_lin = b(x1-x2)^2.X3 + (1-b)Y3
-            // a2_lin = b(x1-x2)Y3 + b(y1-y2)X3 + (1-b)X3 // *= phi
-            // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
-            // Y3 term = (1-b) + b(x1-x2)phi
-            // ...and both multiplied by (\zeta - \omega^{n-1}) // = zeta_minus_omega_inv
-            let mut r_comm = GroupProjective::zero();
-            r_comm += proof.acc_x_comm.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
-            r_comm += proof.acc_y_comm.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
-            r_comm += proof.acc_comm.mul(powers_of_phi[5]);
-            r_comm += proof.c_comm.mul(powers_of_phi[6]);
-            r_comm.into_affine()
-        };
+        let r_comm = proof.register_evaluations.restore_commitment_to_linearization_polynomial(
+            phi,
+            zeta_minus_omega_inv,
+            (proof.acc_x_comm, proof.acc_y_comm),
+            proof.acc_comm,
+            proof.c_comm,
+        ).into_affine();
 
         let t_multiexp = start_timer!(|| "multiexp");
         let w_comm = KZG_BW6::aggregate_commitments(nu, &[
