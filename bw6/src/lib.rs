@@ -36,10 +36,11 @@ type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
-
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
 use crate::kzg::KZG10;
+use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof {
@@ -52,6 +53,7 @@ pub struct Proof {
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
+    register_evaluations: SuccinctAccountableRegisterEvaluations,
     b_zeta: Fr,
     pks_x_zeta: Fr,
     pks_y_zeta: Fr,

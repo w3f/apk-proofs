@@ -5,8 +5,9 @@ use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
 use crate::Bitmask;
+use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
-pub trait ApkTranscript {
+pub(crate) trait ApkTranscript {
 
     fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine);
 
@@ -17,6 +18,10 @@ pub trait ApkTranscript {
     }
 
     fn append_public_input(&mut self, apk: &PublicKey, bitmask: &Bitmask);
+
+    fn append_evals(&mut self, evals: &SuccinctAccountableRegisterEvaluations) {
+        self._append_bytes(b"evals", &evals.as_vec());
+    }
 
     fn append_proof_point(&mut self, label: &'static [u8], point: &ark_bw6_761::G1Affine) {
         self._append_bytes(label, point);

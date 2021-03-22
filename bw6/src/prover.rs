@@ -171,14 +171,9 @@ impl<'a> Prover<'a> {
         let c_zeta = register_evaluations.c;
         let acc_zeta = register_evaluations.acc;
         let q_zeta = q_poly.evaluate(&zeta);
-        transcript.append_proof_scalar(b"b_zeta", &b_zeta);
-        transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
-        transcript.append_proof_scalar(b"pks_y_zeta", &pks_y_zeta);
-        transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
-        transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
+        transcript.append_evals(&register_evaluations);
         transcript.append_proof_scalar(b"q_zeta", &q_zeta);
-        transcript.append_proof_scalar(b"c_zeta", &c_zeta);
-        transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
+
 
         // 5. Compute the linearization polynomial,
         // evaluate it at the shifted evaluation point,
@@ -220,6 +215,7 @@ impl<'a> Prover<'a> {
             // phi <-
             q_comm,
             // zeta <-
+            register_evaluations,
             b_zeta,
             pks_x_zeta,
             pks_y_zeta,

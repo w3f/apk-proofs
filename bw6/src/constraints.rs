@@ -2,11 +2,14 @@ use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero, Field, Fp384, BigInteger};
 use ark_bw6_761::Fr;
+use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use ark_bls12_377::{G1Affine, FqParameters, Fq};
+
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils};
-use ark_ec::short_weierstrass_jacobian::GroupAffine;
 use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
@@ -14,12 +17,6 @@ pub(crate) struct BasicRegisterPolynomials {
     bitmask: DensePolynomial<Fr>,
     keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
-}
-
-pub(crate) struct BasicRegisterEvaluations {
-    pub bitmask: Fr,
-    pub keyset: (Fr, Fr),
-    pub partial_sums: (Fr, Fr),
 }
 
 impl BasicRegisterPolynomials {
@@ -38,13 +35,6 @@ pub(crate) struct SuccinctAccountableRegisterPolynomials {
     basic_polynomials: BasicRegisterPolynomials,
 }
 
-//TODO: remove pubs
-pub(crate) struct SuccinctAccountableRegisterEvaluations {
-    pub c: Fr,
-    pub acc: Fr,
-    pub basic_evaluations: BasicRegisterEvaluations,
-}
-
 impl SuccinctAccountableRegisterPolynomials {
     pub fn evaluate(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         SuccinctAccountableRegisterEvaluations {
@@ -52,6 +42,41 @@ impl SuccinctAccountableRegisterPolynomials {
             acc: self.acc_poly.evaluate(&point),
             basic_evaluations: self.basic_polynomials.evaluate(point)
         }
+    }
+}
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub(crate) struct BasicRegisterEvaluations {
+    pub bitmask: Fr,
+    pub keyset: (Fr, Fr),
+    pub partial_sums: (Fr, Fr),
+}
+
+impl BasicRegisterEvaluations {
+    pub fn as_vec(&self) -> Vec<Fr> {
+        vec![
+            self.bitmask,
+            self.keyset.0,
+            self.keyset.1,
+            self.partial_sums.0,
+            self.partial_sums.1,
+        ]
+    }
+}
+
+//TODO: remove pubs
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub(crate) struct SuccinctAccountableRegisterEvaluations {
+    pub c: Fr,
+    pub acc: Fr,
+    pub basic_evaluations: BasicRegisterEvaluations,
+}
+
+impl SuccinctAccountableRegisterEvaluations {
+    pub fn as_vec(&self) -> Vec<Fr> {
+        let mut res = self.basic_evaluations.as_vec();
+        res.extend(vec![self.c, self.acc]);
+        res
     }
 }
 

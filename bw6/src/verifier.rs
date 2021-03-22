@@ -64,14 +64,8 @@ impl Verifier {
         // accountability
         end_timer!(t_linear_accountability);
 
-        transcript.append_proof_scalar(b"b_zeta", &proof.b_zeta);
-        transcript.append_proof_scalar(b"pks_x_zeta", &proof.pks_x_zeta);
-        transcript.append_proof_scalar(b"pks_y_zeta", &proof.pks_y_zeta);
-        transcript.append_proof_scalar(b"acc_x_zeta", &proof.acc_x_zeta);
-        transcript.append_proof_scalar(b"acc_y_zeta", &proof.acc_y_zeta);
+        transcript.append_evals(&proof.register_evaluations);
         transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
-        transcript.append_proof_scalar(b"c_zeta", &proof.c_zeta);
-        transcript.append_proof_scalar(b"acc_zeta", &proof.acc_zeta);
         transcript.append_proof_scalar(b"r_zeta_omega", &proof.r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
