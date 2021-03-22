@@ -348,6 +348,7 @@ impl Constraints {
     }
 
     pub fn evaluate_conditional_affine_addition_constraints(
+        zeta_minus_omega_inv: Fr,
         b: Fr,
         x1: Fr,
         y1: Fr,
@@ -368,17 +369,18 @@ impl Constraints {
                     - (y2 - y1) * (x3 - x1)
             ) + (Fr::one() - b) * (x3 - x1);
 
-        (c1, c2)
+        (c1 * zeta_minus_omega_inv, c2 * zeta_minus_omega_inv)
     }
 
     pub fn evaluate_conditional_affine_addition_constraints_linearized(
+        zeta_minus_omega_inv: Fr,
         b: Fr,
         x1: Fr,
         y1: Fr,
         x2: Fr,
         y2: Fr,
     ) -> (Fr, Fr) {
-        Self::evaluate_conditional_affine_addition_constraints(b, x1, y1, x2, y2, Fr::zero(), Fr::zero())
+        Self::evaluate_conditional_affine_addition_constraints(zeta_minus_omega_inv, b, x1, y1, x2, y2, Fr::zero(), Fr::zero())
     }
 
     // TODO: better name
