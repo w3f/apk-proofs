@@ -180,9 +180,12 @@ impl Verifier {
 
         let apk = apk.0.into_affine();
         let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
-        let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(zeta_minus_omega_inv, b, x1, y1, x2, y2);
-        let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
-        let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
+        let basic_constraint_polynomial_evals = proof.register_evaluations.basic_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, zeta_minus_omega_inv);
+        let a1 = basic_constraint_polynomial_evals[0];
+        let a2 = basic_constraint_polynomial_evals[1];
+        let a3 = basic_constraint_polynomial_evals[2];
+        let a4 = basic_constraint_polynomial_evals[3];
+        let a5 = basic_constraint_polynomial_evals[4];
 
         let a6 = SuccinctlyAccountableRegisters::evaluate_inner_product_constraint_linearized(
             aggregated_bitmask,
