@@ -58,9 +58,14 @@ impl Verifier {
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
+        let basic_evals = &proof.register_evaluations.basic_evaluations;
+        let b = basic_evals.bitmask;
+        let (x1, y1) = basic_evals.partial_sums;
+        let (x2, y2) = basic_evals.keyset;
+
         let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
-        assert_eq!(b_at_zeta, proof.b_zeta);
+        assert_eq!(b_at_zeta, b);
         // accountability
         end_timer!(t_linear_accountability);
 
@@ -74,12 +79,6 @@ impl Verifier {
 
         let powers_of_phi = utils::powers(phi, 6);
         // TODO: 128-bit mul
-
-        let basic_evals = &proof.register_evaluations.basic_evaluations;
-        let b = basic_evals.bitmask;
-        let (x1, y1) = basic_evals.partial_sums;
-        let (x2, y2) = basic_evals.keyset;
-
         // commitment to the linearization polynomial
         let r_comm = {
             // X3 := acc_x polynomial
@@ -116,8 +115,8 @@ impl Verifier {
             y2,
             b,
             proof.q_zeta,
-            proof.acc_zeta,
-            proof.c_zeta,
+            proof.register_evaluations.acc,
+            proof.register_evaluations.c,
             x1,
             y1,
         ]);
