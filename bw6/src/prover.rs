@@ -185,7 +185,7 @@ impl<'a> Prover<'a> {
         // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
         let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
-        let r_poly = acc_registers.compute_linearization_polynomial(register_evaluations, phi, zeta_minus_omega_inv);
+        let r_poly = acc_registers.compute_linearization_polynomial(&register_evaluations, phi, zeta_minus_omega_inv);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
 

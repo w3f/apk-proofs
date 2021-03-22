@@ -58,7 +58,7 @@ impl SuccinctAccountableRegisterPolynomials {
 pub(crate) trait Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn evaluate_register_polynomials(&self, point: Fr) -> E;
-    fn compute_linearization_polynomial(&self, evaluations: E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+    fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
 
     //TODO: remove domains param
@@ -214,7 +214,7 @@ impl Piop<BasicRegisterEvaluations> for Registers {
     // Compute linearization polynomial
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
     // deg(r) = n, so it can be computed in the monomial basis
-    fn compute_linearization_polynomial(&self, evaluations: BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    fn compute_linearization_polynomial(&self, evaluations: &BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
         let b_zeta = evaluations.bitmask;
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
@@ -572,14 +572,14 @@ impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegis
         self.polynomials.evaluate(point)
     }
 
-    fn compute_linearization_polynomial(&self, evaluations: SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
         let powers_of_phi = &utils::powers(phi, 6);
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_lin = &self.polynomials.acc_poly;
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7_lin = &self.polynomials.c_poly;
 
-        let mut r_poly = self.registers.compute_linearization_polynomial(evaluations.basic_evaluations, phi, zeta_minus_omega_inv);
+        let mut r_poly = self.registers.compute_linearization_polynomial(&evaluations.basic_evaluations, phi, zeta_minus_omega_inv);
         r_poly += (powers_of_phi[5], a6_lin);
         r_poly += (powers_of_phi[6], a7_lin);
         r_poly
