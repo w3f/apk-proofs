@@ -62,6 +62,9 @@ impl Verifier {
         let b = basic_evals.bitmask;
         let (x1, y1) = basic_evals.partial_sums;
         let (x2, y2) = basic_evals.keyset;
+        let acc = proof.register_evaluations.acc;
+        let c = proof.register_evaluations.c;
+
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
@@ -115,8 +118,8 @@ impl Verifier {
             y2,
             b,
             proof.q_zeta,
-            proof.register_evaluations.acc,
-            proof.register_evaluations.c,
+            acc,
+            c,
             x1,
             y1,
         ]);
@@ -184,16 +187,16 @@ impl Verifier {
         let a6 = SuccinctlyAccountableRegisters::evaluate_inner_product_constraint_linearized(
             aggregated_bitmask,
             &evals_at_zeta,
-            proof.b_zeta,
-            proof.c_zeta,
-            proof.acc_zeta
+            b,
+            c,
+            acc,
         );
 
         let a7 = SuccinctlyAccountableRegisters::evaluate_multipacking_mask_constraint_linearized(
             a,
             r_pow_m,
             &evals_at_zeta,
-            proof.c_zeta
+            c,
         );
 
         let w = utils::horner_field(&[a1 * zeta_minus_omega_inv, a2 * zeta_minus_omega_inv, a3, a4, a5, a6, a7], phi);
