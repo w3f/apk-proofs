@@ -94,11 +94,11 @@ impl Verifier {
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
             proof.b_comm,
-            proof.q_comm,
             proof.acc_comm,
             proof.c_comm,
             proof.acc_x_comm,
-            proof.acc_y_comm
+            proof.acc_y_comm,
+            proof.q_comm,
         ]);
         end_timer!(t_multiexp);
 
@@ -107,11 +107,11 @@ impl Verifier {
             x2,
             y2,
             b,
-            proof.q_zeta,
             acc,
             c,
             x1,
             y1,
+            proof.q_zeta,
         ]);
         end_timer!(t_opening_points);
 

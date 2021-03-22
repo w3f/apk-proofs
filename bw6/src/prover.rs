@@ -186,11 +186,11 @@ impl<'a> Prover<'a> {
             self.session.pks_x_poly.clone(),
             self.session.pks_y_poly.clone(),
             b_poly,
-            q_poly,
             acc_poly,
             c_poly,
             acc_x_poly,
-            acc_y_poly
+            acc_y_poly,
+            q_poly,
         ]);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
         let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
