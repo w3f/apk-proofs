@@ -112,14 +112,14 @@ impl Verifier {
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
         let w_at_zeta = KZG_BW6::aggregate_values(nu, &[
-            proof.pks_x_zeta,
-            proof.pks_y_zeta,
-            proof.b_zeta,
+            x2,
+            y2,
+            b,
             proof.q_zeta,
             proof.acc_zeta,
             proof.c_zeta,
-            proof.acc_x_zeta,
-            proof.acc_y_zeta
+            x1,
+            y1,
         ]);
         end_timer!(t_opening_points);
 
