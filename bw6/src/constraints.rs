@@ -623,14 +623,11 @@ impl SuccinctlyAccountableRegisters {
         acc
     }
 
-    // TODO: interpolate over the smaller domain
-    pub fn get_multipacking_mask_register_polynomial(&self) -> DensePolynomial<Fr> {
-        self.c.interpolate_by_ref()
-    }
-
-    // TODO: interpolate over the smaller domain
-    pub fn get_partial_inner_products_register_polynomial(&self) -> DensePolynomial<Fr> {
-        self.acc.interpolate_by_ref()
+    pub fn get_accountable_register_polynomials(&self) -> Vec<&DensePolynomial<Fr>> {
+        vec![
+            &self.polynomials.c_poly,
+            &self.polynomials.acc_poly,
+        ]
     }
 
     pub fn compute_inner_product_constraint_polynomial(&self) -> DensePolynomial<Fr> {

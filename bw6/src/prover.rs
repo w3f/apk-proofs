@@ -142,10 +142,9 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         let acc_registers = SuccinctlyAccountableRegisters::wrap(registers, b, r);
-        let c_poly = acc_registers.get_multipacking_mask_register_polynomial();
-        let acc_poly = acc_registers.get_partial_inner_products_register_polynomial();
-        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
-        let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
+        let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
+        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[0]);
+        let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[1]);
         transcript.append_proof_point(b"c_comm", &c_comm);
         transcript.append_proof_point(b"acc_comm", &acc_comm);
 
