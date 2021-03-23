@@ -183,13 +183,13 @@ impl<'a> Prover<'a> {
         // and commit to the opening proofs.
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &[
+            b_poly,
             self.session.pks_x_poly.clone(),
             self.session.pks_y_poly.clone(),
-            b_poly,
-            acc_poly,
-            c_poly,
             acc_x_poly,
             acc_y_poly,
+            c_poly,
+            acc_poly,
             q_poly,
         ]);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);

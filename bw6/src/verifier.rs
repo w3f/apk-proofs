@@ -91,26 +91,26 @@ impl Verifier {
 
         let t_multiexp = start_timer!(|| "multiexp");
         let w_comm = KZG_BW6::aggregate_commitments(nu, &[
+            proof.b_comm,
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
-            proof.b_comm,
-            proof.acc_comm,
-            proof.c_comm,
             proof.acc_x_comm,
             proof.acc_y_comm,
+            proof.c_comm,
+            proof.acc_comm,
             proof.q_comm,
         ]);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
         let w_at_zeta = KZG_BW6::aggregate_values(nu, &[
+            b,
             x2,
             y2,
-            b,
-            acc,
-            c,
             x1,
             y1,
+            c,
+            acc,
             proof.q_zeta,
         ]);
         end_timer!(t_opening_points);
