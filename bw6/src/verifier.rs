@@ -60,11 +60,6 @@ impl Verifier {
 
         let basic_evals = &proof.register_evaluations.basic_evaluations;
         let b = basic_evals.bitmask;
-        let (x1, y1) = basic_evals.partial_sums;
-        let (x2, y2) = basic_evals.keyset;
-        let acc = proof.register_evaluations.acc;
-        let c = proof.register_evaluations.c;
-
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
@@ -103,16 +98,9 @@ impl Verifier {
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
-        let w_at_zeta = KZG_BW6::aggregate_values(nu, &[
-            b,
-            x2,
-            y2,
-            x1,
-            y1,
-            c,
-            acc,
-            proof.q_zeta,
-        ]);
+        let mut register_evals = proof.register_evaluations.as_vec();
+        register_evals.push(proof.q_zeta);
+        let w_at_zeta = KZG_BW6::aggregate_values(nu, &register_evals);
         end_timer!(t_opening_points);
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
