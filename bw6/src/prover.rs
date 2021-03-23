@@ -182,19 +182,13 @@ impl<'a> Prover<'a> {
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
-        let w_poly = KZG_BW6::aggregate_polynomials(nu, &[
-            b_poly,
-            self.session.pks_x_poly.clone(),
-            self.session.pks_y_poly.clone(),
-            acc_x_poly,
-            acc_y_poly,
-            c_poly,
-            acc_poly,
-            q_poly,
-        ]);
+        let mut register_polynomials = acc_registers.polynomials.to_vec();
+        register_polynomials.push(q_poly);
+        let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
-        let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
         transcript.append_proof_point(b"w_at_zeta_proof", &w_at_zeta_proof);
+
+        let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
         transcript.append_proof_point(b"r_at_zeta_omega_proof", &r_at_zeta_omega_proof);
 
         // Finally, compose the proof.

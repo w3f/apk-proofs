@@ -21,6 +21,16 @@ pub(crate) struct BasicRegisterPolynomials {
 }
 
 impl BasicRegisterPolynomials {
+    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+        vec![
+            self.bitmask,
+            self.keyset.0,
+            self.keyset.1,
+            self.partial_sums.0,
+            self.partial_sums.1,
+        ]
+    }
+
     pub fn evaluate(&self, point: Fr) -> BasicRegisterEvaluations {
         BasicRegisterEvaluations {
             bitmask: self.bitmask.evaluate(&point),
@@ -37,6 +47,12 @@ pub(crate) struct SuccinctAccountableRegisterPolynomials {
 }
 
 impl SuccinctAccountableRegisterPolynomials {
+    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+        let mut res = self.basic_polynomials.to_vec();
+        res.extend(vec![self.c_poly, self.acc_poly]);
+        res
+    }
+
     pub fn evaluate(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         SuccinctAccountableRegisterEvaluations {
             c: self.c_poly.evaluate(&point),
