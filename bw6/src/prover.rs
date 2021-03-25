@@ -12,7 +12,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, Piop, PiopDecorator};
+use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, Piop, PiopDecorator, RegisterEvaluations};
 
 
 
@@ -102,7 +102,7 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove(&self, bitmask: &Bitmask) -> Proof {
+    pub fn prove<E: RegisterEvaluations, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E> {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 
@@ -145,7 +145,7 @@ impl<'a> Prover<'a> {
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
-        let acc_registers = SuccinctlyAccountableRegisters::wrap(registers, b, r);
+        let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[0]);
         let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[1]);
@@ -185,7 +185,7 @@ impl<'a> Prover<'a> {
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
-        let mut register_polynomials = acc_registers.polynomials.to_vec();
+        let mut register_polynomials = acc_registers.get_all_register_polynomials();
         register_polynomials.push(q_poly);
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);

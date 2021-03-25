@@ -43,7 +43,7 @@ use crate::kzg::KZG10;
 use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct BasicRegisterPolynomialCommitments {
+pub struct BasicRegisterPolynomialCommitments {
     b_comm: ark_bw6_761::G1Affine,
     acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
 }
@@ -59,7 +59,7 @@ impl BasicRegisterPolynomialCommitments {
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct SuccinctRegisterPolynomialCommitments {
+pub struct SuccinctRegisterPolynomialCommitments {
     basic_commitments: BasicRegisterPolynomialCommitments,
     c_comm: ark_bw6_761::G1Affine,
     acc_comm: ark_bw6_761::G1Affine,
@@ -73,13 +73,13 @@ impl SuccinctRegisterPolynomialCommitments {
     }
 }
 
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof {
+// #[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct Proof<E> {
     register_commitments: SuccinctRegisterPolynomialCommitments,
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
-    register_evaluations: SuccinctAccountableRegisterEvaluations,
+    register_evaluations: E,
     q_zeta: Fr,
     r_zeta_omega: Fr,
     // Prover receives \nu, the KZG opening batching challenge, here
@@ -104,6 +104,7 @@ mod tests {
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use rand::Rng;
+    use crate::constraints::SuccinctlyAccountableRegisters;
 
     pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
         (0..size).map(|_| rng.gen_bool(density)).collect()
@@ -150,12 +151,12 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove(&b);
+        let proof = prover.prove::<_, SuccinctlyAccountableRegisters>(&b);
         end_timer!(prove_);
 
-        let mut serialized_proof = vec![0; proof.serialized_size()];
-        proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        // let mut serialized_proof = vec![0; proof.serialized_size()];
+        // proof.serialize(&mut serialized_proof[..]).unwrap();
+        // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify(&apk, &b, &proof);

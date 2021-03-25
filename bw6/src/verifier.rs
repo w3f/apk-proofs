@@ -12,7 +12,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use ark_ec::short_weierstrass_jacobian::GroupProjective;
-use crate::constraints::{Constraints, SuccinctlyAccountableRegisters};
+use crate::constraints::{Constraints, SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
 
 
 pub struct Verifier {
@@ -41,7 +41,7 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof,
+        proof: &Proof<SuccinctAccountableRegisterEvaluations>,
     ) -> bool
     {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
@@ -58,9 +58,7 @@ impl Verifier {
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
 
-        let basic_evals = &proof.register_evaluations.basic_evaluations;
-        let b = basic_evals.bitmask;
-
+        let b = proof.register_evaluations.get_bitmask();
         let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
         assert_eq!(b_at_zeta, b);

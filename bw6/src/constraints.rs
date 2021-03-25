@@ -14,7 +14,7 @@ use crate::{Bitmask, point_in_g1_complement, utils, SuccinctRegisterPolynomialCo
 use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
-pub(crate) struct BasicRegisterPolynomials {
+pub struct BasicRegisterPolynomials {
     keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
     bitmask: DensePolynomial<Fr>,
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
@@ -62,15 +62,20 @@ impl SuccinctAccountableRegisterPolynomials {
     }
 }
 
+pub trait RegisterEvaluations {
+    fn as_vec(&self) -> Vec<Fr>;
+    fn get_bitmask(&self) -> Fr;
+}
+
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct BasicRegisterEvaluations {
+pub struct BasicRegisterEvaluations {
     pub keyset: (Fr, Fr),
     pub bitmask: Fr,
     pub partial_sums: (Fr, Fr),
 }
 
-impl BasicRegisterEvaluations {
-    pub fn as_vec(&self) -> Vec<Fr> {
+impl RegisterEvaluations for BasicRegisterEvaluations {
+    fn as_vec(&self) -> Vec<Fq> {
         vec![
             self.keyset.0,
             self.keyset.1,
@@ -80,6 +85,12 @@ impl BasicRegisterEvaluations {
         ]
     }
 
+    fn get_bitmask(&self) -> Fq {
+        self.bitmask
+    }
+}
+
+impl BasicRegisterEvaluations {
     pub fn evaluate_constraint_polynomials(&self,
                                            apk: G1Affine,
                                            evals_at_zeta: &LagrangeEvaluations<Fr>,
@@ -120,19 +131,25 @@ impl BasicRegisterEvaluations {
 
 //TODO: remove pubs
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub(crate) struct SuccinctAccountableRegisterEvaluations {
+pub struct SuccinctAccountableRegisterEvaluations {
     pub c: Fr,
     pub acc: Fr,
     pub basic_evaluations: BasicRegisterEvaluations,
 }
 
-impl SuccinctAccountableRegisterEvaluations {
-    pub fn as_vec(&self) -> Vec<Fr> {
+impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
+    fn as_vec(&self) -> Vec<Fq> {
         let mut res = self.basic_evaluations.as_vec();
         res.extend(vec![self.c, self.acc]);
         res
     }
 
+    fn get_bitmask(&self) -> Fq {
+        self.basic_evaluations.bitmask
+    }
+}
+
+impl SuccinctAccountableRegisterEvaluations {
     pub fn evaluate_constraint_polynomials(
         &self,
         apk: G1Affine,
@@ -180,11 +197,12 @@ impl SuccinctAccountableRegisterEvaluations {
 
 }
 
-pub(crate) trait Piop<E> {
+pub trait Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn evaluate_register_polynomials(&self, point: Fr) -> E;
     fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
+    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 
     //TODO: remove domains param
     fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
@@ -195,15 +213,16 @@ pub(crate) trait Piop<E> {
     }
 }
 
-pub(crate) trait PiopDecorator<E>: Piop<E> {
+pub trait PiopDecorator<E>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
+    fn get_accountable_register_polynomials(&self) -> Vec<&DensePolynomial<Fr>>;
 }
 
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 #[derive(Clone)] //TODO: remove
-pub(crate) struct Registers {
+pub struct Registers {
     domains: Domains,
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     // public keys' coordinates
@@ -368,6 +387,10 @@ impl Piop<BasicRegisterEvaluations> for Registers {
         let (a4_poly, a5_poly) =
             Constraints::compute_public_inputs_constraint_polynomials(self);
         vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
+    }
+
+    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fq>> {
+        self.polynomials.to_vec()
     }
 }
 
@@ -621,13 +644,6 @@ impl SuccinctlyAccountableRegisters {
         acc
     }
 
-    pub fn get_accountable_register_polynomials(&self) -> Vec<&DensePolynomial<Fr>> {
-        vec![
-            &self.polynomials.c_poly,
-            &self.polynomials.acc_poly,
-        ]
-    }
-
     pub fn compute_inner_product_constraint_polynomial(&self) -> DensePolynomial<Fr> {
         let bc_ln_x4 = self.registers.domains.l_last_scaled_by(self.bitmask_chunks_aggregated);
         let constraint = &(&(&self.acc_shifted - &self.acc) - &(&self.registers.bitmask * &self.c)) + &bc_ln_x4;
@@ -716,11 +732,22 @@ impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegis
         constraints.extend(vec![a6_poly, a7_poly]);
         constraints
     }
+
+    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
+        self.polynomials.to_vec()
+    }
 }
 
 impl PiopDecorator<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
     fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
+    }
+
+    fn get_accountable_register_polynomials(&self) -> Vec<&DensePolynomial<Fr>> {
+        vec![
+            &self.polynomials.c_poly,
+            &self.polynomials.acc_poly,
+        ]
     }
 }
 
