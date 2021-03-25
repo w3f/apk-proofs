@@ -196,12 +196,6 @@ impl<'a> Prover<'a> {
 
         // Finally, compose the proof.
         Proof {
-            b_comm,
-            acc_x_comm,
-            acc_y_comm,
-            // r <-
-            c_comm,
-            acc_comm,
             register_commitments: SuccinctRegisterPolynomialCommitments {
                 basic_commitments,
                 c_comm,

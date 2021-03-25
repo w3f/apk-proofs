@@ -10,7 +10,7 @@ use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils};
+use crate::{Bitmask, point_in_g1_complement, utils, SuccinctRegisterPolynomialCommitments, BasicRegisterPolynomialCommitments};
 use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
@@ -98,7 +98,7 @@ impl BasicRegisterEvaluations {
     pub fn restore_commitment_to_linearization_polynomial(&self,
                                                           phi: Fr,
                                                           zeta_minus_omega_inv: Fr,
-                                                          acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
+                                                          commitments: &BasicRegisterPolynomialCommitments,
     ) -> ark_bw6_761::G1Projective {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;
@@ -112,8 +112,8 @@ impl BasicRegisterEvaluations {
         // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
         // Y3 term = (1-b) + b(x1-x2)phi
         // ...and both multiplied by (\zeta - \omega^{n-1}) // = zeta_minus_omega_inv
-        r_comm += acc_comm.0.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
-        r_comm += acc_comm.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
+        r_comm += commitments.acc_comm.0.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
+        r_comm += commitments.acc_comm.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
         r_comm
     }
 }
@@ -169,14 +169,12 @@ impl SuccinctAccountableRegisterEvaluations {
     pub fn restore_commitment_to_linearization_polynomial(&self,
                                                           phi: Fr,
                                                           zeta_minus_omega_inv: Fr,
-                                                          acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
-                                                          acc_comm2: ark_bw6_761::G1Affine,
-                                                          c_comm: ark_bw6_761::G1Affine,
+                                                          commitments: &SuccinctRegisterPolynomialCommitments,
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
-        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, acc_comm);
-        r_comm += acc_comm2.mul(powers_of_phi[5]);
-        r_comm += c_comm.mul(powers_of_phi[6]);
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.basic_commitments);
+        r_comm += commitments.acc_comm.mul(powers_of_phi[5]);
+        r_comm += commitments.c_comm.mul(powers_of_phi[6]);
         r_comm
     }
 

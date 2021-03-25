@@ -48,12 +48,12 @@ impl Verifier {
 
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(&apk, bitmask);
-        transcript.append_proof_point(b"b_comm", &proof.b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &proof.acc_x_comm);
-        transcript.append_proof_point(b"acc_y_comm", &proof.acc_y_comm);
+        transcript.append_proof_point(b"b_comm", &proof.register_commitments.basic_commitments.b_comm);
+        transcript.append_proof_point(b"acc_x_comm", &proof.register_commitments.basic_commitments.acc_comm.0);
+        transcript.append_proof_point(b"acc_y_comm", &proof.register_commitments.basic_commitments.acc_comm.1);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-        transcript.append_proof_point(b"c_comm", &proof.c_comm);
-        transcript.append_proof_point(b"acc_comm", &proof.acc_comm);
+        transcript.append_proof_point(b"c_comm", &proof.register_commitments.c_comm);
+        transcript.append_proof_point(b"acc_comm", &proof.register_commitments.acc_comm);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
@@ -79,22 +79,17 @@ impl Verifier {
         let r_comm = proof.register_evaluations.restore_commitment_to_linearization_polynomial(
             phi,
             zeta_minus_omega_inv,
-            (proof.acc_x_comm, proof.acc_y_comm),
-            proof.acc_comm,
-            proof.c_comm,
+            &proof.register_commitments
         ).into_affine();
 
         let t_multiexp = start_timer!(|| "multiexp");
-        let w_comm = KZG_BW6::aggregate_commitments(nu, &[
+        let mut  commitments = vec![
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
-            proof.b_comm,
-            proof.acc_x_comm,
-            proof.acc_y_comm,
-            proof.c_comm,
-            proof.acc_comm,
-            proof.q_comm,
-        ]);
+        ];
+        commitments.extend(proof.register_commitments.as_vec());
+        commitments.push(proof.q_comm);
+        let w_comm = KZG_BW6::aggregate_commitments(nu, &commitments);
         end_timer!(t_multiexp);
 
         let t_opening_points = start_timer!(|| "opening points evaluation");
