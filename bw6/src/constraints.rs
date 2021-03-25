@@ -94,13 +94,12 @@ impl BasicRegisterEvaluations {
     pub fn evaluate_constraint_polynomials(&self,
                                            apk: G1Affine,
                                            evals_at_zeta: &LagrangeEvaluations<Fr>,
-                                           zeta_minus_omega_inv: Fr,
     ) -> Vec<Fr> {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;
         let (x2, y2) = self.keyset;
 
-        let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(zeta_minus_omega_inv, b, x1, y1, x2, y2);
+        let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(evals_at_zeta.zeta_minus_omega_inv, b, x1, y1, x2, y2);
         let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
         let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
         vec![a1, a2, a3, a4, a5]
@@ -154,7 +153,6 @@ impl SuccinctAccountableRegisterEvaluations {
         &self,
         apk: G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
-        zeta_minus_omega_inv: Fr,
         a: Fr,
         r_pow_m: Fr,
         aggregated_bitmask: Fr,
@@ -178,7 +176,7 @@ impl SuccinctAccountableRegisterEvaluations {
             c,
         );
 
-        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, zeta_minus_omega_inv);
+        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta);
         res.extend(vec![a6, a7]);
         res
     }

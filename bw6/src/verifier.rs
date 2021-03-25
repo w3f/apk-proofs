@@ -70,13 +70,13 @@ impl Verifier {
         transcript.append_proof_scalar(b"r_zeta_omega", &proof.r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
+        let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
         let zeta_omega = zeta * self.domain.group_gen;
-        let zeta_minus_omega_inv = zeta - self.domain.group_gen_inv;
 
         // TODO: 128-bit mul
         let r_comm = proof.register_evaluations.restore_commitment_to_linearization_polynomial(
             phi,
-            zeta_minus_omega_inv,
+            evals_at_zeta.zeta_minus_omega_inv,
             &proof.register_commitments
         ).into_affine();
 
@@ -150,8 +150,8 @@ impl Verifier {
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
         let apk = apk.0.into_affine();
-        let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
-        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, zeta_minus_omega_inv, a, r_pow_m, aggregated_bitmask);
+
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, a, r_pow_m, aggregated_bitmask);
         let w = utils::horner_field(&constraint_polynomial_evals, phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
