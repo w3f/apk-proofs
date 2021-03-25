@@ -71,7 +71,6 @@ impl Verifier {
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
         let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
-        let zeta_omega = zeta * self.domain.group_gen;
 
         // TODO: 128-bit mul
         let r_comm = proof.register_evaluations.restore_commitment_to_linearization_polynomial(
@@ -102,7 +101,7 @@ impl Verifier {
         let fsrng = &mut fiat_shamir_rng(&mut transcript);
         let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
                                                              &[w_comm, r_comm],
-                                                             &[zeta, zeta_omega],
+                                                             &[zeta, evals_at_zeta.zeta_omega],
                                                              &[w_at_zeta, proof.r_zeta_omega],
                                                              &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
                                                              fsrng,
@@ -135,13 +134,13 @@ impl Verifier {
 
 
         let t_a_zeta_omega1 = start_timer!(|| "A(zw) as fraction");
-        let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let zeta_omega_pow_m = evals_at_zeta.zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
         let zeta_omega_pow_n = zeta_omega_pow_m.pow([bits_in_bitmask_chunk]); // n = domain_size
         let a_zeta_omega1 = bits_in_bitmask_chunk_inv * (zeta_omega_pow_n - Fr::one()) / (zeta_omega_pow_m - Fr::one());
         end_timer!(t_a_zeta_omega1);
 
         let t_a_zeta_omega2 = start_timer!(|| "A(zw) as polynomial");
-        let zeta_omega_pow_m = zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let zeta_omega_pow_m = evals_at_zeta.zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
         let a_zeta_omega2 = bits_in_bitmask_chunk_inv * utils::powers(zeta_omega_pow_m, (bits_in_bitmask_chunk - 1) as usize).iter().sum::<Fr>();
         end_timer!(t_a_zeta_omega2);
 

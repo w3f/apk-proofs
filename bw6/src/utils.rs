@@ -62,6 +62,7 @@ pub struct LagrangeEvaluations<F: FftField> {
     pub l_first: F, // L_0(z)
     pub l_last: F, // L_{n-1}(z)
     pub zeta_minus_omega_inv: F, // z - \omega^{-1}
+    pub zeta_omega: F, // z * \omega
 }
 
 //TODO: move to domains
@@ -82,6 +83,7 @@ pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>
         l_first: z_n_minus_one_div_n * inv[0],
         l_last: z_n_minus_one_div_n * inv[1],
         zeta_minus_omega_inv: z - domain.group_gen_inv,
+        zeta_omega: z * domain.group_gen,
     }
 }
 
