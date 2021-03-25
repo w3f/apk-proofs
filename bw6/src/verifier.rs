@@ -86,9 +86,9 @@ impl Verifier {
 
         let t_multiexp = start_timer!(|| "multiexp");
         let w_comm = KZG_BW6::aggregate_commitments(nu, &[
-            proof.b_comm,
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
+            proof.b_comm,
             proof.acc_x_comm,
             proof.acc_y_comm,
             proof.c_comm,

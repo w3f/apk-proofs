@@ -15,17 +15,17 @@ use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
 pub(crate) struct BasicRegisterPolynomials {
-    bitmask: DensePolynomial<Fr>,
     keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+    bitmask: DensePolynomial<Fr>,
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
 }
 
 impl BasicRegisterPolynomials {
     pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         vec![
-            self.bitmask,
             self.keyset.0,
             self.keyset.1,
+            self.bitmask,
             self.partial_sums.0,
             self.partial_sums.1,
         ]
@@ -33,17 +33,17 @@ impl BasicRegisterPolynomials {
 
     pub fn evaluate(&self, point: Fr) -> BasicRegisterEvaluations {
         BasicRegisterEvaluations {
-            bitmask: self.bitmask.evaluate(&point),
             keyset: (self.keyset.0.evaluate(&point), self.keyset.1.evaluate(&point)),
+            bitmask: self.bitmask.evaluate(&point),
             partial_sums: (self.partial_sums.0.evaluate(&point), self.partial_sums.1.evaluate(&point)),
         }
     }
 }
 
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
+    basic_polynomials: BasicRegisterPolynomials,
     c_poly: DensePolynomial<Fr>,
     acc_poly: DensePolynomial<Fr>,
-    basic_polynomials: BasicRegisterPolynomials,
 }
 
 impl SuccinctAccountableRegisterPolynomials {
@@ -64,17 +64,17 @@ impl SuccinctAccountableRegisterPolynomials {
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub(crate) struct BasicRegisterEvaluations {
-    pub bitmask: Fr,
     pub keyset: (Fr, Fr),
+    pub bitmask: Fr,
     pub partial_sums: (Fr, Fr),
 }
 
 impl BasicRegisterEvaluations {
     pub fn as_vec(&self) -> Vec<Fr> {
         vec![
-            self.bitmask,
             self.keyset.0,
             self.keyset.1,
+            self.bitmask,
             self.partial_sums.0,
             self.partial_sums.1,
         ]
