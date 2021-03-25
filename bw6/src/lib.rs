@@ -43,6 +43,37 @@ use crate::kzg::KZG10;
 use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub(crate) struct BasicRegisterPolynomialCommitments {
+    b_comm: ark_bw6_761::G1Affine,
+    acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
+}
+
+impl BasicRegisterPolynomialCommitments {
+    pub fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+        vec![
+            self.b_comm,
+            self.acc_comm.0,
+            self.acc_comm.1,
+        ]
+    }
+}
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub(crate) struct SuccinctRegisterPolynomialCommitments {
+    basic_commitments: BasicRegisterPolynomialCommitments,
+    c_comm: ark_bw6_761::G1Affine,
+    acc_comm: ark_bw6_761::G1Affine,
+}
+
+impl SuccinctRegisterPolynomialCommitments {
+    pub fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+        let mut res = self.basic_commitments.as_vec();
+        res.extend(vec![self.c_comm, self.acc_comm]);
+        res
+    }
+}
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof {
     b_comm: ark_bw6_761::G1Affine,
     acc_x_comm: ark_bw6_761::G1Affine,
@@ -50,6 +81,7 @@ pub struct Proof {
     // Prover receives r, the bitmask batching challenge, here
     c_comm: ark_bw6_761::G1Affine,
     acc_comm: ark_bw6_761::G1Affine,
+    register_commitments: SuccinctRegisterPolynomialCommitments,
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here

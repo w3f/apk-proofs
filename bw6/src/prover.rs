@@ -6,7 +6,7 @@ use ark_poly::{Evaluations, Polynomial, UVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils, BasicRegisterPolynomialCommitments, SuccinctRegisterPolynomialCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -134,6 +134,10 @@ impl<'a> Prover<'a> {
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
+        let basic_commitments = BasicRegisterPolynomialCommitments {
+            b_comm,
+            acc_comm: (acc_x_comm, acc_y_comm)
+        };
         transcript.append_proof_point(b"b_comm", &b_comm);
         transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
         transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
@@ -198,6 +202,11 @@ impl<'a> Prover<'a> {
             // r <-
             c_comm,
             acc_comm,
+            register_commitments: SuccinctRegisterPolynomialCommitments {
+                basic_commitments,
+                c_comm,
+                acc_comm,
+            },
             // phi <-
             q_comm,
             // zeta <-
