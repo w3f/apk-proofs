@@ -8,6 +8,7 @@ use ark_bls12_377::{G1Affine, FqParameters, Fq};
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use bench_utils::{end_timer, start_timer};
 
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, SuccinctRegisterPolynomialCommitments, BasicRegisterPolynomialCommitments};
@@ -153,10 +154,45 @@ impl SuccinctAccountableRegisterEvaluations {
         &self,
         apk: G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
-        a: Fr,
-        r_pow_m: Fr,
-        aggregated_bitmask: Fr,
+        r: Fr,
+        bitmask: &Bitmask,
+        domain_size: u64,
     ) -> Vec<Fr> {
+        let bits_in_bitmask_chunk = 256;
+        let bits_in_big_int_limb = 64;
+        assert_eq!(bits_in_bitmask_chunk % bits_in_big_int_limb, 0);
+        let limbs_in_chunk = bits_in_bitmask_chunk / bits_in_big_int_limb;
+        assert_eq!(domain_size % bits_in_bitmask_chunk, 0);
+        let chunks_in_bitmask = domain_size / bits_in_bitmask_chunk; // TODO: bitmask should be right-padded with 0s to domain_size
+
+        let bits_in_bitmask_chunk_inv = Fr::from(256u16).inverse().unwrap();
+
+        let powers_of_r = utils::powers(r, (chunks_in_bitmask - 1) as usize);
+        let r_pow_m = r * powers_of_r.last().unwrap();
+        let bitmask_chunks = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize);
+        assert_eq!(powers_of_r.len(), bitmask_chunks.len());
+        let aggregated_bitmask = bitmask_chunks.into_iter()
+            .zip(powers_of_r)
+            .map(|(bj, rj)| bj * rj)
+            .sum::<Fr>();
+
+
+        let t_a_zeta_omega1 = start_timer!(|| "A(zw) as fraction");
+        let zeta_omega_pow_m = evals_at_zeta.zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let zeta_omega_pow_n = zeta_omega_pow_m.pow([bits_in_bitmask_chunk]); // n = domain_size
+        let a_zeta_omega1 = bits_in_bitmask_chunk_inv * (zeta_omega_pow_n - Fr::one()) / (zeta_omega_pow_m - Fr::one());
+        end_timer!(t_a_zeta_omega1);
+
+        let t_a_zeta_omega2 = start_timer!(|| "A(zw) as polynomial");
+        let zeta_omega_pow_m = evals_at_zeta.zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
+        let a_zeta_omega2 = bits_in_bitmask_chunk_inv * utils::powers(zeta_omega_pow_m, (bits_in_bitmask_chunk - 1) as usize).iter().sum::<Fr>();
+        end_timer!(t_a_zeta_omega2);
+
+        assert_eq!(a_zeta_omega1, a_zeta_omega2);
+        let two = Fr::from(2u8);
+        let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
+
+
         let b = self.basic_evaluations.bitmask;
         let acc = self.acc;
         let c = self.c;

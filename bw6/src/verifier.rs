@@ -114,43 +114,8 @@ impl Verifier {
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
 
-        let bits_in_bitmask_chunk = 256;
-        let bits_in_big_int_limb = 64;
-        assert_eq!(bits_in_bitmask_chunk % bits_in_big_int_limb, 0);
-        let limbs_in_chunk = bits_in_bitmask_chunk / bits_in_big_int_limb;
-        assert_eq!(self.domain.size % bits_in_bitmask_chunk, 0);
-        let chunks_in_bitmask = self.domain.size / bits_in_bitmask_chunk; // TODO: bitmask should be right-padded with 0s to domain_size
-
-        let bits_in_bitmask_chunk_inv = Fr::from(256u16).inverse().unwrap();
-
-        let powers_of_r = utils::powers(r, (chunks_in_bitmask - 1) as usize);
-        let r_pow_m = r * powers_of_r.last().unwrap();
-        let bitmask_chunks = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize);
-        assert_eq!(powers_of_r.len(), bitmask_chunks.len());
-        let aggregated_bitmask = bitmask_chunks.into_iter()
-            .zip(powers_of_r)
-            .map(|(bj, rj)| bj * rj)
-            .sum::<Fr>();
-
-
-        let t_a_zeta_omega1 = start_timer!(|| "A(zw) as fraction");
-        let zeta_omega_pow_m = evals_at_zeta.zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
-        let zeta_omega_pow_n = zeta_omega_pow_m.pow([bits_in_bitmask_chunk]); // n = domain_size
-        let a_zeta_omega1 = bits_in_bitmask_chunk_inv * (zeta_omega_pow_n - Fr::one()) / (zeta_omega_pow_m - Fr::one());
-        end_timer!(t_a_zeta_omega1);
-
-        let t_a_zeta_omega2 = start_timer!(|| "A(zw) as polynomial");
-        let zeta_omega_pow_m = evals_at_zeta.zeta_omega.pow([chunks_in_bitmask]); // m = chunks_in_bitmask
-        let a_zeta_omega2 = bits_in_bitmask_chunk_inv * utils::powers(zeta_omega_pow_m, (bits_in_bitmask_chunk - 1) as usize).iter().sum::<Fr>();
-        end_timer!(t_a_zeta_omega2);
-
-        assert_eq!(a_zeta_omega1, a_zeta_omega2);
-        let two = Fr::from(2u8);
-        let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
-
         let apk = apk.0.into_affine();
-
-        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, a, r_pow_m, aggregated_bitmask);
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, r, bitmask, self.domain.size);
         let w = utils::horner_field(&constraint_polynomial_evals, phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
