@@ -11,7 +11,7 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use bench_utils::{end_timer, start_timer};
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, Commitments};
+use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
@@ -64,7 +64,7 @@ impl SuccinctAccountableRegisterPolynomials {
 }
 
 pub trait RegisterEvaluations {
-    type C: Commitments;
+    type C: AccountabilityRegisterCommitments;
 
     fn as_vec(&self) -> Vec<Fr>;
     fn get_bitmask(&self) -> Fr;
@@ -270,7 +270,7 @@ pub trait Piop<E> {
 pub trait PiopDecorator<E>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-    fn get_accountable_register_polynomials(&self) -> Vec<&DensePolynomial<Fr>>;
+    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)>;
 }
 
 
@@ -797,11 +797,21 @@ impl PiopDecorator<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccount
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
 
-    fn get_accountable_register_polynomials(&self) -> Vec<&DensePolynomial<Fr>> {
-        vec![
+    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)> {
+        Some((
             &self.polynomials.c_poly,
             &self.polynomials.acc_poly,
-        ]
+        ))
+    }
+}
+
+impl PiopDecorator<BasicRegisterEvaluations> for Registers {
+    fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
+        registers
+    }
+
+    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)> {
+        None
     }
 }
 

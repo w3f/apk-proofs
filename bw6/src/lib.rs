@@ -42,9 +42,6 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use crate::kzg::KZG10;
 use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
-pub trait Commitments {
-    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine>;
-}
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct BasicRegisterCommitments {
@@ -52,29 +49,49 @@ pub struct BasicRegisterCommitments {
     acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
 }
 
-impl Commitments for BasicRegisterCommitments {
-    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+
+pub trait AccountabilityRegisterCommitments {
+    fn wrap(
+        basic_commitments: BasicRegisterCommitments,
+        accountability_commitments: Option<(ark_bw6_761::G1Affine, ark_bw6_761::G1Affine)>,
+    ) -> Self;
+
+    fn get_basic_commitments(&self) -> &BasicRegisterCommitments;
+
+    fn get_accountability_commitments(&self) -> Option<(ark_bw6_761::G1Affine, ark_bw6_761::G1Affine)>;
+
+    fn all_as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+        let mut res = self.get_basic_commitments().all_as_vec();
+        match self.get_accountability_commitments() {
+            Some((c_comm, acc_comm)) => {
+                res.push(c_comm);
+                res.push(acc_comm);
+            },
+            _ => {},
+        }
+        res
+    }
+}
+
+impl AccountabilityRegisterCommitments for BasicRegisterCommitments {
+    fn wrap(basic_commitments: BasicRegisterCommitments, accountability_commitments: Option<(G1Affine, G1Affine)>) -> Self {
+        basic_commitments
+    }
+
+    fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
+        self
+    }
+
+    fn get_accountability_commitments(&self) -> Option<(G1Affine, G1Affine)> {
+        None
+    }
+
+    fn all_as_vec(&self) -> Vec<G1Affine> {
         vec![
             self.b_comm,
             self.acc_comm.0,
             self.acc_comm.1,
         ]
-    }
-}
-
-pub trait AccountabilityRegisterCommitments : Commitments {
-    fn wrap(
-        basic_commitments: BasicRegisterCommitments,
-        c_comm: ark_bw6_761::G1Affine,
-        acc_com: ark_bw6_761::G1Affine
-    ) -> Self;
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments;
-
-    fn all_as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
-        let mut res = self.get_basic_commitments().as_vec();
-        res.extend(self.as_vec());
-        res
     }
 }
 
@@ -85,26 +102,24 @@ pub struct PackedRegisterCommitments {
     acc_comm: ark_bw6_761::G1Affine,
 }
 
-impl Commitments for PackedRegisterCommitments {
-    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
-        vec![
-            self.c_comm,
-            self.acc_comm,
-        ]
-    }
-}
-
 impl AccountabilityRegisterCommitments for PackedRegisterCommitments {
-    fn wrap(basic_commitments: BasicRegisterCommitments, c_comm: G1Affine, acc_comm: G1Affine) -> Self {
+    fn wrap(
+        basic_commitments: BasicRegisterCommitments,
+        accountability_commitments: Option<(ark_bw6_761::G1Affine, ark_bw6_761::G1Affine)>
+    ) -> Self {
         Self {
             basic_commitments,
-            c_comm,
-            acc_comm,
+            c_comm: accountability_commitments.unwrap().0,
+            acc_comm: accountability_commitments.unwrap().1,
         }
     }
 
     fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
         &self.basic_commitments
+    }
+
+    fn get_accountability_commitments(&self) -> Option<(G1Affine, G1Affine)> {
+        Some((self.c_comm, self.acc_comm))
     }
 }
 
@@ -139,7 +154,7 @@ mod tests {
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use rand::Rng;
-    use crate::constraints::SuccinctlyAccountableRegisters;
+    use crate::constraints::{SuccinctlyAccountableRegisters, Registers, BasicRegisterEvaluations};
 
     pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
         (0..size).map(|_| rng.gen_bool(density)).collect()
@@ -153,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn apk_proof() {
+    fn test_packed_accountable_scheme() {
         let rng = &mut test_rng();
         let log_domain_size = 8;
 
@@ -186,7 +201,7 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove::<_, _, SuccinctlyAccountableRegisters>(&b);
+        let proof = prover.prove::<SuccinctAccountableRegisterEvaluations, PackedRegisterCommitments, SuccinctlyAccountableRegisters>(&b);
         end_timer!(prove_);
 
         // let mut serialized_proof = vec![0; proof.serialized_size()];
@@ -194,7 +209,55 @@ mod tests {
         // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify(&apk, &b, &proof);
+        let valid = verifier.verify::<PackedRegisterCommitments, SuccinctAccountableRegisterEvaluations>(&apk, &b, &proof);
+        end_timer!(verify_);
+
+        assert!(valid);
+    }
+
+    #[test]
+    fn test_linear_accountable_scheme() {
+        let rng = &mut test_rng();
+        let log_domain_size = 8;
+
+        let t_setup = start_timer!(|| "setup");
+        let setup = Setup::generate(log_domain_size, rng);
+        end_timer!(t_setup);
+
+        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = keyset_size.try_into().unwrap();
+        let signer_set = SignerSet::random(keyset_size, rng);
+
+        let pks_commitment_ = start_timer!(|| "signer set commitment");
+        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        end_timer!(pks_commitment_);
+
+        let t_prover_new = start_timer!(|| "prover precomputation");
+        let prover = Prover::new(
+            setup.domain_size,
+            setup.kzg_params.get_pk(),
+            &pks_comm,
+            signer_set.get_all(),
+            Transcript::new(b"apk_proof")
+        );
+        end_timer!(t_prover_new);
+
+        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+
+        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
+        let b = Bitmask::from_bits(&bits);
+        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
+
+        let prove_ = start_timer!(|| "BW6 prove");
+        let proof = prover.prove::<BasicRegisterEvaluations, BasicRegisterCommitments, Registers>(&b);
+        end_timer!(prove_);
+
+        // let mut serialized_proof = vec![0; proof.serialized_size()];
+        // proof.serialize(&mut serialized_proof[..]).unwrap();
+        // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+
+        let verify_ = start_timer!(|| "BW6 verify");
+        let valid = verifier.verify::<BasicRegisterCommitments, BasicRegisterEvaluations>(&apk, &b, &proof);
         end_timer!(verify_);
 
         assert!(valid);

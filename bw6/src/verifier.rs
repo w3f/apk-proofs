@@ -13,7 +13,6 @@ use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use ark_ec::short_weierstrass_jacobian::GroupProjective;
 use crate::constraints::{Constraints, SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
-use crate::Commitments;
 
 
 pub struct Verifier {
@@ -39,9 +38,9 @@ impl Verifier {
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(&apk, bitmask);
         let basic_commitments = proof.register_commitments.get_basic_commitments();
-        transcript.append_commitments(b"basic_register_commitments", basic_commitments);
+        transcript.append_basic_commitments(basic_commitments);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-        transcript.append_commitments(b"accountability_register_commitments", &proof.register_commitments);
+        transcript.append_accountability_commitments(proof.register_commitments.get_accountability_commitments());
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
@@ -72,8 +71,7 @@ impl Verifier {
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
         ];
-        commitments.extend(proof.register_commitments.get_basic_commitments().as_vec());
-        commitments.extend(proof.register_commitments.as_vec());
+        commitments.extend(proof.register_commitments.all_as_vec());
         commitments.push(proof.q_comm);
         let w_comm = KZG_BW6::aggregate_commitments(nu, &commitments);
         end_timer!(t_multiexp);

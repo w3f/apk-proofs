@@ -4,7 +4,7 @@ use ark_ff::{Field, ToBytes};
 use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
-use crate::{Bitmask, AccountabilityRegisterCommitments, Commitments};
+use crate::{Bitmask, AccountabilityRegisterCommitments, BasicRegisterCommitments};
 use crate::constraints::{SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
 
 /// E - evaluations
@@ -24,8 +24,20 @@ pub(crate) trait ApkTranscript {
         self._append_bytes(b"evals", &evals.as_vec());
     }
 
-    fn append_commitments<C: Commitments>(&mut self, label: &'static [u8], commitments: &C) {
-        self._append_bytes(label, &commitments.as_vec());
+    fn append_basic_commitments(&mut self, commitments: &BasicRegisterCommitments) {
+        self.append_proof_point(b"c_comm", &commitments.b_comm);
+        self.append_proof_point(b"acc_x_comm", &commitments.acc_comm.0);
+        self.append_proof_point(b"acc_y_comm", &commitments.acc_comm.1);
+    }
+
+    fn append_accountability_commitments(&mut self, accountability_commitments: Option<(ark_bw6_761::G1Affine, ark_bw6_761::G1Affine)>) {
+        match accountability_commitments {
+            Some((c_comm, acc_comm)) => {
+                self.append_proof_point(b"c_comm", &c_comm);
+                self.append_proof_point(b"acc_comm", &acc_comm);
+            },
+            _ => {},
+        }
     }
 
     fn append_proof_point(&mut self, label: &'static [u8], point: &ark_bw6_761::G1Affine) {

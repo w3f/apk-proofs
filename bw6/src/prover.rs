@@ -138,21 +138,20 @@ impl<'a> Prover<'a> {
             b_comm,
             acc_comm: (acc_x_comm, acc_y_comm)
         };
-        transcript.append_commitments(b"basic_register_commitments", &basic_commitments);
+        transcript.append_basic_commitments(&basic_commitments);
 
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
-        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[0]);
-        let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[1]);
-        let register_commitments = C::wrap(
-            basic_commitments,
-            c_comm,
-            acc_comm,
-        );
-        transcript.append_commitments(b"accountability_register_commitments", &register_commitments);
+        let acc_register_commitments = acc_register_polynomials.map(|polys| {
+            let c_comm = KZG_BW6::commit(&self.params.kzg_pk, polys.0);
+            let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, polys.1);
+            (c_comm, acc_comm)
+        });
+        let register_commitments = C::wrap(basic_commitments, acc_register_commitments);
+        transcript.append_accountability_commitments(register_commitments.get_accountability_commitments());
 
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
