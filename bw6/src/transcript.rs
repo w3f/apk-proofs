@@ -4,7 +4,7 @@ use ark_ff::{Field, ToBytes};
 use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
-use crate::Bitmask;
+use crate::{Bitmask, AccountabilityRegisterCommitments, Commitments};
 use crate::constraints::{SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
 
 /// E - evaluations
@@ -22,6 +22,10 @@ pub(crate) trait ApkTranscript {
 
     fn append_evals<E: RegisterEvaluations>(&mut self, evals: &E) {
         self._append_bytes(b"evals", &evals.as_vec());
+    }
+
+    fn append_commitments<C: Commitments>(&mut self, label: &'static [u8], commitments: &C) {
+        self._append_bytes(label, &commitments.as_vec());
     }
 
     fn append_proof_point(&mut self, label: &'static [u8], point: &ark_bw6_761::G1Affine) {

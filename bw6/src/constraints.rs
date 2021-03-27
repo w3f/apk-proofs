@@ -11,7 +11,7 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use bench_utils::{end_timer, start_timer};
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils, SuccinctRegisterPolynomialCommitments, BasicRegisterPolynomialCommitments};
+use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, Commitments};
 use crate::utils::LagrangeEvaluations;
 
 #[derive(Clone)] //TODO: remove
@@ -64,8 +64,25 @@ impl SuccinctAccountableRegisterPolynomials {
 }
 
 pub trait RegisterEvaluations {
+    type C: Commitments;
+
     fn as_vec(&self) -> Vec<Fr>;
     fn get_bitmask(&self) -> Fr;
+    fn restore_commitment_to_linearization_polynomial(
+        &self,
+        phi: Fr,
+        zeta_minus_omega_inv: Fr,
+        commitments: &Self::C,
+    ) -> ark_bw6_761::G1Projective;
+
+    fn evaluate_constraint_polynomials(
+        &self,
+        apk: G1Affine,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        r: Fr,
+        bitmask: &Bitmask,
+        domain_size: u64,
+    ) -> Vec<Fr>;
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
@@ -76,6 +93,8 @@ pub struct BasicRegisterEvaluations {
 }
 
 impl RegisterEvaluations for BasicRegisterEvaluations {
+    type C = BasicRegisterCommitments;
+
     fn as_vec(&self) -> Vec<Fq> {
         vec![
             self.keyset.0,
@@ -89,27 +108,11 @@ impl RegisterEvaluations for BasicRegisterEvaluations {
     fn get_bitmask(&self) -> Fq {
         self.bitmask
     }
-}
 
-impl BasicRegisterEvaluations {
-    pub fn evaluate_constraint_polynomials(&self,
-                                           apk: G1Affine,
-                                           evals_at_zeta: &LagrangeEvaluations<Fr>,
-    ) -> Vec<Fr> {
-        let b = self.bitmask;
-        let (x1, y1) = self.partial_sums;
-        let (x2, y2) = self.keyset;
-
-        let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(evals_at_zeta.zeta_minus_omega_inv, b, x1, y1, x2, y2);
-        let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
-        let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
-        vec![a1, a2, a3, a4, a5]
-    }
-
-    pub fn restore_commitment_to_linearization_polynomial(&self,
+    fn restore_commitment_to_linearization_polynomial(&self,
                                                           phi: Fr,
                                                           zeta_minus_omega_inv: Fr,
-                                                          commitments: &BasicRegisterPolynomialCommitments,
+                                                          commitments: &BasicRegisterCommitments,
     ) -> ark_bw6_761::G1Projective {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;
@@ -127,6 +130,24 @@ impl BasicRegisterEvaluations {
         r_comm += commitments.acc_comm.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
         r_comm
     }
+
+    fn evaluate_constraint_polynomials(
+        &self,
+        apk: G1Affine,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        r: Fr,
+        bitmask: &Bitmask,
+        domain_size: u64,
+    ) -> Vec<Fr> {
+        let b = self.bitmask;
+        let (x1, y1) = self.partial_sums;
+        let (x2, y2) = self.keyset;
+
+        let (a1, a2) = Constraints::evaluate_conditional_affine_addition_constraints_linearized(evals_at_zeta.zeta_minus_omega_inv, b, x1, y1, x2, y2);
+        let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
+        let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
+        vec![a1, a2, a3, a4, a5]
+    }
 }
 
 //TODO: remove pubs
@@ -138,6 +159,8 @@ pub struct SuccinctAccountableRegisterEvaluations {
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
+    type C = PackedRegisterCommitments;
+
     fn as_vec(&self) -> Vec<Fq> {
         let mut res = self.basic_evaluations.as_vec();
         res.extend(vec![self.c, self.acc]);
@@ -147,10 +170,20 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     fn get_bitmask(&self) -> Fq {
         self.basic_evaluations.bitmask
     }
-}
 
-impl SuccinctAccountableRegisterEvaluations {
-    pub fn evaluate_constraint_polynomials(
+    fn restore_commitment_to_linearization_polynomial(&self,
+                                                          phi: Fr,
+                                                          zeta_minus_omega_inv: Fr,
+                                                          commitments: &PackedRegisterCommitments,
+    ) -> ark_bw6_761::G1Projective {
+        let powers_of_phi = utils::powers(phi, 6);
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.basic_commitments);
+        r_comm += commitments.acc_comm.mul(powers_of_phi[5]);
+        r_comm += commitments.c_comm.mul(powers_of_phi[6]);
+        r_comm
+    }
+
+    fn evaluate_constraint_polynomials(
         &self,
         apk: G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
@@ -212,23 +245,10 @@ impl SuccinctAccountableRegisterEvaluations {
             c,
         );
 
-        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta);
+        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, r, bitmask, domain_size);
         res.extend(vec![a6, a7]);
         res
     }
-
-    pub fn restore_commitment_to_linearization_polynomial(&self,
-                                                          phi: Fr,
-                                                          zeta_minus_omega_inv: Fr,
-                                                          commitments: &SuccinctRegisterPolynomialCommitments,
-    ) -> ark_bw6_761::G1Projective {
-        let powers_of_phi = utils::powers(phi, 6);
-        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.basic_commitments);
-        r_comm += commitments.acc_comm.mul(powers_of_phi[5]);
-        r_comm += commitments.c_comm.mul(powers_of_phi[6]);
-        r_comm
-    }
-
 }
 
 pub trait Piop<E> {

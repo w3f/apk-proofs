@@ -6,7 +6,7 @@ use ark_poly::{Evaluations, Polynomial, UVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils, BasicRegisterPolynomialCommitments, SuccinctRegisterPolynomialCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils, BasicRegisterCommitments, PackedRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -102,7 +102,7 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove<E: RegisterEvaluations, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E> {
+    pub fn prove<E: RegisterEvaluations, C: AccountabilityRegisterCommitments, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E, C> {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 
@@ -134,13 +134,11 @@ impl<'a> Prover<'a> {
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
-        let basic_commitments = BasicRegisterPolynomialCommitments {
+        let basic_commitments = BasicRegisterCommitments {
             b_comm,
             acc_comm: (acc_x_comm, acc_y_comm)
         };
-        transcript.append_proof_point(b"b_comm", &b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
-        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
+        transcript.append_commitments(b"basic_register_commitments", &basic_commitments);
 
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
@@ -149,8 +147,12 @@ impl<'a> Prover<'a> {
         let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
         let c_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[0]);
         let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, acc_register_polynomials[1]);
-        transcript.append_proof_point(b"c_comm", &c_comm);
-        transcript.append_proof_point(b"acc_comm", &acc_comm);
+        let register_commitments = C::wrap(
+            basic_commitments,
+            c_comm,
+            acc_comm,
+        );
+        transcript.append_commitments(b"accountability_register_commitments", &register_commitments);
 
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
@@ -196,11 +198,7 @@ impl<'a> Prover<'a> {
 
         // Finally, compose the proof.
         Proof {
-            register_commitments: SuccinctRegisterPolynomialCommitments {
-                basic_commitments,
-                c_comm,
-                acc_comm,
-            },
+            register_commitments,
             // phi <-
             q_comm,
             // zeta <-

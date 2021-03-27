@@ -5,7 +5,7 @@ use ark_ff::{One, PrimeField, Field, Zero};
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, AccountabilityRegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
@@ -13,6 +13,7 @@ use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use ark_ec::short_weierstrass_jacobian::GroupProjective;
 use crate::constraints::{Constraints, SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
+use crate::Commitments;
 
 
 pub struct Verifier {
@@ -24,36 +25,23 @@ pub struct Verifier {
 }
 
 impl Verifier {
-    pub fn new(
-        domain_size: usize,
-        kzg_vk: VerifierKey<BW6_761>,
-        pks_comm: SignerSetCommitment,
-        mut empty_transcript: Transcript,
-    ) -> Self {
-        // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_signer_set(&pks_comm);
-        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
-        let kzg_pvk = kzg_vk.prepare();
-        Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
-    }
-
-    pub fn verify(
+    pub fn verify<
+        C: AccountabilityRegisterCommitments,
+        E: RegisterEvaluations<C = C>,
+    >(
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<SuccinctAccountableRegisterEvaluations>,
-    ) -> bool
-    {
+        proof: &Proof<E, C>,
+    ) -> bool {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
 
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(&apk, bitmask);
-        transcript.append_proof_point(b"b_comm", &proof.register_commitments.basic_commitments.b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &proof.register_commitments.basic_commitments.acc_comm.0);
-        transcript.append_proof_point(b"acc_y_comm", &proof.register_commitments.basic_commitments.acc_comm.1);
+        let basic_commitments = proof.register_commitments.get_basic_commitments();
+        transcript.append_commitments(b"basic_register_commitments", basic_commitments);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-        transcript.append_proof_point(b"c_comm", &proof.register_commitments.c_comm);
-        transcript.append_proof_point(b"acc_comm", &proof.register_commitments.acc_comm);
+        transcript.append_commitments(b"accountability_register_commitments", &proof.register_commitments);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
@@ -84,6 +72,7 @@ impl Verifier {
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
         ];
+        commitments.extend(proof.register_commitments.get_basic_commitments().as_vec());
         commitments.extend(proof.register_commitments.as_vec());
         commitments.push(proof.q_comm);
         let w_comm = KZG_BW6::aggregate_commitments(nu, &commitments);
@@ -118,6 +107,19 @@ impl Verifier {
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, r, bitmask, self.domain.size);
         let w = utils::horner_field(&constraint_polynomial_evals, phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
+    }
+
+    pub fn new(
+        domain_size: usize,
+        kzg_vk: VerifierKey<BW6_761>,
+        pks_comm: SignerSetCommitment,
+        mut empty_transcript: Transcript,
+    ) -> Self {
+        // empty_transcript.set_protocol_params(); //TODO
+        empty_transcript.set_signer_set(&pks_comm);
+        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
+        let kzg_pvk = kzg_vk.prepare();
+        Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
     }
 }
 

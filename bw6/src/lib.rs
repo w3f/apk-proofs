@@ -30,7 +30,7 @@ pub use bitmask::Bitmask;
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::PairingEngine;
 
-use ark_bw6_761::{BW6_761, Fr};
+use ark_bw6_761::{BW6_761, Fr, G1Affine};
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
@@ -42,14 +42,18 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use crate::kzg::KZG10;
 use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
+pub trait Commitments {
+    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine>;
+}
+
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct BasicRegisterPolynomialCommitments {
+pub struct BasicRegisterCommitments {
     b_comm: ark_bw6_761::G1Affine,
     acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
 }
 
-impl BasicRegisterPolynomialCommitments {
-    pub fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+impl Commitments for BasicRegisterCommitments {
+    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
         vec![
             self.b_comm,
             self.acc_comm.0,
@@ -58,24 +62,55 @@ impl BasicRegisterPolynomialCommitments {
     }
 }
 
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct SuccinctRegisterPolynomialCommitments {
-    basic_commitments: BasicRegisterPolynomialCommitments,
-    c_comm: ark_bw6_761::G1Affine,
-    acc_comm: ark_bw6_761::G1Affine,
-}
+pub trait AccountabilityRegisterCommitments : Commitments {
+    fn wrap(
+        basic_commitments: BasicRegisterCommitments,
+        c_comm: ark_bw6_761::G1Affine,
+        acc_com: ark_bw6_761::G1Affine
+    ) -> Self;
 
-impl SuccinctRegisterPolynomialCommitments {
-    pub fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
-        let mut res = self.basic_commitments.as_vec();
-        res.extend(vec![self.c_comm, self.acc_comm]);
+    fn get_basic_commitments(&self) -> &BasicRegisterCommitments;
+
+    fn all_as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+        let mut res = self.get_basic_commitments().as_vec();
+        res.extend(self.as_vec());
         res
     }
 }
 
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct PackedRegisterCommitments {
+    basic_commitments: BasicRegisterCommitments,
+    c_comm: ark_bw6_761::G1Affine,
+    acc_comm: ark_bw6_761::G1Affine,
+}
+
+impl Commitments for PackedRegisterCommitments {
+    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+        vec![
+            self.c_comm,
+            self.acc_comm,
+        ]
+    }
+}
+
+impl AccountabilityRegisterCommitments for PackedRegisterCommitments {
+    fn wrap(basic_commitments: BasicRegisterCommitments, c_comm: G1Affine, acc_comm: G1Affine) -> Self {
+        Self {
+            basic_commitments,
+            c_comm,
+            acc_comm,
+        }
+    }
+
+    fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
+        &self.basic_commitments
+    }
+}
+
 // #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<E> {
-    register_commitments: SuccinctRegisterPolynomialCommitments,
+pub struct Proof<E, C> {
+    register_commitments: C,
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
@@ -151,7 +186,7 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove::<_, SuccinctlyAccountableRegisters>(&b);
+        let proof = prover.prove::<_, _, SuccinctlyAccountableRegisters>(&b);
         end_timer!(prove_);
 
         // let mut serialized_proof = vec![0; proof.serialized_size()];
