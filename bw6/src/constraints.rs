@@ -83,6 +83,9 @@ pub trait RegisterEvaluations {
         bitmask: &Bitmask,
         domain_size: u64,
     ) -> Vec<Fr>;
+
+    //TODO: move somewhere
+    fn is_accountable(&self) -> bool;
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
@@ -147,6 +150,10 @@ impl RegisterEvaluations for BasicRegisterEvaluations {
         let a3 = Constraints::evaluate_bitmask_booleanity_constraint(b);
         let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
         vec![a1, a2, a3, a4, a5]
+    }
+
+    fn is_accountable(&self) -> bool {
+        false
     }
 }
 
@@ -248,6 +255,10 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, r, bitmask, domain_size);
         res.extend(vec![a6, a7]);
         res
+    }
+
+    fn is_accountable(&self) -> bool {
+        true
     }
 }
 
