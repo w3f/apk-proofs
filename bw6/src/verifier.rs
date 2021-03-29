@@ -54,6 +54,7 @@ impl Verifier {
         let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
 
 
+        let t_kzg = start_timer!(|| "KZG check");
         // Reconstruct the commitment to the linearization polynomial using the commitments to the registers from the proof.
         let t_r_comm = start_timer!(|| "linearization polynomial commitment");
         // TODO: 128-bit mul
@@ -76,11 +77,13 @@ impl Verifier {
         let w_comm = KZG_BW6::aggregate_commitments(nu, &commitments);
         end_timer!(t_multiexp);
 
+
         let t_opening_points = start_timer!(|| "aggregated evaluation");
         let mut register_evals = proof.register_evaluations.as_vec();
         register_evals.push(proof.q_zeta);
         let w_at_zeta = KZG_BW6::aggregate_values(nu, &register_evals);
         end_timer!(t_opening_points);
+
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
         transcript.append_proof_point(b"w_at_zeta_proof", &proof.w_at_zeta_proof);
@@ -96,18 +99,19 @@ impl Verifier {
         assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
         end_timer!(t_kzg_batch_opening);
 
+
         let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
         endo::subgroup_check(&total_c);
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
+        end_timer!(t_kzg);
+
 
         if !proof.register_evaluations.is_accountable() {
             let t_linear_accountability = start_timer!(|| "linear accountability check");
-
             let b = proof.register_evaluations.get_bitmask();
             let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
             assert_eq!(b_at_zeta, b);
-
             end_timer!(t_linear_accountability);
         }
 
