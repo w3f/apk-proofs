@@ -209,7 +209,9 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 
         let powers_of_r = utils::powers(r, (chunks_in_bitmask - 1) as usize);
         let r_pow_m = r * powers_of_r.last().unwrap();
-        let bitmask_chunks = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize);
+        let mut bitmask_chunks = bitmask.to_chunks_as_field_elements::<Fr>(limbs_in_chunk as usize);
+        //TODO: pad in Bitmask
+        bitmask_chunks.resize_with(chunks_in_bitmask as usize, || Fr::zero());
         assert_eq!(powers_of_r.len(), bitmask_chunks.len());
         let aggregated_bitmask = bitmask_chunks.into_iter()
             .zip(powers_of_r)
