@@ -20,6 +20,7 @@ mod kzg;
 mod fsrng;
 mod domains;
 mod constraints;
+mod piop;
 
 mod setup;
 pub use setup::Setup;
@@ -170,7 +171,7 @@ mod tests {
     #[test]
     fn test_packed_accountable_scheme() {
         let rng = &mut test_rng();
-        let log_domain_size = 8;
+        let log_domain_size = 16;
 
         let t_setup = start_timer!(|| "setup");
         let setup = Setup::generate(log_domain_size, rng);
@@ -218,7 +219,7 @@ mod tests {
     #[test]
     fn test_linear_accountable_scheme() {
         let rng = &mut test_rng();
-        let log_domain_size = 8;
+        let log_domain_size = 16;
 
         let t_setup = start_timer!(|| "setup");
         let setup = Setup::generate(log_domain_size, rng);
