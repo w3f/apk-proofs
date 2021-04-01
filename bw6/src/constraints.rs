@@ -13,6 +13,7 @@ use bench_utils::{end_timer, start_timer};
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::utils::LagrangeEvaluations;
+use crate::piop::Piop;
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -261,22 +262,6 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 
     fn is_accountable(&self) -> bool {
         true
-    }
-}
-
-pub trait Piop<E> {
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn evaluate_register_polynomials(&self, point: Fr) -> E;
-    fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
-    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
-
-    //TODO: remove domains param
-    fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
-        let w = utils::randomize(phi, &self.compute_constraint_polynomials());
-        let (q_poly, r) = domains.compute_quotient(&w);
-        assert_eq!(r, DensePolynomial::zero());
-        q_poly
     }
 }
 
