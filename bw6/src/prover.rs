@@ -12,9 +12,8 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, PiopDecorator, RegisterEvaluations};
-
-
+use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, RegisterEvaluations};
+use crate::piop::PiopDecorator;
 
 
 struct Params {

@@ -13,7 +13,7 @@ use bench_utils::{end_timer, start_timer};
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::Piop;
+use crate::piop::{Piop, PiopDecorator};
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -263,12 +263,6 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     fn is_accountable(&self) -> bool {
         true
     }
-}
-
-pub trait PiopDecorator<E>: Piop<E> {
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)>;
 }
 
 

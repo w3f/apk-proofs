@@ -4,6 +4,7 @@ use ark_bw6_761::Fr;
 
 use crate::domains::Domains;
 use crate::utils;
+use crate::constraints::Registers;
 
 pub trait Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
@@ -19,4 +20,10 @@ pub trait Piop<E> {
         assert_eq!(r, DensePolynomial::zero());
         q_poly
     }
+}
+
+pub trait PiopDecorator<E>: Piop<E> {
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
+    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)>;
 }
