@@ -13,7 +13,7 @@ use bench_utils::{end_timer, start_timer};
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{Piop, PiopDecorator};
+use crate::piop::{Piop, PiopDecorator, RegisterPolynomials};
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -22,8 +22,8 @@ pub struct BasicRegisterPolynomials {
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
 }
 
-impl BasicRegisterPolynomials {
-    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+impl RegisterPolynomials<BasicRegisterEvaluations> for BasicRegisterPolynomials {
+    fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         vec![
             self.keyset.0,
             self.keyset.1,
@@ -33,7 +33,7 @@ impl BasicRegisterPolynomials {
         ]
     }
 
-    pub fn evaluate(&self, point: Fr) -> BasicRegisterEvaluations {
+    fn evaluate(&self, point: Fr) -> BasicRegisterEvaluations {
         BasicRegisterEvaluations {
             keyset: (self.keyset.0.evaluate(&point), self.keyset.1.evaluate(&point)),
             bitmask: self.bitmask.evaluate(&point),
@@ -48,14 +48,14 @@ pub(crate) struct SuccinctAccountableRegisterPolynomials {
     acc_poly: DensePolynomial<Fr>,
 }
 
-impl SuccinctAccountableRegisterPolynomials {
-    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAccountableRegisterPolynomials {
+    fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         let mut res = self.basic_polynomials.to_vec();
         res.extend(vec![self.c_poly, self.acc_poly]);
         res
     }
 
-    pub fn evaluate(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
+    fn evaluate(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         SuccinctAccountableRegisterEvaluations {
             c: self.c_poly.evaluate(&point),
             acc: self.acc_poly.evaluate(&point),

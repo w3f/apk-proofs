@@ -27,3 +27,8 @@ pub trait PiopDecorator<E>: Piop<E> {
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
     fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)>;
 }
+
+pub trait RegisterPolynomials<E> {
+    fn to_vec(self) -> Vec<DensePolynomial<Fr>>;
+    fn evaluate(&self, point: Fr) -> E;
+}
