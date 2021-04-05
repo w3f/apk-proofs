@@ -1,10 +1,10 @@
 use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::{One, Zero, Field, Fp384, BigInteger};
+use ark_ff::{One, Zero, Field};
 use ark_bw6_761::Fr;
 use ark_ec::AffineCurve;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
-use ark_bls12_377::{G1Affine, FqParameters, Fq};
+use ark_bls12_377::{G1Affine, Fq};
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};

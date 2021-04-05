@@ -4,8 +4,8 @@ use ark_ff::{Field, ToBytes};
 use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
-use crate::{Bitmask, AccountabilityRegisterCommitments, BasicRegisterCommitments};
-use crate::constraints::{SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
+use crate::{Bitmask, BasicRegisterCommitments};
+use crate::constraints::RegisterEvaluations;
 
 /// E - evaluations
 pub(crate) trait ApkTranscript {

@@ -1,18 +1,17 @@
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use ark_ec::short_weierstrass_jacobian::GroupAffine;
-use ark_ff::{Field, One, Zero};
-use ark_poly::{Evaluations, Polynomial, UVPolynomial, Radix2EvaluationDomain};
+use ark_ff::{One, Zero};
+use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils, BasicRegisterCommitments, PackedRegisterCommitments, AccountabilityRegisterCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, Constraints, SuccinctlyAccountableRegisters, RegisterEvaluations};
+use crate::constraints::{Registers, RegisterEvaluations};
 use crate::piop::PiopDecorator;
 
 

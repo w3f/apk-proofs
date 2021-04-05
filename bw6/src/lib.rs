@@ -41,7 +41,6 @@ use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
 use crate::kzg::KZG10;
-use crate::constraints::SuccinctAccountableRegisterEvaluations;
 
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]

@@ -1,7 +1,6 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::{ProjectiveCurve, AffineCurve};
-use ark_ff::{One, PrimeField, Field, Zero};
+use ark_ec::ProjectiveCurve;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
@@ -11,8 +10,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
-use ark_ec::short_weierstrass_jacobian::GroupProjective;
-use crate::constraints::{Constraints, SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations, RegisterEvaluations};
+use crate::constraints::RegisterEvaluations;
 
 
 pub struct Verifier {
