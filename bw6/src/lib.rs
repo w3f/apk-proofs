@@ -211,7 +211,7 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove::<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments, SuccinctlyAccountableRegisters>(&b);
+        let proof = prover.prove_packed(&b);
         end_timer!(prove_);
 
         // let mut serialized_proof = vec![0; proof.serialized_size()];
@@ -219,7 +219,7 @@ mod tests {
         // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify::<ExtendedRegisterCommitments, SuccinctAccountableRegisterEvaluations>(&apk, &b, &proof);
+        let valid = verifier.verify_packed(&apk, &b, &proof);
         end_timer!(verify_);
 
         assert!(valid);
@@ -259,7 +259,7 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove::<BasicRegisterEvaluations, BasicRegisterCommitments, Registers>(&b);
+        let proof = prover.prove_simple(&b);
         end_timer!(prove_);
 
         // let mut serialized_proof = vec![0; proof.serialized_size()];
@@ -267,7 +267,7 @@ mod tests {
         // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify::<BasicRegisterCommitments, BasicRegisterEvaluations>(&apk, &b, &proof);
+        let valid = verifier.verify_simple(&apk, &b, &proof);
         end_timer!(verify_);
 
         assert!(valid);

@@ -5,13 +5,13 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments, ExtendedRegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, RegisterEvaluations};
+use crate::constraints::{Registers, RegisterEvaluations, SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters, BasicRegisterEvaluations};
 use crate::piop::PiopDecorator;
 
 
@@ -99,8 +99,21 @@ impl<'a> Prover<'a> {
         }
     }
 
+    pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, BasicRegisterCommitments> {
+        self.prove::<BasicRegisterEvaluations, BasicRegisterCommitments, Registers>(bitmask)
+    }
+
+    pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments> {
+        self.prove::<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments, SuccinctlyAccountableRegisters>(bitmask)
+    }
+
     #[allow(non_snake_case)]
-    pub fn prove<E: RegisterEvaluations, C: RegisterCommitments, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E, C> {
+    fn prove<E, C, D>(&self, bitmask: &Bitmask) -> Proof<E, C>
+    where
+        E: RegisterEvaluations,
+        C: RegisterCommitments,
+        D: PiopDecorator<E>,
+    {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 

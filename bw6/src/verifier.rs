@@ -4,13 +4,13 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, ExtendedRegisterCommitments, BasicRegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
-use crate::constraints::RegisterEvaluations;
+use crate::constraints::{RegisterEvaluations, SuccinctAccountableRegisterEvaluations, BasicRegisterEvaluations};
 
 
 pub struct Verifier {
@@ -22,7 +22,26 @@ pub struct Verifier {
 }
 
 impl Verifier {
-    pub fn verify<
+
+    pub fn verify_simple(
+        &self,
+        apk: &PublicKey,
+        bitmask: &Bitmask,
+        proof: &Proof<BasicRegisterEvaluations, BasicRegisterCommitments>
+    ) -> bool {
+        self.verify::<BasicRegisterCommitments, BasicRegisterEvaluations>(apk, bitmask, proof)
+    }
+
+    pub fn verify_packed(
+        &self,
+        apk: &PublicKey,
+        bitmask: &Bitmask,
+        proof: &Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments>
+    ) -> bool {
+        self.verify::<ExtendedRegisterCommitments, SuccinctAccountableRegisterEvaluations>(apk, bitmask, proof)
+    }
+
+    fn verify<
         C: RegisterCommitments,
         E: RegisterEvaluations<C = C>,
     >(
