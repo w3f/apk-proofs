@@ -144,8 +144,8 @@ impl<'a> Prover<'a> {
         let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
         let acc_register_commitments = acc_register_polynomials.map(|polys| {
-            let c_comm = KZG_BW6::commit(&self.params.kzg_pk, polys.0);
-            let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, polys.1);
+            let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &polys.c_poly);
+            let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &polys.acc_poly);
             (c_comm, acc_comm)
         });
         let register_commitments = C::wrap(basic_commitments, acc_register_commitments);

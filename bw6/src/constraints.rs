@@ -13,7 +13,7 @@ use bench_utils::{end_timer, start_timer};
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, AccountabilityRegisterCommitments};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{Piop, PiopDecorator, RegisterPolynomials};
+use crate::piop::{Piop, PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials};
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -789,11 +789,13 @@ impl PiopDecorator<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccount
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
 
-    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)> {
-        Some((
-            &self.polynomials.c_poly,
-            &self.polynomials.acc_poly,
-        ))
+    fn get_accountable_register_polynomials(&self) -> Option<PackedAccountabilityRegisterPolynomials> {
+        Some(
+            PackedAccountabilityRegisterPolynomials::new(
+                self.polynomials.c_poly.clone(),
+                self.polynomials.acc_poly.clone(),
+            )
+        )
     }
 }
 
@@ -802,7 +804,7 @@ impl PiopDecorator<BasicRegisterEvaluations> for Registers {
         registers
     }
 
-    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)> {
+    fn get_accountable_register_polynomials(&self) -> Option<PackedAccountabilityRegisterPolynomials> {
         None
     }
 }

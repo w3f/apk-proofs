@@ -25,10 +25,21 @@ pub trait Piop<E> {
 pub trait PiopDecorator<E>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-    fn get_accountable_register_polynomials(&self) -> Option<(&DensePolynomial<Fr>, &DensePolynomial<Fr>)>;
+    fn get_accountable_register_polynomials(&self) -> Option<PackedAccountabilityRegisterPolynomials>;
 }
 
 pub trait RegisterPolynomials<E> {
     fn to_vec(self) -> Vec<DensePolynomial<Fr>>;
     fn evaluate(&self, point: Fr) -> E;
+}
+
+pub struct PackedAccountabilityRegisterPolynomials {
+    pub c_poly: DensePolynomial<Fr>,
+    pub acc_poly: DensePolynomial<Fr>,
+}
+
+impl PackedAccountabilityRegisterPolynomials {
+    pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
+        PackedAccountabilityRegisterPolynomials { c_poly, acc_poly }
+    }
 }
