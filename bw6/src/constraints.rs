@@ -11,7 +11,7 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use bench_utils::{end_timer, start_timer};
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils, PackedRegisterCommitments, BasicRegisterCommitments, AccountabilityRegisterCommitments};
+use crate::{Bitmask, point_in_g1_complement, utils, ExtendedRegisterCommitments, BasicRegisterCommitments, RegisterCommitments};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{Piop, PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials};
 
@@ -65,7 +65,7 @@ impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAcc
 }
 
 pub trait RegisterEvaluations {
-    type C: AccountabilityRegisterCommitments;
+    type C: RegisterCommitments;
 
     fn as_vec(&self) -> Vec<Fr>;
     fn get_bitmask(&self) -> Fr;
@@ -167,7 +167,7 @@ pub struct SuccinctAccountableRegisterEvaluations {
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
-    type C = PackedRegisterCommitments;
+    type C = ExtendedRegisterCommitments;
 
     fn as_vec(&self) -> Vec<Fq> {
         let mut res = self.basic_evaluations.as_vec();
@@ -180,14 +180,15 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     }
 
     fn restore_commitment_to_linearization_polynomial(&self,
-                                                          phi: Fr,
-                                                          zeta_minus_omega_inv: Fr,
-                                                          commitments: &PackedRegisterCommitments,
+                                                      phi: Fr,
+                                                      zeta_minus_omega_inv: Fr,
+                                                      commitments: &ExtendedRegisterCommitments,
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
         let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.basic_commitments);
-        r_comm += commitments.acc_comm.mul(powers_of_phi[5]);
-        r_comm += commitments.c_comm.mul(powers_of_phi[6]);
+        let option = commitments.additional_commitments.clone().unwrap();
+        r_comm += option.acc_comm.mul(powers_of_phi[5]);
+        r_comm += option.c_comm.mul(powers_of_phi[6]);
         r_comm
     }
 

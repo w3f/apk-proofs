@@ -1,9 +1,9 @@
 use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
-use ark_bw6_761::Fr;
+use ark_bw6_761::{Fr, G1Affine};
 
 use crate::domains::Domains;
-use crate::utils;
+use crate::{utils, PackedRegisterCommitments};
 use crate::constraints::Registers;
 
 pub trait Piop<E> {
@@ -41,5 +41,12 @@ pub struct PackedAccountabilityRegisterPolynomials {
 impl PackedAccountabilityRegisterPolynomials {
     pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
         PackedAccountabilityRegisterPolynomials { c_poly, acc_poly }
+    }
+
+    pub fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PackedRegisterCommitments {
+        PackedRegisterCommitments::new(
+            f(&self.c_poly),
+            f(&self.acc_poly),
+        )
     }
 }

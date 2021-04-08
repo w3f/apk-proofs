@@ -4,7 +4,7 @@ use ark_ec::ProjectiveCurve;
 use bench_utils::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, AccountabilityRegisterCommitments};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
@@ -23,7 +23,7 @@ pub struct Verifier {
 
 impl Verifier {
     pub fn verify<
-        C: AccountabilityRegisterCommitments,
+        C: RegisterCommitments,
         E: RegisterEvaluations<C = C>,
     >(
         &self,
@@ -39,7 +39,7 @@ impl Verifier {
         let basic_commitments = proof.register_commitments.get_basic_commitments();
         transcript.append_basic_commitments(basic_commitments);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-        transcript.append_accountability_commitments(proof.register_commitments.get_accountability_commitments());
+        transcript.append_accountability_commitments(proof.register_commitments.get_additional_commitments());
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge

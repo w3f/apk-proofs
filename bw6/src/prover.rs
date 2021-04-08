@@ -5,7 +5,7 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, AccountabilityRegisterCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -100,7 +100,7 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove<E: RegisterEvaluations, C: AccountabilityRegisterCommitments, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E, C> {
+    pub fn prove<E: RegisterEvaluations, C: RegisterCommitments, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E, C> {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 
@@ -144,12 +144,10 @@ impl<'a> Prover<'a> {
         let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
         let acc_register_commitments = acc_register_polynomials.map(|polys| {
-            let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &polys.c_poly);
-            let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &polys.acc_poly);
-            (c_comm, acc_comm)
+            polys.commit(|p| KZG_BW6::commit(&self.params.kzg_pk, &p))
         });
         let register_commitments = C::wrap(basic_commitments, acc_register_commitments);
-        transcript.append_accountability_commitments(register_commitments.get_accountability_commitments());
+        transcript.append_accountability_commitments(register_commitments.get_additional_commitments());
 
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
