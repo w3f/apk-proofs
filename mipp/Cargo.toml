@@ -11,10 +11,10 @@ ark-inner-products = { git = "https://github.com/w3f/ripp", branch = "tipa-verif
 ark-ip-proofs = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
 ark-dh-commitments = { git = "https://github.com/w3f/ripp", branch = "tipa-verify-unfolded" }
 
-ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
-ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves", features = [ "curve" ] }
+ark-std = { version = "0.2", default-features = false }
+ark-ff = { version = "0.2", default-features = false }
+ark-ec = { version = "0.2", default-features = false }
+ark-bls12-381 = { version = "0.2", features = [ "curve" ] }
 
 blake2 = { version = "0.9" }
 rand = "0.7"
