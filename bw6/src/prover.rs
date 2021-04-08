@@ -1,24 +1,18 @@
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use ark_ec::short_weierstrass_jacobian::GroupAffine;
-use ark_ff::{Field, One, Zero};
-use ark_poly::{Evaluations, Polynomial, UVPolynomial, Radix2EvaluationDomain};
+use ark_ff::{One, Zero};
+use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, utils};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-
-
-fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
-    let mut px = vec![F::zero()];
-    px.extend_from_slice(&p.coeffs);
-    DensePolynomial::from_coefficients_vec(px)
-}
+use crate::constraints::{Registers, RegisterEvaluations};
+use crate::piop::PiopDecorator;
 
 
 struct Params {
@@ -106,7 +100,7 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn prove(&self, bitmask: &Bitmask) -> Proof {
+    pub fn prove<E: RegisterEvaluations, C: RegisterCommitments, D: PiopDecorator<E>>(&self, bitmask: &Bitmask) -> Proof<E, C> {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
 
@@ -119,318 +113,92 @@ impl<'a> Prover<'a> {
         transcript.append_public_input(&apk.into(), bitmask);
 
 
-        let mut acc = vec![self.params.h; m + 1];
-        for (i, (b, p)) in bitmask.to_bits().iter().zip(self.session.pks.iter()).enumerate() {
-            acc[i + 1] = if *b {
-                acc[i] + p.0.into_affine()
-            } else {
-                acc[i]
-            }
-        }
-
-        let (mut acc_x, mut acc_y): (Vec<Fr>, Vec<Fr>) = acc.iter()
-            .map(|p| (p.x, p.y))
-            .unzip();
-
-        assert_eq!(acc_x.len(), m + 1);
-        assert_eq!(acc_y.len(), m + 1);
-        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), self.params.h);
-        assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + self.params.h);
-
         let mut b = bitmask.to_bits().iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
             .collect::<Vec<_>>();
 
         // Extend the computation to the whole domain
         b.resize_with(n, || Fr::zero());
-        // So we don't care about pks, but
-        let apk_plus_h_x = acc_x[m];
-        let apk_plus_h_y = acc_y[m];
-        acc_x.resize_with(n, || apk_plus_h_x);
-        acc_y.resize_with(n, || apk_plus_h_y);
 
-        let mut acc_x_shifted = acc_x.clone();
-        let mut acc_y_shifted = acc_y.clone();
-        acc_x_shifted.rotate_left(1);
-        acc_y_shifted.rotate_left(1);
+        // TODO: move to Session
+        let pks = self.session.pks.iter()
+            .map(|p| p.0.into_affine())
+            .collect();
 
-
-        let b_poly = self.domains.interpolate(b.clone());
-        let acc_x_poly = self.domains.interpolate(acc_x);
-        let acc_y_poly = self.domains.interpolate(acc_y);
-
+        // 1. Compute and commit to the basic registers.
+        let registers = Registers::new(self.domains.clone(), bitmask, pks);
+        let b_poly = registers.get_bitmask_register_polynomial();
+        let (acc_x_poly, acc_y_poly) = registers.get_partial_sums_register_polynomials();
         let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
         let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
         let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
+        let basic_commitments = BasicRegisterCommitments {
+            b_comm,
+            acc_comm: (acc_x_comm, acc_y_comm)
+        };
+        transcript.append_basic_commitments(&basic_commitments);
 
-        assert_eq!(b_poly.coeffs.len(), n);
-        assert_eq!(b_poly.degree(), n - 1);
-
-
-
-        let B = self.domains.amplify_polynomial(&b_poly);
-        let x1 = self.domains.amplify_polynomial(&acc_x_poly);
-        let y1 = self.domains.amplify_polynomial(&acc_y_poly);
-        let x2 = self.session.pks_x_poly_evals_x4.clone();
-        let y2 = self.session.pks_y_poly_evals_x4.clone();
-        let x3 = self.domains.amplify(acc_x_shifted);
-        let y3 = self.domains.amplify(acc_y_shifted);
-
-        let mut one_minus_b = self.domains.constant_4x(Fr::one());
-        one_minus_b -= &B;
-
-        let a1 =
-            &(
-                &B *
-                    &(
-                        &(
-                            &(
-                                &(&x1 - &x2) * &(&x1 - &x2)
-                            ) *
-                                &(
-                                    &(&x1 + &x2) + &x3
-                                )
-                        ) -
-                            &(
-                                &(&y2 - &y1) * &(&y2 - &y1)
-                            )
-                    )
-            ) +
-                &(
-                    &one_minus_b * &(&y3 - &y1)
-                );
-
-        let a2 =
-            &(
-                &B *
-                    &(
-                        &(
-                            &(&x1 - &x2) * &(&y3 + &y1)
-                        ) -
-                            &(
-                                &(&y2 - &y1) * &(&x3 - &x1)
-                            )
-                    )
-            ) +
-                &(
-                    &one_minus_b * &(&x3 - &x1)
-                );
-
-        let a3 = &B * &one_minus_b;
-
-
-        let acc_minus_h_x = &x1 - &self.domains.constant_4x(self.params.h.x);
-        let acc_minus_h_y = &y1 - &self.domains.constant_4x(self.params.h.y);
-
-        let acc_minus_h_plus_apk_x = &x1 - &self.domains.constant_4x(apk_plus_h_x);
-        let acc_minus_h_plus_apk_y = &y1 - &self.domains.constant_4x(apk_plus_h_y);
-
-        let a4 = &(&acc_minus_h_x * &self.domains.l_first_evals_over_4x)
-            + &(&acc_minus_h_plus_apk_x * &self.domains.l_last_evals_over_4x);
-        let a5 = &(&acc_minus_h_y * &self.domains.l_first_evals_over_4x)
-            + &(&acc_minus_h_plus_apk_y * &self.domains.l_last_evals_over_4x);
-
-        let a1_poly = a1.interpolate();
-        let a2_poly = a2.interpolate();
-        let a3_poly = a3.interpolate();
-        let a4_poly = a4.interpolate();
-        let a5_poly = a5.interpolate();
-
-        assert_eq!(a1_poly.degree(), 4 * (n - 1));
-        assert_eq!(a2_poly.degree(), 3 * (n - 1));
-        assert_eq!(a3_poly.degree(), 2 * (n - 1));
-        assert_eq!(a4_poly.degree(), 2 * (n - 1));
-        assert_eq!(a5_poly.degree(), 2 * (n - 1));
-
-        // ai *= (X - \omega^{n-1})
-        let mut a1_poly_ = mul_by_x(&a1_poly);
-        a1_poly_ += (-self.domains.omega_inv, &a1_poly);
-        let mut a2_poly_ = mul_by_x(&a2_poly);
-        a2_poly_ += (-self.domains.omega_inv, &a2_poly);
-
-        assert!(self.domains.is_zero(&a1_poly_));
-        assert!(self.domains.is_zero(&a2_poly_));
-        assert!(self.domains.is_zero(&a3_poly));
-        assert!(self.domains.is_zero(&a4_poly));
-        assert!(self.domains.is_zero(&a5_poly));
-
-        transcript.append_proof_point(b"b_comm", &b_comm);
-        transcript.append_proof_point(b"acc_x_comm", &acc_x_comm);
-        transcript.append_proof_point(b"acc_y_comm", &acc_y_comm);
-        let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-
-        let powers_of_2 = utils::powers(Fr::from(2u8), 255);
-        assert_eq!(n % 256, 0); //TODO: 256 is the highest power of 2 that fits field bit capacity
-        let chunks = n / 256;
-        let powers_of_r = utils::powers(r, n / 256 - 1);
-        // tensor product (powers_of_r X powers_of_2)
-        let c = powers_of_r.iter().flat_map(|rj|
-            powers_of_2.iter().map(move |_2k| *rj * _2k)
-        ).collect::<Vec<Fr>>();
-
-        let provers_bitmask = b.iter().zip(c.iter()).map(|(b, c)| *b * c).sum::<Fr>();
-        let verifiers_bitmask = bitmask.to_chunks_as_field_elements::<Fr>(4).into_iter()
-            .zip(powers_of_r).map(|(bj, rj)| bj * rj).sum::<Fr>();
-        assert_eq!(provers_bitmask, verifiers_bitmask);
-
-        let mut acc = Vec::with_capacity(n);
-        acc.push(Fr::zero());
-        b.iter().zip(c.iter())
-            .map(|(b, c)| *b * c)
-            .take(n-1)
-            .for_each(|x| {
-                acc.push(x + acc.last().unwrap());
+        // 2. Receive bitmask aggregation challenge,
+        // compute and commit to succinct accountability registers.
+        let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
+        let acc_registers = D::wrap(registers, b, r);
+        let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
+        let acc_register_commitments = acc_register_polynomials.map(|polys| {
+            polys.commit(|p| KZG_BW6::commit(&self.params.kzg_pk, &p))
         });
-        assert_eq!(acc.len(), n);
-        assert_eq!(acc[0], Fr::zero());
-        assert_eq!(acc[1], b[0] * c[0]);
-        assert_eq!(acc[n-1], verifiers_bitmask - b[n-1] * c[n-1]);
+        let register_commitments = C::wrap(basic_commitments, acc_register_commitments);
+        transcript.append_accountability_commitments(register_commitments.get_additional_commitments());
 
-        let mut acc_shifted = acc.clone();
-        acc_shifted.rotate_left(1);
-        let mut c_shifted = c.clone();
-        c_shifted.rotate_left(1);
-
-        let c_poly = self.domains.interpolate(c);
-        let acc_poly = self.domains.interpolate(acc);
-
-        let c_x4 = self.domains.amplify_polynomial(&c_poly);
-        let c_shifted_x4 = self.domains.amplify(c_shifted);
-        let acc_x4 = self.domains.amplify_polynomial(&acc_poly);
-        let acc_shifted_x4 = self.domains.amplify(acc_shifted);
-        let bc_ln_x4 = self.domains.l_last_scaled_by(verifiers_bitmask);
-
-        let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6_poly = a6.interpolate();
-        assert!(self.domains.is_zero(&a6_poly));
-
-        let mut a = vec![Fr::from(2u8); n];
-        a.iter_mut().step_by(256).for_each(|a| *a = r / powers_of_2[255]);
-        a.rotate_left(1);
-        let a_x4 = self.domains.amplify(a);
-
-        let x_todo = Fr::one() - r.pow([chunks as u64]); //TODO: name
-        let ln_x4 = self.domains.l_last_scaled_by(x_todo);
-
-        let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7_poly = a7.interpolate();
-        assert!(self.domains.is_zero(&a7_poly));
-
-        let c_comm = KZG_BW6::commit(&self.params.kzg_pk, &c_poly);
-        let acc_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_poly);
-        transcript.append_proof_point(b"c_comm", &c_comm);
-        transcript.append_proof_point(b"acc_comm", &acc_comm);
+        // 3. Receive constraint aggregation challenge,
+        // compute and commit to the quotient polynomial.
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
-
-        let powers_of_phi = &utils::powers(phi, 6);
-
-        let mut a12 = DensePolynomial::<Fr>::zero();
-        a12 += &a1_poly;
-        a12 += (powers_of_phi[1], &a2_poly);
-        // a12 = a1 + phi * a2
-        let mut w = mul_by_x(&a12); // w = (a1 + phi * a2) * X
-        w += (-self.domains.omega_inv, &a12); // w = (a1 + phi * a2) * (X - \omega^{n-1})
-        w += (powers_of_phi[2], &a3_poly);
-        w += (powers_of_phi[3], &a4_poly);
-        w += (powers_of_phi[4], &a5_poly);
-        w += (powers_of_phi[5], &a6_poly);
-        w += (powers_of_phi[6], &a7_poly);
-
-        let (q_poly, r) = self.domains.compute_quotient(&w);
-        assert_eq!(r, DensePolynomial::zero());
-        assert_eq!(q_poly.degree(), 3 * n - 3);
-
+        let q_poly = acc_registers.compute_quotient_polynomial(phi, &self.domains);
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
+        assert_eq!(q_poly.degree(), 3 * n - 3);
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
-
         transcript.append_proof_point(b"q_comm", &q_comm);
+
+        // 4. Receive the evaluation point,
+        // evaluate register polynomials and the quotient polynomial,
+        // and commit to the evaluations.
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
-
-        let b_zeta = b_poly.evaluate(&zeta);
-        let pks_x_zeta = self.session.pks_x_poly.evaluate(&zeta);
-        let pks_y_zeta = self.session.pks_y_poly.evaluate(&zeta);
-        let acc_x_zeta = acc_x_poly.evaluate(&zeta);
-        let acc_y_zeta = acc_y_poly.evaluate(&zeta);
+        let register_evaluations = acc_registers.evaluate_register_polynomials(zeta);
         let q_zeta = q_poly.evaluate(&zeta);
-        let c_zeta = c_poly.evaluate(&zeta);
-        let acc_zeta = acc_poly.evaluate(&zeta);
+        transcript.append_evals(&register_evaluations);
+        transcript.append_proof_scalar(b"q_zeta", &q_zeta);
 
+
+        // 5. Compute the linearization polynomial,
+        // evaluate it at the shifted evaluation point,
+        // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
         let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
-
-        // Compute linearization polynomial
-        // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
-        // deg(r) = n, so it can be computed in the monomial basis
-
-        let mut a1_lin = DensePolynomial::<Fr>::zero();
-        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), &acc_x_poly);
-        a1_lin += (Fr::one() - b_zeta, &acc_y_poly);
-
-        let mut a2_lin = DensePolynomial::<Fr>::zero();
-        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), &acc_y_poly);
-        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), &acc_x_poly);
-        a2_lin += (Fr::one() - b_zeta, &acc_x_poly);
-
-        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6_lin = acc_poly.clone();
-        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7_lin = c_poly.clone();
-
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (zeta_minus_omega_inv, &a1_lin);
-        r_poly += (zeta_minus_omega_inv * powers_of_phi[1], &a2_lin);
-        r_poly += (powers_of_phi[5], &a6_lin);
-        r_poly += (powers_of_phi[6], &a7_lin);
-
+        let r_poly = acc_registers.compute_linearization_polynomial(&register_evaluations, phi, zeta_minus_omega_inv);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
-
-
-        transcript.append_proof_scalar(b"b_zeta", &b_zeta);
-        transcript.append_proof_scalar(b"pks_x_zeta", &pks_x_zeta);
-        transcript.append_proof_scalar(b"pks_y_zeta", &pks_y_zeta);
-        transcript.append_proof_scalar(b"acc_x_zeta", &acc_x_zeta);
-        transcript.append_proof_scalar(b"acc_y_zeta", &acc_y_zeta);
-        transcript.append_proof_scalar(b"q_zeta", &q_zeta);
-        transcript.append_proof_scalar(b"c_zeta", &c_zeta);
-        transcript.append_proof_scalar(b"acc_zeta", &acc_zeta);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
+
+        // 6. Receive the polynomials aggregation challenge,
+        // open the aggregated polynomial at the evaluation point,
+        // and the linearization polynomial at the shifted evaluation point,
+        // and commit to the opening proofs.
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
-
-        let w_poly = KZG_BW6::aggregate_polynomials(nu, &[
-            self.session.pks_x_poly.clone(),
-            self.session.pks_y_poly.clone(),
-            b_poly,
-            q_poly,
-            acc_poly,
-            c_poly,
-            acc_x_poly,
-            acc_y_poly
-        ]);
-
+        let mut register_polynomials = acc_registers.get_all_register_polynomials();
+        register_polynomials.push(q_poly);
+        let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
-        let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
-
         transcript.append_proof_point(b"w_at_zeta_proof", &w_at_zeta_proof);
+
+        let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
         transcript.append_proof_point(b"r_at_zeta_omega_proof", &r_at_zeta_omega_proof);
 
+        // Finally, compose the proof.
         Proof {
-            b_comm,
-            acc_x_comm,
-            acc_y_comm,
-            // r <-
-            c_comm,
-            acc_comm,
+            register_commitments,
             // phi <-
             q_comm,
             // zeta <-
-            b_zeta,
-            pks_x_zeta,
-            pks_y_zeta,
-            acc_x_zeta,
-            acc_y_zeta,
+            register_evaluations,
             q_zeta,
-            c_zeta,
-            acc_zeta,
             r_zeta_omega,
             // <- nu
             w_at_zeta_proof,

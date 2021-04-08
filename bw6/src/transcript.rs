@@ -4,9 +4,11 @@ use ark_ff::{Field, ToBytes};
 use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
-use crate::Bitmask;
+use crate::{Bitmask, BasicRegisterCommitments, PackedRegisterCommitments};
+use crate::constraints::RegisterEvaluations;
 
-pub trait ApkTranscript {
+/// E - evaluations
+pub(crate) trait ApkTranscript {
 
     fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine);
 
@@ -17,6 +19,26 @@ pub trait ApkTranscript {
     }
 
     fn append_public_input(&mut self, apk: &PublicKey, bitmask: &Bitmask);
+
+    fn append_evals<E: RegisterEvaluations>(&mut self, evals: &E) {
+        self._append_bytes(b"evals", &evals.as_vec());
+    }
+
+    fn append_basic_commitments(&mut self, commitments: &BasicRegisterCommitments) {
+        self.append_proof_point(b"c_comm", &commitments.b_comm);
+        self.append_proof_point(b"acc_x_comm", &commitments.acc_comm.0);
+        self.append_proof_point(b"acc_y_comm", &commitments.acc_comm.1);
+    }
+
+    fn append_accountability_commitments(&mut self, accountability_commitments: Option<PackedRegisterCommitments>) {
+        match accountability_commitments {
+            Some(accountability_commitments) => {
+                self.append_proof_point(b"c_comm", &accountability_commitments.c_comm);
+                self.append_proof_point(b"acc_comm", &accountability_commitments.acc_comm);
+            },
+            _ => {},
+        }
+    }
 
     fn append_proof_point(&mut self, label: &'static [u8], point: &ark_bw6_761::G1Affine) {
         self._append_bytes(label, point);

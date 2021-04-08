@@ -44,12 +44,19 @@ impl Bitmask {
         bits
     }
 
+    pub fn to_bits_as_field_elements<F: PrimeField>(&self) -> Vec<F> {
+        self.to_bits().iter()
+            .map(|b| if *b { F::one() } else { F::zero() })
+            .collect()
+    }
+
     pub fn size(&self) -> usize {
         let repr_size = BITS_IN_LIMB * self.limbs.len();
         let bitmask_size = repr_size - self.padding_size;
         bitmask_size
     }
 
+    // TODO: padding
     pub fn count_ones(&self) -> usize {
         self.limbs.iter().map(|limb| usize::try_from(limb.count_ones()).unwrap()).sum()
     }
