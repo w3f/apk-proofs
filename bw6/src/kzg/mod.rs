@@ -11,7 +11,7 @@ use ark_ff::{One, PrimeField, UniformRand, Zero};
 use ark_poly::UVPolynomial;
 use ark_std::{format, marker::PhantomData, ops::Div, vec};
 
-use bench_utils::{end_timer, start_timer};
+use ark_std::{end_timer, start_timer};
 
 use crate::utils;
 

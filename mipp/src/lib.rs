@@ -11,7 +11,7 @@ mod tests {
     use ark_ip_proofs::tipa::TIPA;
     use ark_ip_proofs::tipa::structured_scalar_message::TIPAWithSSM;
 
-    use bench_utils::{end_timer, start_timer};
+    use ark_std::{end_timer, start_timer};
     use ark_std::{UniformRand, test_rng};
     use rand::Rng;
     use blake2::Blake2b;

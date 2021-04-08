@@ -1,7 +1,7 @@
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use bench_utils::{end_timer, start_timer};
+use ark_std::{end_timer, start_timer};
 use merlin::Transcript;
 
 use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments};

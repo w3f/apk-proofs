@@ -8,7 +8,7 @@ use ark_bls12_377::{G1Affine, Fq};
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
-use bench_utils::{end_timer, start_timer};
+use ark_std::{end_timer, start_timer};
 
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, ExtendedRegisterCommitments, BasicRegisterCommitments, RegisterCommitments};
