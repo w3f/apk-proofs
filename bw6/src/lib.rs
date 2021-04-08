@@ -159,7 +159,7 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bench_utils::{end_timer, start_timer};
+    use ark_std::{end_timer, start_timer};
     use merlin::Transcript;
     use ark_std::convert::TryInto;
     use ark_std::test_rng;

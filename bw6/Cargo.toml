@@ -16,8 +16,6 @@ ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", default-features 
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 
-bench-utils = { git = "https://github.com/arkworks-rs/utils", default-features = false }
-
 rand = "0.7"
 merlin = "2.0.0"
 
@@ -29,4 +27,4 @@ name = "bench"
 harness = false
 
 [features]
-print-trace = [ "bench-utils/print-trace" ]
+print-trace = [ "ark-std/print-trace" ]
