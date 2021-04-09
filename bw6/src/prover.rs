@@ -5,14 +5,14 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments, ExtendedRegisterCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments, ExtendedRegisterCommitments, PackedRegisterCommitments, AdditionalCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::constraints::{Registers, RegisterEvaluations, SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters, BasicRegisterEvaluations};
-use crate::piop::PiopDecorator;
+use crate::piop::{PiopDecorator, AdditionalRegisterPolynomials, PackedAccountabilityRegisterPolynomials};
 
 
 struct Params {
@@ -100,19 +100,33 @@ impl<'a> Prover<'a> {
     }
 
     pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, BasicRegisterCommitments> {
-        self.prove::<BasicRegisterEvaluations, BasicRegisterCommitments, Registers>(bitmask)
+        self.prove::<
+            BasicRegisterEvaluations,
+            (),
+            (),
+            BasicRegisterCommitments,
+            Registers
+        >(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments> {
-        self.prove::<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments, SuccinctlyAccountableRegisters>(bitmask)
+    pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments<PackedRegisterCommitments>> {
+        self.prove::<
+            SuccinctAccountableRegisterEvaluations,
+            PackedRegisterCommitments,
+            PackedAccountabilityRegisterPolynomials,
+            ExtendedRegisterCommitments<PackedRegisterCommitments>,
+            SuccinctlyAccountableRegisters
+        >(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<E, C, D>(&self, bitmask: &Bitmask) -> Proof<E, C>
+    fn prove<E, AC, AP, C, D>(&self, bitmask: &Bitmask) -> Proof<E, C>
     where
         E: RegisterEvaluations,
-        C: RegisterCommitments,
-        D: PiopDecorator<E>,
+        AC: AdditionalCommitments,
+        AP: AdditionalRegisterPolynomials<AC>,
+        C: RegisterCommitments<AC>,
+        D: PiopDecorator<E, AP>,
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;

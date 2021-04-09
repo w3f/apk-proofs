@@ -50,22 +50,21 @@ pub struct BasicRegisterCommitments {
 }
 
 
-pub trait RegisterCommitments {
+pub trait RegisterCommitments<AC: AdditionalCommitments> {
     fn wrap(
         basic_commitments: BasicRegisterCommitments,
-        accountability_commitments: Option<PackedRegisterCommitments>,
+        accountability_commitments: Option<AC>,
     ) -> Self;
 
     fn get_basic_commitments(&self) -> &BasicRegisterCommitments;
 
-    fn get_additional_commitments(&self) -> Option<PackedRegisterCommitments>;
+    fn get_additional_commitments(&self) -> Option<AC>;
 
     fn all_as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
         let mut res = self.get_basic_commitments().all_as_vec();
         match self.get_additional_commitments() {
             Some(accountable_commitments) => {
-                res.push(accountable_commitments.c_comm);
-                res.push(accountable_commitments.acc_comm);
+                res.extend(accountable_commitments.as_vec());
             },
             _ => {},
         }
@@ -73,8 +72,8 @@ pub trait RegisterCommitments {
     }
 }
 
-impl RegisterCommitments for BasicRegisterCommitments {
-    fn wrap(basic_commitments: BasicRegisterCommitments, accountability_commitments: Option<PackedRegisterCommitments>) -> Self {
+impl RegisterCommitments<()> for BasicRegisterCommitments {
+    fn wrap(basic_commitments: BasicRegisterCommitments, accountability_commitments: Option<()>) -> Self {
         basic_commitments
     }
 
@@ -82,7 +81,7 @@ impl RegisterCommitments for BasicRegisterCommitments {
         self
     }
 
-    fn get_additional_commitments(&self) -> Option<PackedRegisterCommitments> {
+    fn get_additional_commitments(&self) -> Option<()> {
         None
     }
 
@@ -93,6 +92,10 @@ impl RegisterCommitments for BasicRegisterCommitments {
             self.acc_comm.1,
         ]
     }
+}
+
+pub trait AdditionalCommitments {
+    fn as_vec(&self) -> Vec<G1Affine>;
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
@@ -107,13 +110,28 @@ impl PackedRegisterCommitments {
     }
 }
 
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ExtendedRegisterCommitments {
-    basic_commitments: BasicRegisterCommitments,
-    additional_commitments: Option<PackedRegisterCommitments>,
+impl AdditionalCommitments for PackedRegisterCommitments {
+    fn as_vec(&self) -> Vec<G1Affine> {
+        vec![
+            self.c_comm,
+            self.acc_comm,
+        ]
+    }
 }
 
-impl RegisterCommitments for ExtendedRegisterCommitments {
+impl AdditionalCommitments for () {
+    fn as_vec(&self) -> Vec<G1Affine> {
+        unimplemented!()
+    }
+}
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct ExtendedRegisterCommitments<AC: CanonicalSerialize + CanonicalDeserialize> {
+    basic_commitments: BasicRegisterCommitments,
+    additional_commitments: Option<AC>,
+}
+
+impl RegisterCommitments<PackedRegisterCommitments> for ExtendedRegisterCommitments<PackedRegisterCommitments> {
     fn wrap(
         basic_commitments: BasicRegisterCommitments,
         packed_commitments: Option<PackedRegisterCommitments>,

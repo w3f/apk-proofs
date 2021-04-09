@@ -4,13 +4,14 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, ExtendedRegisterCommitments, BasicRegisterCommitments};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, ExtendedRegisterCommitments, BasicRegisterCommitments, PackedRegisterCommitments, AdditionalCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::constraints::{RegisterEvaluations, SuccinctAccountableRegisterEvaluations, BasicRegisterEvaluations};
+use crate::piop::{AdditionalRegisterPolynomials, PackedAccountabilityRegisterPolynomials};
 
 
 pub struct Verifier {
@@ -29,27 +30,40 @@ impl Verifier {
         bitmask: &Bitmask,
         proof: &Proof<BasicRegisterEvaluations, BasicRegisterCommitments>
     ) -> bool {
-        self.verify::<BasicRegisterCommitments, BasicRegisterEvaluations>(apk, bitmask, proof)
+        self.verify::<
+            (),
+            (),
+            BasicRegisterCommitments,
+            BasicRegisterEvaluations
+        >(apk, bitmask, proof)
     }
 
     pub fn verify_packed(
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments>
+        proof: &Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments<PackedRegisterCommitments>>
     ) -> bool {
-        self.verify::<ExtendedRegisterCommitments, SuccinctAccountableRegisterEvaluations>(apk, bitmask, proof)
+        self.verify::<
+            PackedRegisterCommitments,
+            PackedAccountabilityRegisterPolynomials,
+            ExtendedRegisterCommitments<PackedRegisterCommitments>,
+            SuccinctAccountableRegisterEvaluations
+        >(apk, bitmask, proof)
     }
 
-    fn verify<
-        C: RegisterCommitments,
-        E: RegisterEvaluations<C = C>,
-    >(
+    fn verify<AC, AP, C, E>(
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
         proof: &Proof<E, C>,
-    ) -> bool {
+    ) -> bool
+    where
+        AC: AdditionalCommitments,
+        AP: AdditionalRegisterPolynomials<AC>,
+        C: RegisterCommitments<AC>,
+        E: RegisterEvaluations<C = C>,
+    {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
 
         let mut transcript = self.preprocessed_transcript.clone();

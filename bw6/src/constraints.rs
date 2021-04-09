@@ -11,7 +11,7 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use ark_std::{end_timer, start_timer};
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils, ExtendedRegisterCommitments, BasicRegisterCommitments, RegisterCommitments};
+use crate::{Bitmask, point_in_g1_complement, utils, ExtendedRegisterCommitments, BasicRegisterCommitments, RegisterCommitments, AdditionalCommitments, PackedRegisterCommitments};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{Piop, PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials};
 
@@ -65,7 +65,8 @@ impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAcc
 }
 
 pub trait RegisterEvaluations {
-    type C: RegisterCommitments;
+    type AC: AdditionalCommitments;
+    type C: RegisterCommitments<Self::AC>;
 
     fn as_vec(&self) -> Vec<Fr>;
     fn get_bitmask(&self) -> Fr;
@@ -97,6 +98,7 @@ pub struct BasicRegisterEvaluations {
 }
 
 impl RegisterEvaluations for BasicRegisterEvaluations {
+    type AC = ();
     type C = BasicRegisterCommitments;
 
     fn as_vec(&self) -> Vec<Fq> {
@@ -167,7 +169,8 @@ pub struct SuccinctAccountableRegisterEvaluations {
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
-    type C = ExtendedRegisterCommitments;
+    type AC = PackedRegisterCommitments;
+    type C = ExtendedRegisterCommitments<PackedRegisterCommitments>;
 
     fn as_vec(&self) -> Vec<Fq> {
         let mut res = self.basic_evaluations.as_vec();
@@ -182,7 +185,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
-                                                      commitments: &ExtendedRegisterCommitments,
+                                                      commitments: &ExtendedRegisterCommitments<PackedRegisterCommitments>,
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
         let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.basic_commitments);
@@ -785,7 +788,7 @@ impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegis
     }
 }
 
-impl PiopDecorator<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
+impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegisterPolynomials> for SuccinctlyAccountableRegisters {
     fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
@@ -800,12 +803,12 @@ impl PiopDecorator<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccount
     }
 }
 
-impl PiopDecorator<BasicRegisterEvaluations> for Registers {
+impl PiopDecorator<BasicRegisterEvaluations, ()> for Registers {
     fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
         registers
     }
 
-    fn get_accountable_register_polynomials(&self) -> Option<PackedAccountabilityRegisterPolynomials> {
+    fn get_accountable_register_polynomials(&self) -> Option<()> {
         None
     }
 }

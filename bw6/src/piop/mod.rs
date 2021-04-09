@@ -5,6 +5,7 @@ use ark_bw6_761::{Fr, G1Affine};
 use crate::domains::Domains;
 use crate::{utils, PackedRegisterCommitments};
 use crate::constraints::Registers;
+use ark_bls12_377::Fq;
 
 pub trait Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
@@ -22,15 +23,19 @@ pub trait Piop<E> {
     }
 }
 
-pub trait PiopDecorator<E>: Piop<E> {
+pub trait PiopDecorator<E, AP>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-    fn get_accountable_register_polynomials(&self) -> Option<PackedAccountabilityRegisterPolynomials>;
+    fn get_accountable_register_polynomials(&self) -> Option<AP>;
 }
 
 pub trait RegisterPolynomials<E> {
     fn to_vec(self) -> Vec<DensePolynomial<Fr>>;
     fn evaluate(&self, point: Fr) -> E;
+}
+
+pub trait AdditionalRegisterPolynomials<AC> {
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> AC;
 }
 
 pub struct PackedAccountabilityRegisterPolynomials {
@@ -42,11 +47,19 @@ impl PackedAccountabilityRegisterPolynomials {
     pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
         PackedAccountabilityRegisterPolynomials { c_poly, acc_poly }
     }
+}
 
-    pub fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PackedRegisterCommitments {
+impl AdditionalRegisterPolynomials<PackedRegisterCommitments> for PackedAccountabilityRegisterPolynomials {
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PackedRegisterCommitments {
         PackedRegisterCommitments::new(
             f(&self.c_poly),
             f(&self.acc_poly),
         )
+    }
+}
+
+impl AdditionalRegisterPolynomials<()> for () {
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> () {
+        unimplemented!()
     }
 }
