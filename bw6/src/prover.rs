@@ -124,7 +124,7 @@ impl<'a> Prover<'a> {
     where
         E: RegisterEvaluations,
         AC: AdditionalCommitments,
-        AP: AdditionalRegisterPolynomials<AC>,
+        AP: AdditionalRegisterPolynomials<AC = AC>,
         C: RegisterCommitments<AC>,
         D: PiopDecorator<E, AP>,
     {

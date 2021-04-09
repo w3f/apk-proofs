@@ -60,7 +60,7 @@ impl Verifier {
     ) -> bool
     where
         AC: AdditionalCommitments,
-        AP: AdditionalRegisterPolynomials<AC>,
+        AP: AdditionalRegisterPolynomials,
         C: RegisterCommitments<AC>,
         E: RegisterEvaluations<C = C>,
     {

@@ -34,8 +34,10 @@ pub trait RegisterPolynomials<E> {
     fn evaluate(&self, point: Fr) -> E;
 }
 
-pub trait AdditionalRegisterPolynomials<AC> {
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> AC;
+pub trait AdditionalRegisterPolynomials {
+    type AC;
+
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::AC;
 }
 
 pub struct PackedAccountabilityRegisterPolynomials {
@@ -49,7 +51,9 @@ impl PackedAccountabilityRegisterPolynomials {
     }
 }
 
-impl AdditionalRegisterPolynomials<PackedRegisterCommitments> for PackedAccountabilityRegisterPolynomials {
+impl AdditionalRegisterPolynomials for PackedAccountabilityRegisterPolynomials {
+    type AC = PackedRegisterCommitments;
+
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PackedRegisterCommitments {
         PackedRegisterCommitments::new(
             f(&self.c_poly),
@@ -58,7 +62,9 @@ impl AdditionalRegisterPolynomials<PackedRegisterCommitments> for PackedAccounta
     }
 }
 
-impl AdditionalRegisterPolynomials<()> for () {
+impl AdditionalRegisterPolynomials for () {
+    type AC = ();
+
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> () {
         unimplemented!()
     }
