@@ -5,14 +5,15 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, BasicRegisterCommitments, RegisterCommitments, ExtendedRegisterCommitments, PackedRegisterCommitments, AdditionalCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, RegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::constraints::{Registers, RegisterEvaluations, SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters, BasicRegisterEvaluations};
-use crate::piop::{PiopDecorator, AdditionalRegisterPolynomials, PackedAccountabilityRegisterPolynomials};
+use crate::piop::{PiopDecorator, PackedAccountabilityRegisterPolynomials, PartialSumsCommitments, PackedRegisterCommitments, Piop};
+use crate::piop::RegisterPolys;
 
 
 struct Params {
@@ -99,33 +100,33 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, BasicRegisterCommitments> {
+    pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, PartialSumsCommitments, ()> {
         self.prove::<
             BasicRegisterEvaluations,
             (),
             (),
-            BasicRegisterCommitments,
+            PartialSumsCommitments,
             Registers
         >(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments<PackedRegisterCommitments>> {
+    pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments> {
         self.prove::<
             SuccinctAccountableRegisterEvaluations,
             PackedRegisterCommitments,
             PackedAccountabilityRegisterPolynomials,
-            ExtendedRegisterCommitments<PackedRegisterCommitments>,
+            PartialSumsCommitments,
             SuccinctlyAccountableRegisters
         >(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<E, AC, AP, C, D>(&self, bitmask: &Bitmask) -> Proof<E, C>
+    fn prove<E, AC, AP, C, D>(&self, bitmask: &Bitmask) -> Proof<E, PartialSumsCommitments, AC>
     where
         E: RegisterEvaluations,
-        AC: AdditionalCommitments,
-        AP: AdditionalRegisterPolynomials<AC = AC>,
-        C: RegisterCommitments<AC>,
+        AC: RegisterCommitments,
+        AP: RegisterPolys<C = AC>,
+        C: RegisterCommitments,
         D: PiopDecorator<E, AP>,
     {
         let m = self.session.pks.len();
@@ -154,27 +155,22 @@ impl<'a> Prover<'a> {
 
         // 1. Compute and commit to the basic registers.
         let registers = Registers::new(self.domains.clone(), bitmask, pks);
-        let b_poly = registers.get_bitmask_register_polynomial();
-        let (acc_x_poly, acc_y_poly) = registers.get_partial_sums_register_polynomials();
-        let b_comm = KZG_BW6::commit(&self.params.kzg_pk, &b_poly);
-        let acc_x_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_x_poly);
-        let acc_y_comm = KZG_BW6::commit(&self.params.kzg_pk, &acc_y_poly);
-        let basic_commitments = BasicRegisterCommitments {
-            b_comm,
-            acc_comm: (acc_x_comm, acc_y_comm)
-        };
-        transcript.append_basic_commitments(&basic_commitments);
+        let partial_sums_polynomials = registers.get_1st_round_register_polynomials();
+        let partial_sums_commitments = partial_sums_polynomials.commit(
+            |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
+        );
+
+        transcript.append_basic_commitments(&partial_sums_commitments);
 
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
-        let acc_register_commitments = acc_register_polynomials.map(|polys| {
-            polys.commit(|p| KZG_BW6::commit(&self.params.kzg_pk, &p))
-        });
-        let register_commitments = C::wrap(basic_commitments, acc_register_commitments);
-        transcript.append_accountability_commitments(register_commitments.get_additional_commitments());
+        let acc_register_commitments = acc_register_polynomials.commit(
+            |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
+        );
+        transcript.append_accountability_commitments(&acc_register_commitments);
 
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
@@ -220,7 +216,8 @@ impl<'a> Prover<'a> {
 
         // Finally, compose the proof.
         Proof {
-            register_commitments,
+            register_commitments: partial_sums_commitments,
+            additional_commitments: acc_register_commitments,
             // phi <-
             q_comm,
             // zeta <-

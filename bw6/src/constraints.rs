@@ -11,9 +11,9 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use ark_std::{end_timer, start_timer};
 
 use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils, ExtendedRegisterCommitments, BasicRegisterCommitments, RegisterCommitments, AdditionalCommitments, PackedRegisterCommitments};
+use crate::{Bitmask, point_in_g1_complement, utils, RegisterCommitments};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{Piop, PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials};
+use crate::piop::{Piop, PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PartialSumsPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -27,7 +27,7 @@ impl RegisterPolynomials<BasicRegisterEvaluations> for BasicRegisterPolynomials 
         vec![
             self.keyset.0,
             self.keyset.1,
-            self.bitmask,
+            // self.bitmask,
             self.partial_sums.0,
             self.partial_sums.1,
         ]
@@ -65,8 +65,8 @@ impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAcc
 }
 
 pub trait RegisterEvaluations {
-    type AC: AdditionalCommitments;
-    type C: RegisterCommitments<Self::AC>;
+    type AC: RegisterCommitments;
+    type C: RegisterCommitments;
 
     fn as_vec(&self) -> Vec<Fr>;
     fn get_bitmask(&self) -> Fr;
@@ -75,6 +75,7 @@ pub trait RegisterEvaluations {
         phi: Fr,
         zeta_minus_omega_inv: Fr,
         commitments: &Self::C,
+        extra_commitments: &Self::AC,
     ) -> ark_bw6_761::G1Projective;
 
     fn evaluate_constraint_polynomials(
@@ -99,13 +100,13 @@ pub struct BasicRegisterEvaluations {
 
 impl RegisterEvaluations for BasicRegisterEvaluations {
     type AC = ();
-    type C = BasicRegisterCommitments;
+    type C = PartialSumsCommitments;
 
     fn as_vec(&self) -> Vec<Fq> {
         vec![
             self.keyset.0,
             self.keyset.1,
-            self.bitmask,
+            // self.bitmask,
             self.partial_sums.0,
             self.partial_sums.1,
         ]
@@ -118,7 +119,8 @@ impl RegisterEvaluations for BasicRegisterEvaluations {
     fn restore_commitment_to_linearization_polynomial(&self,
                                                           phi: Fr,
                                                           zeta_minus_omega_inv: Fr,
-                                                          commitments: &BasicRegisterCommitments,
+                                                          commitments: &PartialSumsCommitments,
+                                                          extra_commitments: &(),
     ) -> ark_bw6_761::G1Projective {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;
@@ -132,8 +134,8 @@ impl RegisterEvaluations for BasicRegisterEvaluations {
         // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
         // Y3 term = (1-b) + b(x1-x2)phi
         // ...and both multiplied by (\zeta - \omega^{n-1}) // = zeta_minus_omega_inv
-        r_comm += commitments.acc_comm.0.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
-        r_comm += commitments.acc_comm.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
+        r_comm += commitments.0.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
+        r_comm += commitments.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
         r_comm
     }
 
@@ -170,7 +172,7 @@ pub struct SuccinctAccountableRegisterEvaluations {
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     type AC = PackedRegisterCommitments;
-    type C = ExtendedRegisterCommitments<PackedRegisterCommitments>;
+    type C = PartialSumsCommitments;
 
     fn as_vec(&self) -> Vec<Fq> {
         let mut res = self.basic_evaluations.as_vec();
@@ -185,13 +187,13 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
-                                                      commitments: &ExtendedRegisterCommitments<PackedRegisterCommitments>,
+                                                      commitments: &PartialSumsCommitments,
+                                                      extra_commitments: &PackedRegisterCommitments,
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
-        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.basic_commitments);
-        let option = commitments.additional_commitments.clone().unwrap();
-        r_comm += option.acc_comm.mul(powers_of_phi[5]);
-        r_comm += option.c_comm.mul(powers_of_phi[6]);
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments, &());
+        r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
+        r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
         r_comm
     }
 
@@ -390,17 +392,22 @@ impl Registers {
     }
 
     // TODO: interpolate over the smaller domain
-    pub fn get_partial_sums_register_polynomials(&self) -> (DensePolynomial<Fr>, DensePolynomial<Fr>) {
-        (self.apk_acc_x.interpolate_by_ref(), self.apk_acc_y.interpolate_by_ref())
-    }
-
-    // TODO: interpolate over the smaller domain
     pub fn get_bitmask_register_polynomial(&self) -> DensePolynomial<Fr> {
         self.bitmask.interpolate_by_ref()
     }
 }
 
 impl Piop<BasicRegisterEvaluations> for Registers {
+    type P = PartialSumsPolynomials;
+
+    // TODO: interpolate over the smaller domain
+    fn get_1st_round_register_polynomials(&self) -> Self::P {
+        PartialSumsPolynomials(
+            self.apk_acc_x.interpolate_by_ref(),
+            self.apk_acc_y.interpolate_by_ref()
+        )
+    }
+
     fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
         self.polynomials.evaluate(point)
     }
@@ -758,6 +765,12 @@ impl SuccinctlyAccountableRegisters {
 
 
 impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
+    type P = PartialSumsPolynomials;
+
+    fn get_1st_round_register_polynomials(&self) -> Self::P {
+        self.registers.get_1st_round_register_polynomials()
+    }
+
     fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         self.polynomials.evaluate(point)
     }
@@ -793,12 +806,10 @@ impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityR
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
 
-    fn get_accountable_register_polynomials(&self) -> Option<PackedAccountabilityRegisterPolynomials> {
-        Some(
-            PackedAccountabilityRegisterPolynomials::new(
+    fn get_accountable_register_polynomials(&self) -> PackedAccountabilityRegisterPolynomials {
+        PackedAccountabilityRegisterPolynomials::new(
                 self.polynomials.c_poly.clone(),
                 self.polynomials.acc_poly.clone(),
-            )
         )
     }
 }
@@ -808,8 +819,8 @@ impl PiopDecorator<BasicRegisterEvaluations, ()> for Registers {
         registers
     }
 
-    fn get_accountable_register_polynomials(&self) -> Option<()> {
-        None
+    fn get_accountable_register_polynomials(&self) -> () {
+        ()
     }
 }
 
@@ -942,7 +953,7 @@ mod tests {
             .sum::<ark_bls12_377::G1Projective>().into_affine();
         let zeta = Fr::rand(rng);
         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
-        let acc_polys = registers.get_partial_sums_register_polynomials();
+        let acc_polys = registers.get_1st_round_register_polynomials();
         let (x1, y1) = (acc_polys.0.evaluate(&zeta), acc_polys.1.evaluate(&zeta));
         assert_eq!(
             Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),

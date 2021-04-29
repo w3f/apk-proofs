@@ -41,119 +41,14 @@ use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
 use crate::kzg::KZG10;
+use crate::piop::RegisterCommitments;
 
-
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct BasicRegisterCommitments {
-    b_comm: ark_bw6_761::G1Affine,
-    acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
-}
-
-
-pub trait RegisterCommitments<AC: AdditionalCommitments> {
-    fn wrap(
-        basic_commitments: BasicRegisterCommitments,
-        accountability_commitments: Option<AC>,
-    ) -> Self;
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments;
-
-    fn get_additional_commitments(&self) -> Option<AC>;
-
-    fn all_as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
-        let mut res = self.get_basic_commitments().all_as_vec();
-        match self.get_additional_commitments() {
-            Some(accountable_commitments) => {
-                res.extend(accountable_commitments.as_vec());
-            },
-            _ => {},
-        }
-        res
-    }
-}
-
-impl RegisterCommitments<()> for BasicRegisterCommitments {
-    fn wrap(basic_commitments: BasicRegisterCommitments, accountability_commitments: Option<()>) -> Self {
-        basic_commitments
-    }
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
-        self
-    }
-
-    fn get_additional_commitments(&self) -> Option<()> {
-        None
-    }
-
-    fn all_as_vec(&self) -> Vec<G1Affine> {
-        vec![
-            self.b_comm,
-            self.acc_comm.0,
-            self.acc_comm.1,
-        ]
-    }
-}
-
-pub trait AdditionalCommitments {
-    fn as_vec(&self) -> Vec<G1Affine>;
-}
-
-#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
-pub struct PackedRegisterCommitments {
-    c_comm: ark_bw6_761::G1Affine,
-    acc_comm: ark_bw6_761::G1Affine,
-}
-
-impl PackedRegisterCommitments {
-    pub fn new(c_comm: G1Affine, acc_comm: G1Affine) -> Self {
-        PackedRegisterCommitments { c_comm, acc_comm }
-    }
-}
-
-impl AdditionalCommitments for PackedRegisterCommitments {
-    fn as_vec(&self) -> Vec<G1Affine> {
-        vec![
-            self.c_comm,
-            self.acc_comm,
-        ]
-    }
-}
-
-impl AdditionalCommitments for () {
-    fn as_vec(&self) -> Vec<G1Affine> {
-        unimplemented!()
-    }
-}
-
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ExtendedRegisterCommitments<AC: CanonicalSerialize + CanonicalDeserialize> {
-    basic_commitments: BasicRegisterCommitments,
-    additional_commitments: Option<AC>,
-}
-
-impl RegisterCommitments<PackedRegisterCommitments> for ExtendedRegisterCommitments<PackedRegisterCommitments> {
-    fn wrap(
-        basic_commitments: BasicRegisterCommitments,
-        packed_commitments: Option<PackedRegisterCommitments>,
-    ) -> Self {
-        Self {
-            basic_commitments,
-            additional_commitments: packed_commitments,
-        }
-    }
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
-        &self.basic_commitments
-    }
-
-    fn get_additional_commitments(&self) -> Option<PackedRegisterCommitments> {
-        self.additional_commitments.clone()
-    }
-}
 
 // #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<E, C> {
+pub struct Proof<E, C, AC> {
     register_commitments: C,
+    // 2nd round commitments, used in "packed" scheme after get the bitmask aggregation challenge is received
+    additional_commitments: AC,
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
@@ -167,6 +62,7 @@ pub struct Proof<E, C> {
 
 
 use ark_ff::field_new;
+
 const H_X: Fr = field_new!(Fr, "0");
 const H_Y: Fr = field_new!(Fr, "1");
 fn point_in_g1_complement() -> ark_bls12_377::G1Affine {

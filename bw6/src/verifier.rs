@@ -4,14 +4,14 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::Transcript;
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, ExtendedRegisterCommitments, BasicRegisterCommitments, PackedRegisterCommitments, AdditionalCommitments};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::constraints::{RegisterEvaluations, SuccinctAccountableRegisterEvaluations, BasicRegisterEvaluations};
-use crate::piop::{AdditionalRegisterPolynomials, PackedAccountabilityRegisterPolynomials};
+use crate::piop::{PackedAccountabilityRegisterPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
 
 
 pub struct Verifier {
@@ -28,12 +28,12 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<BasicRegisterEvaluations, BasicRegisterCommitments>
+        proof: &Proof<BasicRegisterEvaluations, PartialSumsCommitments, ()>
     ) -> bool {
         self.verify::<
             (),
             (),
-            BasicRegisterCommitments,
+            PartialSumsCommitments,
             BasicRegisterEvaluations
         >(apk, bitmask, proof)
     }
@@ -42,12 +42,12 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<SuccinctAccountableRegisterEvaluations, ExtendedRegisterCommitments<PackedRegisterCommitments>>
+        proof: &Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments>
     ) -> bool {
         self.verify::<
             PackedRegisterCommitments,
             PackedAccountabilityRegisterPolynomials,
-            ExtendedRegisterCommitments<PackedRegisterCommitments>,
+            PartialSumsCommitments,
             SuccinctAccountableRegisterEvaluations
         >(apk, bitmask, proof)
     }
@@ -56,23 +56,22 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<E, C>,
+        proof: &Proof<E, C, AC>,
     ) -> bool
     where
-        AC: AdditionalCommitments,
-        AP: AdditionalRegisterPolynomials,
-        C: RegisterCommitments<AC>,
-        E: RegisterEvaluations<C = C>,
+        AC: RegisterCommitments,
+        AP: RegisterPolys,
+        C: RegisterCommitments,
+        E: RegisterEvaluations<C = C> + RegisterEvaluations<AC = AC>,
     {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
 
         let mut transcript = self.preprocessed_transcript.clone();
 
         transcript.append_public_input(&apk, bitmask);
-        let basic_commitments = proof.register_commitments.get_basic_commitments();
-        transcript.append_basic_commitments(basic_commitments);
+        transcript.append_basic_commitments(&proof.register_commitments);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-        transcript.append_accountability_commitments(proof.register_commitments.get_additional_commitments());
+        transcript.append_accountability_commitments(&proof.additional_commitments);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
         transcript.append_proof_point(b"q_comm", &proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
@@ -92,7 +91,8 @@ impl Verifier {
         let r_comm = proof.register_evaluations.restore_commitment_to_linearization_polynomial(
             phi,
             evals_at_zeta.zeta_minus_omega_inv,
-            &proof.register_commitments
+            &proof.register_commitments,
+            &proof.additional_commitments,
         ).into_affine();
         end_timer!(t_r_comm);
 
@@ -103,7 +103,8 @@ impl Verifier {
             self.pks_comm.pks_x_comm,
             self.pks_comm.pks_y_comm,
         ];
-        commitments.extend(proof.register_commitments.all_as_vec());
+        commitments.extend(proof.register_commitments.as_vec());
+        commitments.extend(proof.additional_commitments.as_vec());
         commitments.push(proof.q_comm);
         let w_comm = KZG_BW6::aggregate_commitments(nu, &commitments);
         end_timer!(t_multiexp);
