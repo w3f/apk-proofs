@@ -1,4 +1,4 @@
-use crate::piop::RegisterEvaluationsProtocol;
+use crate::piop::Protocol;
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
