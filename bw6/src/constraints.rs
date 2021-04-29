@@ -13,7 +13,7 @@ use ark_std::{end_timer, start_timer};
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, RegisterCommitments};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PartialSumsPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
+use crate::piop::{Protocol, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PartialSumsPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -711,7 +711,7 @@ impl SuccinctlyAccountableRegisters {
 
 
 
-impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegisterPolynomials> for SuccinctlyAccountableRegisters {
+impl Protocol<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegisterPolynomials> for SuccinctlyAccountableRegisters {
     type P = PartialSumsPolynomials;
 
     fn get_1st_round_register_polynomials(&self) -> Self::P {
@@ -759,7 +759,7 @@ impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityR
     }
 }
 
-impl PiopDecorator<BasicRegisterEvaluations, ()> for Registers {
+impl Protocol<BasicRegisterEvaluations, ()> for Registers {
     type P = PartialSumsPolynomials;
 
     // TODO: interpolate over the smaller domain

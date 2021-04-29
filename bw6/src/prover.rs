@@ -12,7 +12,7 @@ use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::constraints::{Registers, RegisterEvaluations, SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters, BasicRegisterEvaluations};
-use crate::piop::{PiopDecorator, PackedAccountabilityRegisterPolynomials, PartialSumsCommitments, PackedRegisterCommitments};
+use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials, PartialSumsCommitments, PackedRegisterCommitments};
 use crate::piop::RegisterPolys;
 
 
@@ -127,7 +127,7 @@ impl<'a> Prover<'a> {
         AC: RegisterCommitments,
         AP: RegisterPolys<C = AC>,
         C: RegisterCommitments,
-        D: PiopDecorator<E, AP>,
+        D: Protocol<E, AP>,
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;

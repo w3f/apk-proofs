@@ -76,7 +76,7 @@ impl RegisterCommitments for PackedRegisterCommitments {
     }
 }
 
-pub trait PiopDecorator<E, AP> {
+pub trait Protocol<E, AP> {
     type P: RegisterPolys;
     fn get_1st_round_register_polynomials(&self) -> Self::P;
 
