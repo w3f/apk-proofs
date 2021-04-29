@@ -3,12 +3,14 @@ use ark_poly::univariate::DensePolynomial;
 use ark_bw6_761::{Fr, G1Affine};
 
 use crate::domains::Domains;
-use crate::utils;
+use crate::{utils, Bitmask};
 use crate::constraints::Registers;
 use ark_bls12_377::Fq;
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
+pub mod packed;
 
 pub trait RegisterCommitments {
     fn as_vec(&self) -> Vec<G1Affine>;
@@ -80,12 +82,16 @@ pub trait Protocol<E> {
     type P1: RegisterPolys;
     type P2: RegisterPolys;
 
+    fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
+
     fn get_1st_round_register_polynomials(&self) -> Self::P1;
-    fn get_2nd_round_register_polynomials(&self) -> Self::P2;
+    //TODO: remove bitmask arg
+    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> Self::P2;
 
 
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn evaluate_register_polynomials(&self, point: Fr) -> E;
+    // TODO: move zeta_minus_omega_inv param to evaluations
     fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
@@ -97,10 +103,6 @@ pub trait Protocol<E> {
         assert_eq!(r, DensePolynomial::zero());
         q_poly
     }
-
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-
 }
 
 pub trait RegisterPolynomials<E> {

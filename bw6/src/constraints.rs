@@ -44,8 +44,8 @@ impl RegisterPolynomials<BasicRegisterEvaluations> for BasicRegisterPolynomials 
 
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
     basic_polynomials: BasicRegisterPolynomials,
-    c_poly: DensePolynomial<Fr>,
-    acc_poly: DensePolynomial<Fr>,
+    pub c_poly: DensePolynomial<Fr>,
+    pub acc_poly: DensePolynomial<Fr>,
 }
 
 impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAccountableRegisterPolynomials {
@@ -711,19 +711,12 @@ impl SuccinctlyAccountableRegisters {
 
 
 
-impl Protocol<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
-    type P1 = PartialSumsPolynomials;
-    type P2 = PackedAccountabilityRegisterPolynomials;
-
-    fn get_1st_round_register_polynomials(&self) -> Self::P1 {
-        self.registers.get_1st_round_register_polynomials()
-    }
-
-    fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
+impl  SuccinctlyAccountableRegisters {
+    pub fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         self.polynomials.evaluate(point)
     }
 
-    fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    pub fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
         let powers_of_phi = &utils::powers(phi, 6);
         // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
         let a6_lin = &self.polynomials.acc_poly;
@@ -736,7 +729,7 @@ impl Protocol<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableR
         r_poly
     }
 
-    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
+    pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
         let mut constraints = self.registers.compute_constraint_polynomials();
         let a6_poly = self.compute_inner_product_constraint_polynomial();
         let a7_poly = self.compute_multipacking_mask_constraint_polynomial();
@@ -744,25 +737,18 @@ impl Protocol<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableR
         constraints
     }
 
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
+    pub fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
         self.polynomials.to_vec()
-    }
-
-    fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
-        SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
-    }
-
-    fn get_2nd_round_register_polynomials(&self) -> PackedAccountabilityRegisterPolynomials {
-        PackedAccountabilityRegisterPolynomials::new(
-                self.polynomials.c_poly.clone(),
-                self.polynomials.acc_poly.clone(),
-        )
     }
 }
 
 impl Protocol<BasicRegisterEvaluations> for Registers {
     type P1 = PartialSumsPolynomials;
     type P2 = ();
+
+    fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<G1Affine>) -> Self {
+        Registers::new(domains, bitmask, pks)
+    }
 
     // TODO: interpolate over the smaller domain
     fn get_1st_round_register_polynomials(&self) -> Self::P1 {
@@ -814,11 +800,7 @@ impl Protocol<BasicRegisterEvaluations> for Registers {
         self.polynomials.to_vec()
     }
 
-    fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
-        registers
-    }
-
-    fn get_2nd_round_register_polynomials(&self) -> () {
+    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> () {
         ()
     }
 }
