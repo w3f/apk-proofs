@@ -11,7 +11,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::piop::constraints::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
+use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
 use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
 use crate::piop::RegisterPolys;
 use crate::piop::packed::PackedRegisterBuilder;

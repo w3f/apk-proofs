@@ -1,4 +1,4 @@
-use crate::piop::constraints::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
+use crate::piop::bit_packing::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
 use crate::piop::{Protocol, RegisterPolys, PackedAccountabilityRegisterPolynomials};
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;

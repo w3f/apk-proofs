@@ -12,7 +12,7 @@ use crate::utils::LagrangeEvaluations;
 pub mod packed;
 pub mod affine_addition;
 pub mod basic;
-pub mod constraints;
+pub mod bit_packing;
 
 pub trait RegisterCommitments {
     fn as_vec(&self) -> Vec<G1Affine>;
