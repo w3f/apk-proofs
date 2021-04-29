@@ -41,7 +41,7 @@ pub struct BasicRegisterPolynomials {
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
 }
 
-impl RegisterPolynomials<BasicRegisterEvaluations> for BasicRegisterPolynomials {
+impl RegisterPolynomials<AffineAdditionEvaluations> for BasicRegisterPolynomials {
     fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         vec![
             self.keyset.0,
@@ -52,8 +52,8 @@ impl RegisterPolynomials<BasicRegisterEvaluations> for BasicRegisterPolynomials 
         ]
     }
 
-    fn evaluate(&self, point: Fr) -> BasicRegisterEvaluations {
-        BasicRegisterEvaluations {
+    fn evaluate(&self, point: Fr) -> AffineAdditionEvaluations {
+        AffineAdditionEvaluations {
             keyset: (self.keyset.0.evaluate(&point), self.keyset.1.evaluate(&point)),
             bitmask: self.bitmask.evaluate(&point),
             partial_sums: (self.partial_sums.0.evaluate(&point), self.partial_sums.1.evaluate(&point)),
@@ -63,13 +63,13 @@ impl RegisterPolynomials<BasicRegisterEvaluations> for BasicRegisterPolynomials 
 
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct BasicRegisterEvaluations {
+pub struct AffineAdditionEvaluations {
     pub keyset: (Fr, Fr),
     pub bitmask: Fr,
     pub partial_sums: (Fr, Fr),
 }
 
-impl RegisterEvaluations for BasicRegisterEvaluations {
+impl RegisterEvaluations for AffineAdditionEvaluations {
     type AC = ();
     type C = PartialSumsCommitments;
 
@@ -265,14 +265,14 @@ impl AffineAdditionRegisters {
         )
     }
 
-    pub fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
+    pub fn evaluate_register_polynomials(&self, point: Fr) -> AffineAdditionEvaluations {
         self.polynomials.evaluate(point)
     }
 
     // Compute linearization polynomial
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
     // deg(r) = n, so it can be computed in the monomial basis
-    pub fn compute_linearization_polynomial(&self, evaluations: &BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    pub fn compute_linearization_polynomial(&self, evaluations: &AffineAdditionEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
         let b_zeta = evaluations.bitmask;
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);

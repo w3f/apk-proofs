@@ -15,7 +15,7 @@ use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
 use crate::piop::{Protocol, PackedRegisterCommitments};
 use crate::piop::RegisterPolys;
 use crate::piop::packed::PackedRegisterBuilder;
-use crate::piop::affine_addition::{BasicRegisterEvaluations, PartialSumsCommitments};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
 use crate::piop::basic::BasicRegisterBuilder;
 
 
@@ -103,7 +103,7 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, PartialSumsCommitments, ()> {
+    pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<AffineAdditionEvaluations, PartialSumsCommitments, ()> {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 

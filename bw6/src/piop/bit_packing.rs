@@ -11,7 +11,7 @@ use ark_std::{end_timer, start_timer};
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{RegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
-use crate::piop::affine_addition::{BasicRegisterPolynomials, BasicRegisterEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
+use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 
 
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
@@ -42,7 +42,7 @@ impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAcc
 pub struct SuccinctAccountableRegisterEvaluations {
     pub c: Fr,
     pub acc: Fr,
-    pub basic_evaluations: BasicRegisterEvaluations,
+    pub basic_evaluations: AffineAdditionEvaluations,
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
