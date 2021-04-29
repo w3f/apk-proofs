@@ -13,7 +13,7 @@ use ark_std::{end_timer, start_timer};
 use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, RegisterCommitments};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{Piop, PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PartialSumsPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
+use crate::piop::{PiopDecorator, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PartialSumsPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
 
 #[derive(Clone)] //TODO: remove
 pub struct BasicRegisterPolynomials {
@@ -397,60 +397,6 @@ impl Registers {
     }
 }
 
-impl Piop<BasicRegisterEvaluations> for Registers {
-    type P = PartialSumsPolynomials;
-
-    // TODO: interpolate over the smaller domain
-    fn get_1st_round_register_polynomials(&self) -> Self::P {
-        PartialSumsPolynomials(
-            self.apk_acc_x.interpolate_by_ref(),
-            self.apk_acc_y.interpolate_by_ref()
-        )
-    }
-
-    fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
-        self.polynomials.evaluate(point)
-    }
-
-    // Compute linearization polynomial
-    // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
-    // deg(r) = n, so it can be computed in the monomial basis
-    fn compute_linearization_polynomial(&self, evaluations: &BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        let b_zeta = evaluations.bitmask;
-        let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
-        let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
-        let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;
-
-        let mut a1_lin = DensePolynomial::<Fr>::zero();
-        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
-        a1_lin += (Fr::one() - b_zeta, acc_y_poly);
-
-        let mut a2_lin = DensePolynomial::<Fr>::zero();
-        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
-        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
-        a2_lin += (Fr::one() - b_zeta, acc_x_poly);
-
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (zeta_minus_omega_inv, &a1_lin);
-        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
-        r_poly
-    }
-
-    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
-        let (a1_poly, a2_poly) =
-            Constraints::compute_conditional_affine_addition_constraint_polynomials(self);
-        let a3_poly =
-            Constraints::compute_bitmask_booleanity_constraint_polynomial(self);
-        let (a4_poly, a5_poly) =
-            Constraints::compute_public_inputs_constraint_polynomials(self);
-        vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
-    }
-
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fq>> {
-        self.polynomials.to_vec()
-    }
-}
-
 pub(crate) struct Constraints {}
 
 impl Constraints {
@@ -764,7 +710,8 @@ impl SuccinctlyAccountableRegisters {
 }
 
 
-impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
+
+impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegisterPolynomials> for SuccinctlyAccountableRegisters {
     type P = PartialSumsPolynomials;
 
     fn get_1st_round_register_polynomials(&self) -> Self::P {
@@ -799,9 +746,7 @@ impl Piop<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegis
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
         self.polynomials.to_vec()
     }
-}
 
-impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegisterPolynomials> for SuccinctlyAccountableRegisters {
     fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
@@ -815,6 +760,58 @@ impl PiopDecorator<SuccinctAccountableRegisterEvaluations, PackedAccountabilityR
 }
 
 impl PiopDecorator<BasicRegisterEvaluations, ()> for Registers {
+    type P = PartialSumsPolynomials;
+
+    // TODO: interpolate over the smaller domain
+    fn get_1st_round_register_polynomials(&self) -> Self::P {
+        PartialSumsPolynomials(
+            self.apk_acc_x.interpolate_by_ref(),
+            self.apk_acc_y.interpolate_by_ref()
+        )
+    }
+
+    fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
+        self.polynomials.evaluate(point)
+    }
+
+    // Compute linearization polynomial
+    // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
+    // deg(r) = n, so it can be computed in the monomial basis
+    fn compute_linearization_polynomial(&self, evaluations: &BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+        let b_zeta = evaluations.bitmask;
+        let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
+        let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
+        let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;
+
+        let mut a1_lin = DensePolynomial::<Fr>::zero();
+        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
+        a1_lin += (Fr::one() - b_zeta, acc_y_poly);
+
+        let mut a2_lin = DensePolynomial::<Fr>::zero();
+        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
+        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
+        a2_lin += (Fr::one() - b_zeta, acc_x_poly);
+
+        let mut r_poly = DensePolynomial::<Fr>::zero();
+        r_poly += (zeta_minus_omega_inv, &a1_lin);
+        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
+        r_poly
+    }
+
+    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
+        let (a1_poly, a2_poly) =
+            Constraints::compute_conditional_affine_addition_constraint_polynomials(self);
+        let a3_poly =
+            Constraints::compute_bitmask_booleanity_constraint_polynomial(self);
+        let (a4_poly, a5_poly) =
+            Constraints::compute_public_inputs_constraint_polynomials(self);
+        vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
+    }
+
+    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fq>> {
+        self.polynomials.to_vec()
+    }
+
     fn wrap(registers: Registers, bitmask: Vec<Fq>, bitmask_chunks_aggregation_challenge: Fq) -> Self {
         registers
     }

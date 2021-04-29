@@ -76,8 +76,7 @@ impl RegisterCommitments for PackedRegisterCommitments {
     }
 }
 
-
-pub trait Piop<E> {
+pub trait PiopDecorator<E, AP> {
     type P: RegisterPolys;
     fn get_1st_round_register_polynomials(&self) -> Self::P;
 
@@ -95,9 +94,7 @@ pub trait Piop<E> {
         assert_eq!(r, DensePolynomial::zero());
         q_poly
     }
-}
 
-pub trait PiopDecorator<E, AP>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
     fn get_accountable_register_polynomials(&self) -> AP;
