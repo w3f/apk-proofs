@@ -1,11 +1,24 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
-mod prover;
-pub use self::prover::*;
+use ark_bw6_761::{BW6_761, Fr, G1Affine};
+use ark_ec::PairingEngine;
+use ark_ff::field_new;
+use ark_poly::univariate::DensePolynomial;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
 
-mod verifier;
+pub use bitmask::Bitmask;
+pub use setup::Setup;
+pub use signer_set::{SignerSet, SignerSetCommitment};
+
+use crate::kzg::KZG10;
+use crate::piop::RegisterCommitments;
+
+pub use self::prover::*;
 pub use self::verifier::*;
 
+mod prover;
+mod verifier;
 pub mod endo;
 pub mod utils;
 
@@ -14,35 +27,17 @@ pub mod bls;
 mod transcript;
 
 mod signer_set;
-pub use signer_set::{SignerSet, SignerSetCommitment};
-
 mod kzg;
 mod fsrng;
 mod domains;
-mod constraints;
 mod piop;
 
 mod setup;
-pub use setup::Setup;
-
 mod bitmask;
-pub use bitmask::Bitmask;
-
-use ark_poly::univariate::DensePolynomial;
-use ark_ec::PairingEngine;
-
-use ark_bw6_761::{BW6_761, Fr, G1Affine};
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
-
-use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
-
-use crate::kzg::KZG10;
-use crate::piop::RegisterCommitments;
-
 
 // #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<E, C, AC> {
@@ -61,8 +56,6 @@ pub struct Proof<E, C, AC> {
 }
 
 
-use ark_ff::field_new;
-
 const H_X: Fr = field_new!(Fr, "0");
 const H_Y: Fr = field_new!(Fr, "1");
 fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
@@ -72,13 +65,15 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_std::{end_timer, start_timer};
-    use merlin::Transcript;
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
+    use merlin::Transcript;
     use rand::Rng;
-    use crate::constraints::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
+
+    use crate::piop::constraints::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
+
+    use super::*;
 
     pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
         (0..size).map(|_| rng.gen_bool(density)).collect()

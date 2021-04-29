@@ -1,18 +1,18 @@
+use ark_bls12_377::Fq;
+use ark_bw6_761::{Fr, G1Affine};
 use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
-use ark_bw6_761::{Fr, G1Affine};
-
-use crate::domains::Domains;
-use crate::{utils, Bitmask};
-use ark_bls12_377::Fq;
-
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
+use crate::{Bitmask, utils};
+use crate::domains::Domains;
 use crate::utils::LagrangeEvaluations;
 
 pub mod packed;
 pub mod affine_addition;
 pub mod basic;
+pub mod constraints;
 
 pub trait RegisterCommitments {
     fn as_vec(&self) -> Vec<G1Affine>;
