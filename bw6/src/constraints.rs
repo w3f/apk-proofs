@@ -14,7 +14,7 @@ use crate::domains::Domains;
 use crate::{Bitmask, point_in_g1_complement, utils, RegisterCommitments};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{Protocol, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterPolys, RegisterEvaluations};
-use crate::piop::affine_addition::{BasicRegisterPolynomials, BasicRegisterEvaluations, Registers, PartialSumsCommitments};
+use crate::piop::affine_addition::{BasicRegisterPolynomials, BasicRegisterEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 
 
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
@@ -152,7 +152,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 
 
 pub(crate) struct SuccinctlyAccountableRegisters {
-    registers: Registers,
+    registers: AffineAdditionRegisters,
     c: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     c_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     acc: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -166,7 +166,7 @@ pub(crate) struct SuccinctlyAccountableRegisters {
 impl SuccinctlyAccountableRegisters {
 
     // TODO: remove bitmask arg
-    pub fn new(registers: Registers,
+    pub fn new(registers: AffineAdditionRegisters,
                bitmask: Vec<Fr>,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
@@ -199,7 +199,7 @@ impl SuccinctlyAccountableRegisters {
     }
 
     fn new_unchecked(
-        registers: Registers,
+        registers: AffineAdditionRegisters,
         c: Vec<Fr>,
         c_shifted: Vec<Fr>,
         acc: Vec<Fr>,
@@ -401,7 +401,7 @@ mod tests {
         let domains = Domains::new(n);
 
         let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
-        let registers = Registers::new(
+        let registers = AffineAdditionRegisters::new(
             domains.clone(),
             &bitmask,
             random_pks(m, rng),

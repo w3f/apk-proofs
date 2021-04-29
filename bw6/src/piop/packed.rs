@@ -5,10 +5,10 @@ use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_bls12_377::{G1Affine, Fq};
 use crate::Bitmask;
 use ark_bw6_761::Fr;
-use crate::piop::affine_addition::{Registers, PartialSumsPolynomials};
+use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomials};
 
 pub struct PackedRegisterBuilder {
-    affine_addition_registers: Registers,
+    affine_addition_registers: AffineAdditionRegisters,
     bitmask_packing_registers: Option<SuccinctlyAccountableRegisters>,
 }
 
@@ -18,7 +18,7 @@ impl Protocol<SuccinctAccountableRegisterEvaluations> for PackedRegisterBuilder 
 
     fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<G1Affine>) -> Self {
         PackedRegisterBuilder {
-            affine_addition_registers: Registers::new(domains, bitmask, pks),
+            affine_addition_registers: AffineAdditionRegisters::new(domains, bitmask, pks),
             bitmask_packing_registers: None
         }
     }

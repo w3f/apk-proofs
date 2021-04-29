@@ -135,7 +135,7 @@ impl RegisterEvaluations for BasicRegisterEvaluations {
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
 #[derive(Clone)] //TODO: remove
-pub struct Registers {
+pub struct AffineAdditionRegisters {
     pub domains: Domains,
     pub bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     // public keys' coordinates
@@ -151,7 +151,7 @@ pub struct Registers {
     pub polynomials: BasicRegisterPolynomials,
 }
 
-impl Registers {
+impl AffineAdditionRegisters {
     pub fn new(domains: Domains,
                bitmask: &Bitmask,
                pks: Vec<ark_bls12_377::G1Affine>,
@@ -261,7 +261,7 @@ impl Registers {
 pub(crate) struct Constraints {}
 
 impl Constraints {
-    pub fn compute_bitmask_booleanity_constraint_polynomial(registers: &Registers) -> DensePolynomial<Fr> {
+    pub fn compute_bitmask_booleanity_constraint_polynomial(registers: &AffineAdditionRegisters) -> DensePolynomial<Fr> {
         let b = &registers.bitmask;
         let mut one_minus_b = registers.domains.constant_4x(Fr::one());
         one_minus_b -= b;
@@ -272,7 +272,7 @@ impl Constraints {
         bitmask_at_zeta * (Fr::one() - bitmask_at_zeta)
     }
 
-    pub fn compute_conditional_affine_addition_constraint_polynomials(registers: &Registers) ->
+    pub fn compute_conditional_affine_addition_constraint_polynomials(registers: &AffineAdditionRegisters) ->
     (DensePolynomial<Fr>, DensePolynomial<Fr>) {
         let b = &registers.bitmask;
         let mut one_minus_b = registers.domains.constant_4x(Fr::one());
@@ -371,7 +371,7 @@ impl Constraints {
     }
 
     // TODO: better name
-    pub fn compute_public_inputs_constraint_polynomials(registers: &Registers) ->
+    pub fn compute_public_inputs_constraint_polynomials(registers: &AffineAdditionRegisters) ->
     (DensePolynomial<Fr>, DensePolynomial<Fr>) {
         let h = point_in_g1_complement();
         let x1 = &registers.apk_acc_x;
@@ -408,12 +408,12 @@ impl Constraints {
     }
 }
 
-impl Protocol<BasicRegisterEvaluations> for Registers {
+impl Protocol<BasicRegisterEvaluations> for AffineAdditionRegisters {
     type P1 = PartialSumsPolynomials;
     type P2 = ();
 
     fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
-        Registers::new(domains, bitmask, pks)
+        AffineAdditionRegisters::new(domains, bitmask, pks)
     }
 
     // TODO: interpolate over the smaller domain
@@ -516,7 +516,7 @@ mod tests {
         let domains = Domains::new(n);
 
         let good_bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
-        let registers = Registers::new(
+        let registers = AffineAdditionRegisters::new(
             domains.clone(),
             &good_bitmask,
             random_pks(m, rng),
@@ -534,7 +534,7 @@ mod tests {
 
         let mut bad_bitmask = random_bitmask(rng, m);
         bad_bitmask[0] = Fr::rand(rng);
-        let registers = Registers::new_unchecked(
+        let registers = AffineAdditionRegisters::new_unchecked(
             domains.clone(),
             bad_bitmask,
             dummy_registers(n),
@@ -555,7 +555,7 @@ mod tests {
         let domains = Domains::new(n);
 
         let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
-        let registers = Registers::new(
+        let registers = AffineAdditionRegisters::new(
             domains.clone(),
             &bitmask,
             random_pks(m, rng),
@@ -580,7 +580,7 @@ mod tests {
         let bits = random_bits(m, 0.5, rng);
         let bitmask = Bitmask::from_bits(&bits);
         let pks = random_pks(m, rng);
-        let registers = Registers::new(
+        let registers = AffineAdditionRegisters::new(
             domains.clone(),
             &bitmask,
             pks.clone(),
