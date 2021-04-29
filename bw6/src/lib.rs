@@ -1,6 +1,6 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
-use ark_bw6_761::{BW6_761, Fr, G1Affine};
+use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::PairingEngine;
 use ark_ff::field_new;
 use ark_poly::univariate::DensePolynomial;
@@ -12,7 +12,7 @@ pub use setup::Setup;
 pub use signer_set::{SignerSet, SignerSetCommitment};
 
 use crate::kzg::KZG10;
-use crate::piop::RegisterCommitments;
+use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;
@@ -39,8 +39,8 @@ type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
-// #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<E, C, AC> {
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCommitments> {
     register_commitments: C,
     // 2nd round commitments, used in "packed" scheme after get the bitmask aggregation challenge is received
     additional_commitments: AC,
@@ -123,9 +123,9 @@ mod tests {
         let proof = prover.prove_packed(&b);
         end_timer!(prove_);
 
-        // let mut serialized_proof = vec![0; proof.serialized_size()];
-        // proof.serialize(&mut serialized_proof[..]).unwrap();
-        // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify_packed(&apk, &b, &proof);
@@ -171,9 +171,9 @@ mod tests {
         let proof = prover.prove_simple(&b);
         end_timer!(prove_);
 
-        // let mut serialized_proof = vec![0; proof.serialized_size()];
-        // proof.serialize(&mut serialized_proof[..]).unwrap();
-        // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify_simple(&apk, &b, &proof);
