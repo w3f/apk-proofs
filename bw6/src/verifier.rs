@@ -10,8 +10,9 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
-use crate::constraints::{RegisterEvaluations, SuccinctAccountableRegisterEvaluations, BasicRegisterEvaluations};
-use crate::piop::{PackedAccountabilityRegisterPolynomials, PartialSumsCommitments, PackedRegisterCommitments, RegisterPolys};
+use crate::constraints::{SuccinctAccountableRegisterEvaluations};
+use crate::piop::{PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterPolys, RegisterEvaluations};
+use crate::piop::affine_addition::{BasicRegisterEvaluations, PartialSumsCommitments};
 
 
 pub struct Verifier {

@@ -78,7 +78,7 @@ mod tests {
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use rand::Rng;
-    use crate::constraints::{SuccinctlyAccountableRegisters, Registers, BasicRegisterEvaluations, SuccinctAccountableRegisterEvaluations};
+    use crate::constraints::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
 
     pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
         (0..size).map(|_| rng.gen_bool(density)).collect()

@@ -1,10 +1,11 @@
-use crate::constraints::{Registers, SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
-use crate::piop::{Protocol, RegisterPolys, PartialSumsPolynomials, PackedAccountabilityRegisterPolynomials};
+use crate::constraints::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
+use crate::piop::{Protocol, RegisterPolys, PackedAccountabilityRegisterPolynomials};
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_bls12_377::{G1Affine, Fq};
 use crate::Bitmask;
 use ark_bw6_761::Fr;
+use crate::piop::affine_addition::{Registers, PartialSumsPolynomials};
 
 pub struct PackedRegisterBuilder {
     affine_addition_registers: Registers,

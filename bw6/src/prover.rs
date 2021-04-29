@@ -11,10 +11,12 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::constraints::{Registers, RegisterEvaluations, SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters, BasicRegisterEvaluations};
-use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials, PartialSumsCommitments, PackedRegisterCommitments};
+use crate::constraints::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
+use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
 use crate::piop::RegisterPolys;
 use crate::piop::packed::PackedRegisterBuilder;
+use crate::piop::affine_addition::{BasicRegisterEvaluations, Registers, PartialSumsCommitments};
+
 
 
 struct Params {

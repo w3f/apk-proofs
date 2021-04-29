@@ -4,13 +4,14 @@ use ark_bw6_761::{Fr, G1Affine};
 
 use crate::domains::Domains;
 use crate::{utils, Bitmask};
-use crate::constraints::Registers;
 use ark_bls12_377::Fq;
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use crate::utils::LagrangeEvaluations;
 
 pub mod packed;
+pub mod affine_addition;
 
 pub trait RegisterCommitments {
     fn as_vec(&self) -> Vec<G1Affine>;
@@ -32,28 +33,6 @@ impl RegisterPolys for () {
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C {
         ()
-    }
-}
-
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct PartialSumsCommitments(pub ark_bw6_761::G1Affine, pub ark_bw6_761::G1Affine);
-
-impl RegisterCommitments for PartialSumsCommitments {
-    fn as_vec(&self) -> Vec<G1Affine> {
-        vec![
-            self.0,
-            self.1,
-        ]
-    }
-}
-
-pub struct PartialSumsPolynomials(pub DensePolynomial<Fr>, pub DensePolynomial<Fr>);
-
-impl RegisterPolys for PartialSumsPolynomials {
-    type C = PartialSumsCommitments;
-
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PartialSumsCommitments {
-        PartialSumsCommitments(f(&self.0), f(&self.1))
     }
 }
 
@@ -130,4 +109,31 @@ impl RegisterPolys for PackedAccountabilityRegisterPolynomials {
                 f(&self.acc_poly),
             )
     }
+}
+
+pub trait RegisterEvaluations {
+    type AC: RegisterCommitments;
+    type C: RegisterCommitments;
+
+    fn as_vec(&self) -> Vec<Fr>;
+    fn get_bitmask(&self) -> Fr;
+    fn restore_commitment_to_linearization_polynomial(
+        &self,
+        phi: Fr,
+        zeta_minus_omega_inv: Fr,
+        commitments: &Self::C,
+        extra_commitments: &Self::AC,
+    ) -> ark_bw6_761::G1Projective;
+
+    fn evaluate_constraint_polynomials(
+        &self,
+        apk: ark_bls12_377::G1Affine,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        r: Fr,
+        bitmask: &Bitmask,
+        domain_size: u64,
+    ) -> Vec<Fr>;
+
+    //TODO: move somewhere
+    fn is_accountable(&self) -> bool;
 }
