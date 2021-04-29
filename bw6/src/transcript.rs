@@ -5,7 +5,7 @@ use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
 use crate::{Bitmask};
-use crate::piop::{RegisterCommitments, RegisterPolys, RegisterEvaluations};
+use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 /// E - evaluations
 pub(crate) trait ApkTranscript {

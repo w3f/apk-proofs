@@ -1,5 +1,5 @@
-use crate::piop::{RegisterCommitments, RegisterPolys, Protocol};
-use ark_bw6_761::{G1Affine, Fr};
+use crate::piop::Protocol;
+use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
 use crate::Bitmask;

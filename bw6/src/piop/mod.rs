@@ -1,4 +1,3 @@
-use ark_bls12_377::Fq;
 use ark_bw6_761::{Fr, G1Affine};
 use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
@@ -32,7 +31,7 @@ impl RegisterCommitments for () {
 impl RegisterPolys for () {
     type C = ();
 
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C {
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, _f: F) -> Self::C {
         ()
     }
 }

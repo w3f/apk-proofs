@@ -5,17 +5,17 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, RegisterCommitments};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
-use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
+use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
+use crate::piop::{Protocol, PackedRegisterCommitments, RegisterEvaluations};
 use crate::piop::RegisterPolys;
 use crate::piop::packed::PackedRegisterBuilder;
-use crate::piop::affine_addition::{BasicRegisterEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
+use crate::piop::affine_addition::{BasicRegisterEvaluations, PartialSumsCommitments};
 use crate::piop::basic::BasicRegisterBuilder;
 
 

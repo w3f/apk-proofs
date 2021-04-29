@@ -1,6 +1,6 @@
 use ark_poly::univariate::DensePolynomial;
 use ark_bw6_761::{Fr, G1Affine};
-use crate::piop::{RegisterPolynomials, RegisterEvaluations, RegisterPolys, RegisterCommitments, Protocol};
+use crate::piop::{RegisterPolynomials, RegisterEvaluations, RegisterPolys, RegisterCommitments};
 use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
@@ -91,7 +91,7 @@ impl RegisterEvaluations for BasicRegisterEvaluations {
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
                                                       commitments: &PartialSumsCommitments,
-                                                      extra_commitments: &(),
+                                                      _extra_commitments: &(),
     ) -> ark_bw6_761::G1Projective {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;

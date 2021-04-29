@@ -1,19 +1,16 @@
-use ark_poly::{Evaluations, Radix2EvaluationDomain, UVPolynomial, Polynomial};
+use ark_poly::{Evaluations, Radix2EvaluationDomain, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero, Field};
 use ark_bw6_761::Fr;
 use ark_ec::AffineCurve;
-use ark_ec::short_weierstrass_jacobian::GroupAffine;
-use ark_bls12_377::{G1Affine, Fq};
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use ark_std::{end_timer, start_timer};
 
-use crate::domains::Domains;
-use crate::{Bitmask, point_in_g1_complement, utils, RegisterCommitments};
+use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{Protocol, RegisterPolynomials, PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterPolys, RegisterEvaluations};
+use crate::piop::{RegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
 use crate::piop::affine_addition::{BasicRegisterPolynomials, BasicRegisterEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 
 
@@ -52,13 +49,13 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     type AC = PackedRegisterCommitments;
     type C = PartialSumsCommitments;
 
-    fn as_vec(&self) -> Vec<Fq> {
+    fn as_vec(&self) -> Vec<Fr> {
         let mut res = self.basic_evaluations.as_vec();
         res.extend(vec![self.c, self.acc]);
         res
     }
 
-    fn get_bitmask(&self) -> Fq {
+    fn get_bitmask(&self) -> Fr {
         self.basic_evaluations.bitmask
     }
 
@@ -333,7 +330,7 @@ impl  SuccinctlyAccountableRegisters {
         r_poly
     }
 
-    pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
+    pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
         let mut constraints = self.registers.compute_constraint_polynomials();
         let a6_poly = self.compute_inner_product_constraint_polynomial();
         let a7_poly = self.compute_multipacking_mask_constraint_polynomial();
@@ -356,6 +353,7 @@ mod tests {
     use ark_ec::{ProjectiveCurve, AffineCurve};
     use crate::tests::random_bits;
     use crate::utils;
+    use crate::domains::Domains;
 
     // TODO: there's crate::tests::random_bits
     fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
@@ -365,7 +363,7 @@ mod tests {
             .collect()
     }
 
-    fn random_pks(n: usize, rng: &mut StdRng) -> Vec<G1Affine> {
+    fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
         (0..n)
             .map(|_| G1Projective::rand(rng))
             .map(|p| p.into_affine())
