@@ -1,4 +1,4 @@
-use crate::piop::Protocol;
+use crate::piop::RegisterEvaluationsProtocol;
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
@@ -9,9 +9,10 @@ pub struct BasicRegisterBuilder {
     affine_addition_registers: AffineAdditionRegisters,
 }
 
-impl Protocol<BasicRegisterEvaluations> for BasicRegisterBuilder {
+impl Protocol for BasicRegisterBuilder {
     type P1 = PartialSumsPolynomials;
     type P2 = ();
+    type E = BasicRegisterEvaluations;
 
     fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         BasicRegisterBuilder {
@@ -19,11 +20,11 @@ impl Protocol<BasicRegisterEvaluations> for BasicRegisterBuilder {
         }
     }
 
-    fn get_1st_round_register_polynomials(&self) -> Self::P1 {
+    fn get_1st_round_register_polynomials(&self) -> PartialSumsPolynomials {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> Self::P2 {
+    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> () {
         ()
     }
 

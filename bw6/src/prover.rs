@@ -12,7 +12,7 @@ use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
-use crate::piop::{Protocol, PackedRegisterCommitments, RegisterEvaluations};
+use crate::piop::{Protocol, PackedRegisterCommitments};
 use crate::piop::RegisterPolys;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{BasicRegisterEvaluations, PartialSumsCommitments};
@@ -104,24 +104,15 @@ impl<'a> Prover<'a> {
     }
 
     pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, PartialSumsCommitments, ()> {
-        self.prove::<
-            BasicRegisterEvaluations,
-            BasicRegisterBuilder,
-        >(bitmask)
+        self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
     pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments> {
-        self.prove::<
-            SuccinctAccountableRegisterEvaluations,
-            PackedRegisterBuilder,
-        >(bitmask)
+        self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<E, P>(&self, bitmask: &Bitmask) -> Proof<E, <P::P1 as RegisterPolys>::C, <P::P2 as RegisterPolys>::C>
-    where
-        E: RegisterEvaluations,
-        P: Protocol<E>,
+    fn prove<P: Protocol>(&self, bitmask: &Bitmask) -> Proof<P::E, <P::P1 as RegisterPolys>::C, <P::P2 as RegisterPolys>::C>
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;

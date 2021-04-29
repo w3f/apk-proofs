@@ -12,9 +12,10 @@ pub struct PackedRegisterBuilder {
     bitmask_packing_registers: Option<SuccinctlyAccountableRegisters>,
 }
 
-impl Protocol<SuccinctAccountableRegisterEvaluations> for PackedRegisterBuilder {
+impl Protocol for PackedRegisterBuilder {
     type P1 = PartialSumsPolynomials;
     type P2 = PackedAccountabilityRegisterPolynomials;
+    type E = SuccinctAccountableRegisterEvaluations;
 
     fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<G1Affine>) -> Self {
         PackedRegisterBuilder {
@@ -23,11 +24,11 @@ impl Protocol<SuccinctAccountableRegisterEvaluations> for PackedRegisterBuilder 
         }
     }
 
-    fn get_1st_round_register_polynomials(&self) -> Self::P1 {
+    fn get_1st_round_register_polynomials(&self) -> PartialSumsPolynomials {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self::P2 {
+    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> PackedAccountabilityRegisterPolynomials {
         let bitmask_packing_registers = SuccinctlyAccountableRegisters::new(
             self.affine_addition_registers.clone(),
             bitmask,
@@ -44,16 +45,16 @@ impl Protocol<SuccinctAccountableRegisterEvaluations> for PackedRegisterBuilder 
         res
     }
 
+    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
+        self.bitmask_packing_registers.as_ref().unwrap().compute_constraint_polynomials()
+    }
+
     fn evaluate_register_polynomials(&self, point: Fq) -> SuccinctAccountableRegisterEvaluations {
         self.bitmask_packing_registers.as_ref().unwrap().evaluate_register_polynomials(point)
     }
 
     fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fq, zeta_minus_omega_inv: Fq) -> DensePolynomial<Fq> {
         self.bitmask_packing_registers.as_ref().unwrap().compute_linearization_polynomial(evaluations, phi, zeta_minus_omega_inv)
-    }
-
-    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
-        self.bitmask_packing_registers.as_ref().unwrap().compute_constraint_polynomials()
     }
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fq>> {

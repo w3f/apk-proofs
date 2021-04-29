@@ -57,9 +57,10 @@ impl RegisterCommitments for PackedRegisterCommitments {
     }
 }
 
-pub trait Protocol<E> {
+pub trait Protocol {
     type P1: RegisterPolys;
     type P2: RegisterPolys;
+    type E: RegisterEvaluations;
 
     fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
 
@@ -78,9 +79,9 @@ pub trait Protocol<E> {
     }
 
     // TODO: move zeta_minus_omega_inv param to evaluations
-    fn evaluate_register_polynomials(&self, point: Fr) -> E;
+    fn evaluate_register_polynomials(&self, point: Fr) -> Self::E;
     // TODO: move zeta_minus_omega_inv param to evaluations
-    fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+    fn compute_linearization_polynomial(&self, evaluations: &Self::E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 }
