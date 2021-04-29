@@ -16,7 +16,7 @@ use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials, PackedRegis
 use crate::piop::RegisterPolys;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{BasicRegisterEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
-
+use crate::piop::basic::BasicRegisterBuilder;
 
 
 struct Params {
@@ -106,7 +106,7 @@ impl<'a> Prover<'a> {
     pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, PartialSumsCommitments, ()> {
         self.prove::<
             BasicRegisterEvaluations,
-            AffineAdditionRegisters
+            BasicRegisterBuilder,
         >(bitmask)
     }
 

@@ -12,6 +12,7 @@ use crate::utils::LagrangeEvaluations;
 
 pub mod packed;
 pub mod affine_addition;
+pub mod basic;
 
 pub trait RegisterCommitments {
     fn as_vec(&self) -> Vec<G1Affine>;
@@ -68,13 +69,7 @@ pub trait Protocol<E> {
     fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> Self::P2;
 
 
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn evaluate_register_polynomials(&self, point: Fr) -> E;
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
-
     //TODO: remove domains param
     fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
         let w = utils::randomize(phi, &self.compute_constraint_polynomials());
@@ -82,6 +77,13 @@ pub trait Protocol<E> {
         assert_eq!(r, DensePolynomial::zero());
         q_poly
     }
+
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn evaluate_register_polynomials(&self, point: Fr) -> E;
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+
+    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 }
 
 pub trait RegisterPolynomials<E> {

@@ -256,6 +256,56 @@ impl AffineAdditionRegisters {
     pub fn get_bitmask_register_polynomial(&self) -> DensePolynomial<Fr> {
         self.bitmask.interpolate_by_ref()
     }
+
+    // TODO: interpolate over the smaller domain
+    pub fn get_partial_sums_register_polynomials(&self) -> PartialSumsPolynomials {
+        PartialSumsPolynomials(
+            self.apk_acc_x.interpolate_by_ref(),
+            self.apk_acc_y.interpolate_by_ref()
+        )
+    }
+
+    pub fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
+        self.polynomials.evaluate(point)
+    }
+
+    // Compute linearization polynomial
+    // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
+    // deg(r) = n, so it can be computed in the monomial basis
+    pub fn compute_linearization_polynomial(&self, evaluations: &BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+        let b_zeta = evaluations.bitmask;
+        let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
+        let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
+        let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;
+
+        let mut a1_lin = DensePolynomial::<Fr>::zero();
+        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
+        a1_lin += (Fr::one() - b_zeta, acc_y_poly);
+
+        let mut a2_lin = DensePolynomial::<Fr>::zero();
+        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
+        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
+        a2_lin += (Fr::one() - b_zeta, acc_x_poly);
+
+        let mut r_poly = DensePolynomial::<Fr>::zero();
+        r_poly += (zeta_minus_omega_inv, &a1_lin);
+        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
+        r_poly
+    }
+
+    pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
+        let (a1_poly, a2_poly) =
+            Constraints::compute_conditional_affine_addition_constraint_polynomials(self);
+        let a3_poly =
+            Constraints::compute_bitmask_booleanity_constraint_polynomial(self);
+        let (a4_poly, a5_poly) =
+            Constraints::compute_public_inputs_constraint_polynomials(self);
+        vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
+    }
+
+    pub fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
+        self.polynomials.to_vec()
+    }
 }
 
 pub(crate) struct Constraints {}
@@ -408,68 +458,6 @@ impl Constraints {
     }
 }
 
-impl Protocol<BasicRegisterEvaluations> for AffineAdditionRegisters {
-    type P1 = PartialSumsPolynomials;
-    type P2 = ();
-
-    fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
-        AffineAdditionRegisters::new(domains, bitmask, pks)
-    }
-
-    // TODO: interpolate over the smaller domain
-    fn get_1st_round_register_polynomials(&self) -> Self::P1 {
-        PartialSumsPolynomials(
-            self.apk_acc_x.interpolate_by_ref(),
-            self.apk_acc_y.interpolate_by_ref()
-        )
-    }
-
-    fn evaluate_register_polynomials(&self, point: Fr) -> BasicRegisterEvaluations {
-        self.polynomials.evaluate(point)
-    }
-
-    // Compute linearization polynomial
-    // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
-    // deg(r) = n, so it can be computed in the monomial basis
-    fn compute_linearization_polynomial(&self, evaluations: &BasicRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        let b_zeta = evaluations.bitmask;
-        let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
-        let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
-        let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;
-
-        let mut a1_lin = DensePolynomial::<Fr>::zero();
-        a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
-        a1_lin += (Fr::one() - b_zeta, acc_y_poly);
-
-        let mut a2_lin = DensePolynomial::<Fr>::zero();
-        a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
-        a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
-        a2_lin += (Fr::one() - b_zeta, acc_x_poly);
-
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (zeta_minus_omega_inv, &a1_lin);
-        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
-        r_poly
-    }
-
-    fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
-        let (a1_poly, a2_poly) =
-            Constraints::compute_conditional_affine_addition_constraint_polynomials(self);
-        let a3_poly =
-            Constraints::compute_bitmask_booleanity_constraint_polynomial(self);
-        let (a4_poly, a5_poly) =
-            Constraints::compute_public_inputs_constraint_polynomials(self);
-        vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
-    }
-
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.polynomials.to_vec()
-    }
-
-    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> () {
-        ()
-    }
-}
 
 // TODO: implement multiplication by a sparse polynomial in arkworks?
 fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
@@ -600,7 +588,7 @@ mod tests {
             .sum::<ark_bls12_377::G1Projective>().into_affine();
         let zeta = Fr::rand(rng);
         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
-        let acc_polys = registers.get_1st_round_register_polynomials();
+        let acc_polys = registers.get_partial_sums_register_polynomials();
         let (x1, y1) = (acc_polys.0.evaluate(&zeta), acc_polys.1.evaluate(&zeta));
         assert_eq!(
             Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
