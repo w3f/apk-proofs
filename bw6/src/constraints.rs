@@ -711,10 +711,11 @@ impl SuccinctlyAccountableRegisters {
 
 
 
-impl Protocol<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegisterPolynomials> for SuccinctlyAccountableRegisters {
-    type P = PartialSumsPolynomials;
+impl Protocol<SuccinctAccountableRegisterEvaluations> for SuccinctlyAccountableRegisters {
+    type P1 = PartialSumsPolynomials;
+    type P2 = PackedAccountabilityRegisterPolynomials;
 
-    fn get_1st_round_register_polynomials(&self) -> Self::P {
+    fn get_1st_round_register_polynomials(&self) -> Self::P1 {
         self.registers.get_1st_round_register_polynomials()
     }
 
@@ -751,7 +752,7 @@ impl Protocol<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegist
         SuccinctlyAccountableRegisters::new(registers, bitmask, bitmask_chunks_aggregation_challenge)
     }
 
-    fn get_accountable_register_polynomials(&self) -> PackedAccountabilityRegisterPolynomials {
+    fn get_2nd_round_register_polynomials(&self) -> PackedAccountabilityRegisterPolynomials {
         PackedAccountabilityRegisterPolynomials::new(
                 self.polynomials.c_poly.clone(),
                 self.polynomials.acc_poly.clone(),
@@ -759,11 +760,12 @@ impl Protocol<SuccinctAccountableRegisterEvaluations, PackedAccountabilityRegist
     }
 }
 
-impl Protocol<BasicRegisterEvaluations, ()> for Registers {
-    type P = PartialSumsPolynomials;
+impl Protocol<BasicRegisterEvaluations> for Registers {
+    type P1 = PartialSumsPolynomials;
+    type P2 = ();
 
     // TODO: interpolate over the smaller domain
-    fn get_1st_round_register_polynomials(&self) -> Self::P {
+    fn get_1st_round_register_polynomials(&self) -> Self::P1 {
         PartialSumsPolynomials(
             self.apk_acc_x.interpolate_by_ref(),
             self.apk_acc_y.interpolate_by_ref()
@@ -816,7 +818,7 @@ impl Protocol<BasicRegisterEvaluations, ()> for Registers {
         registers
     }
 
-    fn get_accountable_register_polynomials(&self) -> () {
+    fn get_2nd_round_register_polynomials(&self) -> () {
         ()
     }
 }

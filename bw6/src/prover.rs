@@ -103,9 +103,6 @@ impl<'a> Prover<'a> {
     pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<BasicRegisterEvaluations, PartialSumsCommitments, ()> {
         self.prove::<
             BasicRegisterEvaluations,
-            (),
-            (),
-            PartialSumsCommitments,
             Registers
         >(bitmask)
     }
@@ -113,21 +110,15 @@ impl<'a> Prover<'a> {
     pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments> {
         self.prove::<
             SuccinctAccountableRegisterEvaluations,
-            PackedRegisterCommitments,
-            PackedAccountabilityRegisterPolynomials,
-            PartialSumsCommitments,
             SuccinctlyAccountableRegisters
         >(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<E, AC, AP, C, D>(&self, bitmask: &Bitmask) -> Proof<E, PartialSumsCommitments, AC>
+    fn prove<E, D>(&self, bitmask: &Bitmask) -> Proof<E, PartialSumsCommitments, <D::P2 as RegisterPolys>::C>
     where
         E: RegisterEvaluations,
-        AC: RegisterCommitments,
-        AP: RegisterPolys<C = AC>,
-        C: RegisterCommitments,
-        D: Protocol<E, AP>,
+        D: Protocol<E>,
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
@@ -166,7 +157,7 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         let acc_registers = D::wrap(registers, b, r);
-        let acc_register_polynomials = acc_registers.get_accountable_register_polynomials();
+        let acc_register_polynomials = acc_registers.get_2nd_round_register_polynomials();
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );

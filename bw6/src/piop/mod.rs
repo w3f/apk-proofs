@@ -76,9 +76,12 @@ impl RegisterCommitments for PackedRegisterCommitments {
     }
 }
 
-pub trait Protocol<E, AP> {
-    type P: RegisterPolys;
-    fn get_1st_round_register_polynomials(&self) -> Self::P;
+pub trait Protocol<E> {
+    type P1: RegisterPolys;
+    type P2: RegisterPolys;
+
+    fn get_1st_round_register_polynomials(&self) -> Self::P1;
+    fn get_2nd_round_register_polynomials(&self) -> Self::P2;
 
 
     // TODO: move zeta_minus_omega_inv param to evaluations
@@ -97,7 +100,7 @@ pub trait Protocol<E, AP> {
 
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-    fn get_accountable_register_polynomials(&self) -> AP;
+
 }
 
 pub trait RegisterPolynomials<E> {
