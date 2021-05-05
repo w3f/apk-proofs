@@ -323,8 +323,7 @@ impl  SuccinctlyAccountableRegisters {
         let a6_lin = &self.polynomials.acc_poly;
         // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
         let a7_lin = &self.polynomials.c_poly;
-
-        let mut r_poly = self.registers.compute_linearization_polynomial(&evaluations.basic_evaluations, phi, zeta_minus_omega_inv);
+        let mut r_poly = DensePolynomial::<Fr>::zero();
         r_poly += (powers_of_phi[5], a6_lin);
         r_poly += (powers_of_phi[6], a7_lin);
         r_poly
