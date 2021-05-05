@@ -62,7 +62,7 @@ pub trait Protocol {
     type P2: RegisterPolys;
     type E: RegisterEvaluations;
 
-    fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
+    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
 
     fn get_1st_round_register_polynomials(&self) -> Self::P1;
     //TODO: remove bitmask arg

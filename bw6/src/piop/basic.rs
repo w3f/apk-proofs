@@ -14,9 +14,9 @@ impl Protocol for BasicRegisterBuilder {
     type P2 = ();
     type E = AffineAdditionEvaluations;
 
-    fn init(domains: Domains, bitmask: &Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
+    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         BasicRegisterBuilder {
-            affine_addition_registers:  AffineAdditionRegisters::new(domains, bitmask, pks)
+            affine_addition_registers:  AffineAdditionRegisters::new(domains, &bitmask, pks)
         }
     }
 

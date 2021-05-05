@@ -4,6 +4,7 @@ use ark_std::convert::{TryInto, TryFrom};
 const BITS_IN_LIMB: usize = 64;
 
 /// A bitmask that can be encoded as a Vec of field elements.
+#[derive(Clone)]
 pub struct Bitmask {
     limbs: Vec<u64>,
     padding_size: usize,

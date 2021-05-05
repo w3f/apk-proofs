@@ -120,7 +120,7 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_packed(&b);
+        let proof = prover.prove_packed(b.clone());
         end_timer!(prove_);
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
@@ -168,7 +168,7 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_simple(&b);
+        let proof = prover.prove_simple(b.clone());
         end_timer!(prove_);
 
         let mut serialized_proof = vec![0; proof.serialized_size()];

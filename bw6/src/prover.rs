@@ -103,16 +103,16 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: &Bitmask) -> Proof<AffineAdditionEvaluations, PartialSumsCommitments, ()> {
+    pub fn prove_simple(&self, bitmask: Bitmask) -> Proof<AffineAdditionEvaluations, PartialSumsCommitments, ()> {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: &Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments> {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments> {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<P: Protocol>(&self, bitmask: &Bitmask) -> Proof<P::E, <P::P1 as RegisterPolys>::C, <P::P2 as RegisterPolys>::C>
+    fn prove<P: Protocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolys>::C, <P::P2 as RegisterPolys>::C>
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
@@ -123,7 +123,7 @@ impl<'a> Prover<'a> {
         let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&apk.into(), bitmask);
+        transcript.append_public_input(&apk.into(), &bitmask);
 
 
         let mut b = bitmask.to_bits().iter()
