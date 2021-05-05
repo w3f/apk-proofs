@@ -86,18 +86,18 @@ pub trait Protocol {
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 }
 
-pub struct PackedAccountabilityRegisterPolynomials {
+pub struct BitmaskPackingPolynomials {
     pub c_poly: DensePolynomial<Fr>,
     pub acc_poly: DensePolynomial<Fr>,
 }
 
-impl PackedAccountabilityRegisterPolynomials {
+impl BitmaskPackingPolynomials {
     pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
-        PackedAccountabilityRegisterPolynomials { c_poly, acc_poly }
+        BitmaskPackingPolynomials { c_poly, acc_poly }
     }
 }
 
-impl RegisterPolynomials for PackedAccountabilityRegisterPolynomials {
+impl RegisterPolynomials for BitmaskPackingPolynomials {
     type C = PackedRegisterCommitments;
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C {

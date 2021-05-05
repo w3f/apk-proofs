@@ -11,7 +11,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
-use crate::piop::{PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterPolynomials, RegisterEvaluations};
+use crate::piop::{BitmaskPackingPolynomials, PackedRegisterCommitments, RegisterPolynomials, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
 
 
@@ -47,7 +47,7 @@ impl Verifier {
     ) -> bool {
         self.verify::<
             PackedRegisterCommitments,
-            PackedAccountabilityRegisterPolynomials,
+            BitmaskPackingPolynomials,
             PartialSumsCommitments,
             SuccinctAccountableRegisterEvaluations
         >(apk, bitmask, proof)

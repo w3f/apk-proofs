@@ -1,5 +1,5 @@
 use crate::piop::bit_packing::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations};
-use crate::piop::{Protocol, PackedAccountabilityRegisterPolynomials};
+use crate::piop::{Protocol, BitmaskPackingPolynomials};
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_bls12_377::G1Affine;
@@ -15,7 +15,7 @@ pub struct PackedRegisterBuilder {
 
 impl Protocol for PackedRegisterBuilder {
     type P1 = PartialSumsPolynomials;
-    type P2 = PackedAccountabilityRegisterPolynomials;
+    type P2 = BitmaskPackingPolynomials;
     type E = SuccinctAccountableRegisterEvaluations;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<G1Affine>) -> Self {
@@ -30,13 +30,13 @@ impl Protocol for PackedRegisterBuilder {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_2nd_round_register_polynomials(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> PackedAccountabilityRegisterPolynomials {
+    fn get_2nd_round_register_polynomials(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
         let bitmask_packing_registers = SuccinctlyAccountableRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,
             bitmask_chunks_aggregation_challenge
         );
-        let polys = PackedAccountabilityRegisterPolynomials::new(
+        let polys = BitmaskPackingPolynomials::new(
             bitmask_packing_registers.polynomials.c_poly.clone(),
             bitmask_packing_registers.polynomials.acc_poly.clone(),
         );
