@@ -65,8 +65,8 @@ pub trait Protocol {
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
 
     fn get_1st_round_register_polynomials(&self) -> Self::P1;
-    //TODO: remove bitmask arg
-    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> Self::P2;
+
+    fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> Self::P2;
 
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;

@@ -125,14 +125,6 @@ impl<'a> Prover<'a> {
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(&apk.into(), &bitmask);
 
-
-        let mut b = bitmask.to_bits().iter()
-            .map(|b| if *b { Fr::one() } else { Fr::zero() })
-            .collect::<Vec<_>>();
-
-        // Extend the computation to the whole domain
-        b.resize_with(n, || Fr::zero());
-
         // TODO: move to Session
         let pks = self.session.pks.iter()
             .map(|p| p.0.into_affine())
@@ -151,7 +143,7 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         // let acc_registers = D::wrap(registers, b, r);
-        let acc_register_polynomials = protocol.get_2nd_round_register_polynomials(b, r);
+        let acc_register_polynomials = protocol.get_2nd_round_register_polynomials(r);
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );

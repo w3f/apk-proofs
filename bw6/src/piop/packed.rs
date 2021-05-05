@@ -30,7 +30,7 @@ impl Protocol for PackedRegisterBuilder {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> PackedAccountabilityRegisterPolynomials {
+    fn get_2nd_round_register_polynomials(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> PackedAccountabilityRegisterPolynomials {
         let bitmask_packing_registers = SuccinctlyAccountableRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,

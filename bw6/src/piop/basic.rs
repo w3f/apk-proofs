@@ -24,7 +24,7 @@ impl Protocol for BasicRegisterBuilder {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, verifier_challenge: Fr) -> () {
+    fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> () {
         ()
     }
 
