@@ -152,6 +152,8 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 pub(crate) struct SuccinctlyAccountableRegisters {
     domains: Domains,
     registers: AffineAdditionRegisters,
+
+    bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     c: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     c_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     acc: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -166,13 +168,16 @@ impl SuccinctlyAccountableRegisters {
 
     // TODO: remove bitmask arg
     pub fn new(domains: Domains,
+               bitmask: &Bitmask,
                registers: AffineAdditionRegisters,
-               bitmask: Vec<Fr>,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
         let n = domains.size;
         let bits_in_bitmask_chunk = 256;  //256 is the highest power of 2 that fits field bit capacity //TODO: const
         assert_eq!(n % bits_in_bitmask_chunk, 0); // n is a power of 2
+
+        let mut bitmask = bitmask.to_bits_as_field_elements();
+        bitmask.resize(domains.size, Fr::zero());
 
         let r = bitmask_chunks_aggregation_challenge;
         let c = Self::build_multipacking_mask_register(n, bits_in_bitmask_chunk, r);
@@ -190,6 +195,7 @@ impl SuccinctlyAccountableRegisters {
         Self::new_unchecked(
             domains,
             registers,
+            bitmask,
             c,
             c_shifted,
             acc,
@@ -202,6 +208,7 @@ impl SuccinctlyAccountableRegisters {
     fn new_unchecked(
         domains: Domains,
         registers: AffineAdditionRegisters,
+        bitmask: Vec<Fr>,
         c: Vec<Fr>,
         c_shifted: Vec<Fr>,
         acc: Vec<Fr>,
@@ -212,8 +219,10 @@ impl SuccinctlyAccountableRegisters {
         let c_polynomial = domains.interpolate(c);
         let acc_polynomial = domains.interpolate(acc);
         Self {
-            domains,
+            domains: domains.clone(),
             registers: registers.clone(), //TODO: fix
+
+            bitmask: domains.amplify(bitmask),
             c: registers.domains.amplify_polynomial(&c_polynomial),
             c_shifted: registers.domains.amplify(c_shifted),
             acc: registers.domains.amplify_polynomial(&acc_polynomial),
@@ -256,7 +265,7 @@ impl SuccinctlyAccountableRegisters {
 
     pub fn compute_inner_product_constraint_polynomial(&self) -> DensePolynomial<Fr> {
         let bc_ln_x4 = self.domains.l_last_scaled_by(self.bitmask_chunks_aggregated);
-        let constraint = &(&(&self.acc_shifted - &self.acc) - &(&self.registers.bitmask * &self.c)) + &bc_ln_x4;
+        let constraint = &(&(&self.acc_shifted - &self.acc) - &(&self.bitmask * &self.c)) + &bc_ln_x4;
         constraint.interpolate()
     }
 
@@ -408,13 +417,11 @@ mod tests {
             random_pks(m, rng),
         );
 
-        let mut b = bitmask.to_bits_as_field_elements();
-        b.resize_with(n, || Fr::zero());
         let r = Fr::rand(rng);
         let acc_registers = SuccinctlyAccountableRegisters::new(
             domains.clone(),
+            &bitmask,
             registers,
-            b,
             r
         );
         let constraint_poly = acc_registers.compute_multipacking_mask_constraint_polynomial();

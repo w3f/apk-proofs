@@ -137,7 +137,7 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
 #[derive(Clone)] //TODO: remove
 pub struct AffineAdditionRegisters {
     pub domains: Domains,
-    pub bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
+    bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     // public keys' coordinates
     pks_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     pks_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,

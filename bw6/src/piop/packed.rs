@@ -8,6 +8,7 @@ use ark_bw6_761::Fr;
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomials};
 
 pub struct PackedRegisterBuilder {
+    bitmask: Bitmask,
     affine_addition_registers: AffineAdditionRegisters,
     bitmask_packing_registers: Option<SuccinctlyAccountableRegisters>,
 }
@@ -19,6 +20,7 @@ impl Protocol for PackedRegisterBuilder {
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<G1Affine>) -> Self {
         PackedRegisterBuilder {
+            bitmask: bitmask.clone(),
             affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
             bitmask_packing_registers: None
         }
@@ -31,8 +33,8 @@ impl Protocol for PackedRegisterBuilder {
     fn get_2nd_round_register_polynomials(&mut self, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> PackedAccountabilityRegisterPolynomials {
         let bitmask_packing_registers = SuccinctlyAccountableRegisters::new(
             self.affine_addition_registers.domains.clone(),
+            &self.bitmask,
             self.affine_addition_registers.clone(),
-            bitmask,
             bitmask_chunks_aggregation_challenge
         );
         let polys = PackedAccountabilityRegisterPolynomials::new(
