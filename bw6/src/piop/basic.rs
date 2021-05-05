@@ -41,6 +41,6 @@ impl Protocol for BasicRegisterBuilder {
     }
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.affine_addition_registers.get_all_register_polynomials()
+        self.affine_addition_registers.get_register_polynomials().to_vec()
     }
 }

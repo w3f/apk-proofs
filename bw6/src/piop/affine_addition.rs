@@ -302,8 +302,8 @@ impl AffineAdditionRegisters {
         vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
     }
 
-    pub fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.polynomials.to_vec()
+    pub fn get_register_polynomials(&self) -> BasicRegisterPolynomials {
+        self.polynomials.clone()
     }
 }
 
