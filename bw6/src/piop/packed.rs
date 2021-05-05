@@ -45,8 +45,10 @@ impl Protocol for PackedRegisterBuilder {
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
-        let mut constraints = self.affine_addition_registers.compute_constraint_polynomials();
+        let affine_addition_constraints = self.affine_addition_registers.compute_constraint_polynomials();
         let bitmask_packing_constraints = self.bitmask_packing_registers.as_ref().unwrap().compute_constraint_polynomials();
+        let mut constraints = vec![];
+        constraints.extend(affine_addition_constraints);
         constraints.extend(bitmask_packing_constraints);
         constraints
     }
@@ -70,6 +72,11 @@ impl Protocol for PackedRegisterBuilder {
     }
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.bitmask_packing_registers.unwrap().get_all_register_polynomials()
+        let affine_addition_polys = self.affine_addition_registers.get_all_register_polynomials();
+        let bitmask_packing_polys = self.bitmask_packing_registers.unwrap().get_all_register_polynomials();
+        let mut polys = vec![];
+        polys.extend(affine_addition_polys);
+        polys.extend(bitmask_packing_polys);
+        polys
     }
 }
