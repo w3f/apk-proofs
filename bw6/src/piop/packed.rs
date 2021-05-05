@@ -73,7 +73,7 @@ impl Protocol for PackedRegisterBuilder {
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
         let affine_addition_polys = self.affine_addition_registers.get_register_polynomials().to_vec();
-        let bitmask_packing_polys = self.bitmask_packing_registers.unwrap().get_all_register_polynomials();
+        let bitmask_packing_polys = self.bitmask_packing_registers.unwrap().get_register_polynomials().to_vec();
         let mut polys = vec![];
         polys.extend(affine_addition_polys);
         polys.extend(bitmask_packing_polys);

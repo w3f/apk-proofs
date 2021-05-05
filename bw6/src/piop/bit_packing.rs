@@ -326,8 +326,8 @@ impl  SuccinctlyAccountableRegisters {
         vec![a6_poly, a7_poly]
     }
 
-    pub fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.polynomials.to_vec()
+    pub fn get_register_polynomials(&self) -> BitmaskPackingPolynomials {
+        self.polynomials.clone()
     }
 }
 

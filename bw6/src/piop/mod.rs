@@ -86,6 +86,7 @@ pub trait Protocol {
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 }
 
+#[derive(Clone)]
 pub struct BitmaskPackingPolynomials {
     pub c_poly: DensePolynomial<Fr>,
     pub acc_poly: DensePolynomial<Fr>,
