@@ -10,10 +10,61 @@ use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{BitmaskPackingCommitments, RegisterEvaluations, BitmaskPackingPolynomials};
+use crate::piop::{RegisterEvaluations, RegisterCommitments, RegisterPolynomials};
 use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 use crate::domains::Domains;
 
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
+pub struct BitmaskPackingCommitments {
+    pub c_comm: ark_bw6_761::G1Affine,
+    pub acc_comm: ark_bw6_761::G1Affine,
+}
+
+impl BitmaskPackingCommitments {
+    pub fn new(c_comm: ark_bw6_761::G1Affine, acc_comm: ark_bw6_761::G1Affine) -> Self {
+        BitmaskPackingCommitments { c_comm, acc_comm }
+    }
+}
+
+impl RegisterCommitments for BitmaskPackingCommitments {
+    fn as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
+        vec![
+            self.c_comm,
+            self.acc_comm,
+        ]
+    }
+}
+
+#[derive(Clone)]
+pub struct BitmaskPackingPolynomials {
+    pub c_poly: DensePolynomial<Fr>,
+    pub acc_poly: DensePolynomial<Fr>,
+}
+
+impl BitmaskPackingPolynomials {
+    pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
+        BitmaskPackingPolynomials { c_poly, acc_poly }
+    }
+
+    //TODO: &self
+    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+        vec![
+            self.c_poly,
+            self.acc_poly,
+        ]
+    }
+}
+
+impl RegisterPolynomials for BitmaskPackingPolynomials {
+    type C = BitmaskPackingCommitments;
+
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> ark_bw6_761::G1Affine>(&self, f: F) -> Self::C {
+        BitmaskPackingCommitments::new(
+            f(&self.c_poly),
+            f(&self.acc_poly),
+        )
+    }
+}
 
 //TODO: remove pubs
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
