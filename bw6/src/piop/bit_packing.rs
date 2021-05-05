@@ -255,7 +255,7 @@ impl SuccinctlyAccountableRegisters {
     }
 
     pub fn compute_inner_product_constraint_polynomial(&self) -> DensePolynomial<Fr> {
-        let bc_ln_x4 = self.registers.domains.l_last_scaled_by(self.bitmask_chunks_aggregated);
+        let bc_ln_x4 = self.domains.l_last_scaled_by(self.bitmask_chunks_aggregated);
         let constraint = &(&(&self.acc_shifted - &self.acc) - &(&self.registers.bitmask * &self.c)) + &bc_ln_x4;
         constraint.interpolate()
     }
@@ -282,15 +282,15 @@ impl SuccinctlyAccountableRegisters {
     }
 
     pub fn compute_multipacking_mask_constraint_polynomial(&self) -> DensePolynomial<Fr> {
-        let n = self.registers.domains.size;
+        let n = self.domains.size;
         let chunks = n / 256; //TODO: consts
         let mut a = vec![Fr::from(2u8); n];
         a.iter_mut().step_by(256).for_each(|a| *a = self.r / Fr::from(2u8).pow([255u64]));
         a.rotate_left(1);
-        let a_x4 = self.registers.domains.amplify(a);
+        let a_x4 = self.domains.amplify(a);
 
         let x_todo = Fr::one() - self.r.pow([chunks as u64]); //TODO: name
-        let ln_x4 = self.registers.domains.l_last_scaled_by(x_todo);
+        let ln_x4 = self.domains.l_last_scaled_by(x_todo);
 
         let a7 = &(&self.c_shifted - &(&self.c * &a_x4)) - &ln_x4;
         a7.interpolate()
