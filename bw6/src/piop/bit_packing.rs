@@ -331,11 +331,9 @@ impl  SuccinctlyAccountableRegisters {
     }
 
     pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
-        let mut constraints = self.registers.compute_constraint_polynomials();
         let a6_poly = self.compute_inner_product_constraint_polynomial();
         let a7_poly = self.compute_multipacking_mask_constraint_polynomial();
-        constraints.extend(vec![a6_poly, a7_poly]);
-        constraints
+        vec![a6_poly, a7_poly]
     }
 
     pub fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {

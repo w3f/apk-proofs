@@ -43,7 +43,10 @@ impl Protocol for PackedRegisterBuilder {
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
-        self.bitmask_packing_registers.as_ref().unwrap().compute_constraint_polynomials()
+        let mut constraints = self.affine_addition_registers.compute_constraint_polynomials();
+        let bitmask_packing_constraints = self.bitmask_packing_registers.as_ref().unwrap().compute_constraint_polynomials();
+        constraints.extend(bitmask_packing_constraints);
+        constraints
     }
 
     fn evaluate_register_polynomials(&self, point: Fq) -> SuccinctAccountableRegisterEvaluations {
