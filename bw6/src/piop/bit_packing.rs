@@ -16,16 +16,17 @@ use crate::domains::Domains;
 
 
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
-    basic_polynomials: BasicRegisterPolynomials,
     pub c_poly: DensePolynomial<Fr>,
     pub acc_poly: DensePolynomial<Fr>,
 }
 
 impl SuccinctAccountableRegisterPolynomials {
+    //TODO: &self
     pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
-        let mut res = self.basic_polynomials.to_vec();
-        res.extend(vec![self.c_poly, self.acc_poly]);
-        res
+        vec![
+            self.c_poly,
+            self.acc_poly,
+        ]
     }
 }
 
@@ -221,7 +222,6 @@ impl SuccinctlyAccountableRegisters {
             polynomials: SuccinctAccountableRegisterPolynomials {
                 c_poly: c_polynomial,
                 acc_poly: acc_polynomial,
-                basic_polynomials: registers.polynomials
             },
             r
         }
