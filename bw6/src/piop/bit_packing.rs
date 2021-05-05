@@ -15,22 +15,6 @@ use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvalu
 use crate::domains::Domains;
 
 
-pub(crate) struct SuccinctAccountableRegisterPolynomials {
-    pub c_poly: DensePolynomial<Fr>,
-    pub acc_poly: DensePolynomial<Fr>,
-}
-
-impl SuccinctAccountableRegisterPolynomials {
-    //TODO: &self
-    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
-        vec![
-            self.c_poly,
-            self.acc_poly,
-        ]
-    }
-}
-
-
 //TODO: remove pubs
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct SuccinctAccountableRegisterEvaluations {
