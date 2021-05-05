@@ -151,7 +151,6 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 
 pub(crate) struct SuccinctlyAccountableRegisters {
     domains: Domains,
-    registers: AffineAdditionRegisters,
 
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     c: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -220,13 +219,12 @@ impl SuccinctlyAccountableRegisters {
         let acc_polynomial = domains.interpolate(acc);
         Self {
             domains: domains.clone(),
-            registers: registers.clone(), //TODO: fix
 
             bitmask: domains.amplify(bitmask),
-            c: registers.domains.amplify_polynomial(&c_polynomial),
-            c_shifted: registers.domains.amplify(c_shifted),
-            acc: registers.domains.amplify_polynomial(&acc_polynomial),
-            acc_shifted: registers.domains.amplify(acc_shifted),
+            c: domains.amplify_polynomial(&c_polynomial),
+            c_shifted: domains.amplify(c_shifted),
+            acc: domains.amplify_polynomial(&acc_polynomial),
+            acc_shifted: domains.amplify(acc_shifted),
             bitmask_chunks_aggregated,
             polynomials: SuccinctAccountableRegisterPolynomials {
                 c_poly: c_polynomial,
