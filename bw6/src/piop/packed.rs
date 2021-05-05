@@ -54,11 +54,11 @@ impl Protocol for PackedRegisterBuilder {
     }
 
     fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fq, zeta_minus_omega_inv: Fq) -> DensePolynomial<Fq> {
-        let affine_adddition_lp =
+        let affine_addition_lp =
             self.affine_addition_registers.compute_linearization_polynomial(&evaluations.basic_evaluations, phi, zeta_minus_omega_inv);
         let bitmask_packing_lp =
             self.bitmask_packing_registers.as_ref().unwrap().compute_linearization_polynomial(evaluations, phi, zeta_minus_omega_inv);
-        affine_adddition_lp + bitmask_packing_lp
+        affine_addition_lp + bitmask_packing_lp
     }
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fq>> {
