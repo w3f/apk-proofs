@@ -1,6 +1,6 @@
 use ark_poly::univariate::DensePolynomial;
 use ark_bw6_761::{Fr, G1Affine};
-use crate::piop::{ RegisterEvaluations, RegisterPolys, RegisterCommitments};
+use crate::piop::{RegisterEvaluations, RegisterPolynomials, RegisterCommitments};
 use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
@@ -26,7 +26,7 @@ impl RegisterCommitments for PartialSumsCommitments {
 
 pub struct PartialSumsPolynomials(pub DensePolynomial<Fr>, pub DensePolynomial<Fr>);
 
-impl RegisterPolys for PartialSumsPolynomials {
+impl RegisterPolynomials for PartialSumsPolynomials {
     type C = PartialSumsCommitments;
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PartialSumsCommitments {

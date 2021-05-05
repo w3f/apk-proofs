@@ -17,7 +17,7 @@ pub trait RegisterCommitments: CanonicalSerialize + CanonicalDeserialize {
     fn as_vec(&self) -> Vec<G1Affine>;
 }
 
-pub trait RegisterPolys {
+pub trait RegisterPolynomials {
     type C: RegisterCommitments;
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C;
 }
@@ -28,7 +28,7 @@ impl RegisterCommitments for () {
     }
 }
 
-impl RegisterPolys for () {
+impl RegisterPolynomials for () {
     type C = ();
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, _f: F) -> Self::C {
@@ -58,8 +58,8 @@ impl RegisterCommitments for PackedRegisterCommitments {
 }
 
 pub trait Protocol {
-    type P1: RegisterPolys;
-    type P2: RegisterPolys;
+    type P1: RegisterPolynomials;
+    type P2: RegisterPolynomials;
     type E: RegisterEvaluations;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
@@ -97,7 +97,7 @@ impl PackedAccountabilityRegisterPolynomials {
     }
 }
 
-impl RegisterPolys for PackedAccountabilityRegisterPolynomials {
+impl RegisterPolynomials for PackedAccountabilityRegisterPolynomials {
     type C = PackedRegisterCommitments;
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C {

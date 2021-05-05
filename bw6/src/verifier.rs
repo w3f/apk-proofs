@@ -11,7 +11,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
-use crate::piop::{PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterPolys, RegisterEvaluations};
+use crate::piop::{PackedAccountabilityRegisterPolynomials, PackedRegisterCommitments, RegisterPolynomials, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
 
 
@@ -61,7 +61,7 @@ impl Verifier {
     ) -> bool
     where
         AC: RegisterCommitments,
-        AP: RegisterPolys,
+        AP: RegisterPolynomials,
         C: RegisterCommitments,
         E: RegisterEvaluations<C = C> + RegisterEvaluations<AC = AC>,
     {

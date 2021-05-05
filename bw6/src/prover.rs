@@ -13,7 +13,7 @@ use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
 use crate::piop::{Protocol, PackedRegisterCommitments};
-use crate::piop::RegisterPolys;
+use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
 use crate::piop::basic::BasicRegisterBuilder;
@@ -112,7 +112,7 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    fn prove<P: Protocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolys>::C, <P::P2 as RegisterPolys>::C>
+    fn prove<P: Protocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
