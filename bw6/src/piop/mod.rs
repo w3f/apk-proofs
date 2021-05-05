@@ -1,19 +1,53 @@
+use ark_bw6_761::{Fr, G1Affine};
 use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
-use ark_bw6_761::{Fr, G1Affine};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
+use crate::{Bitmask, utils};
 use crate::domains::Domains;
-use crate::{utils, PackedRegisterCommitments};
-use crate::constraints::Registers;
-use ark_bls12_377::Fq;
+use crate::utils::LagrangeEvaluations;
 
-pub trait Piop<E> {
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn evaluate_register_polynomials(&self, point: Fr) -> E;
-    fn compute_linearization_polynomial(&self, evaluations: &E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+pub mod packed;
+pub mod affine_addition;
+pub mod basic;
+pub mod bitmask_packing;
+
+pub trait RegisterCommitments: CanonicalSerialize + CanonicalDeserialize {
+    fn as_vec(&self) -> Vec<G1Affine>;
+}
+
+pub trait RegisterPolynomials {
+    type C: RegisterCommitments;
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C;
+}
+
+impl RegisterCommitments for () {
+    fn as_vec(&self) -> Vec<G1Affine> {
+        vec![]
+    }
+}
+
+impl RegisterPolynomials for () {
+    type C = ();
+
+    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, _f: F) -> Self::C {
+        ()
+    }
+}
+
+pub trait Protocol {
+    type P1: RegisterPolynomials;
+    type P2: RegisterPolynomials;
+    type E: RegisterEvaluations;
+
+    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
+
+    fn get_1st_round_register_polynomials(&self) -> Self::P1;
+
+    fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> Self::P2;
+
+
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
-
     //TODO: remove domains param
     fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
         let w = utils::randomize(phi, &self.compute_constraint_polynomials());
@@ -21,45 +55,39 @@ pub trait Piop<E> {
         assert_eq!(r, DensePolynomial::zero());
         q_poly
     }
-}
 
-pub trait PiopDecorator<E, AP>: Piop<E> {
     // TODO: move zeta_minus_omega_inv param to evaluations
-    fn wrap(registers: Registers, bitmask: Vec<Fr>, bitmask_chunks_aggregation_challenge: Fr) -> Self;
-    fn get_accountable_register_polynomials(&self) -> Option<AP>;
+    fn evaluate_register_polynomials(&self, point: Fr) -> Self::E;
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn compute_linearization_polynomial(&self, evaluations: &Self::E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+
+    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 }
 
-pub trait RegisterPolynomials<E> {
-    fn to_vec(self) -> Vec<DensePolynomial<Fr>>;
-    fn evaluate(&self, point: Fr) -> E;
-}
 
-pub trait AdditionalRegisterPolynomials<AC> {
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> AC;
-}
+pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
+    type AC: RegisterCommitments;
+    type C: RegisterCommitments;
 
-pub struct PackedAccountabilityRegisterPolynomials {
-    pub c_poly: DensePolynomial<Fr>,
-    pub acc_poly: DensePolynomial<Fr>,
-}
+    fn as_vec(&self) -> Vec<Fr>;
+    fn get_bitmask(&self) -> Fr;
+    fn restore_commitment_to_linearization_polynomial(
+        &self,
+        phi: Fr,
+        zeta_minus_omega_inv: Fr,
+        commitments: &Self::C,
+        extra_commitments: &Self::AC,
+    ) -> ark_bw6_761::G1Projective;
 
-impl PackedAccountabilityRegisterPolynomials {
-    pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
-        PackedAccountabilityRegisterPolynomials { c_poly, acc_poly }
-    }
-}
+    fn evaluate_constraint_polynomials(
+        &self,
+        apk: ark_bls12_377::G1Affine,
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+        r: Fr,
+        bitmask: &Bitmask,
+        domain_size: u64,
+    ) -> Vec<Fr>;
 
-impl AdditionalRegisterPolynomials<PackedRegisterCommitments> for PackedAccountabilityRegisterPolynomials {
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PackedRegisterCommitments {
-        PackedRegisterCommitments::new(
-            f(&self.c_poly),
-            f(&self.acc_poly),
-        )
-    }
-}
-
-impl AdditionalRegisterPolynomials<()> for () {
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> () {
-        unimplemented!()
-    }
+    //TODO: move somewhere
+    fn is_accountable(&self) -> bool;
 }

@@ -1,11 +1,24 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
-mod prover;
-pub use self::prover::*;
+use ark_bw6_761::{BW6_761, Fr};
+use ark_ec::PairingEngine;
+use ark_ff::field_new;
+use ark_poly::univariate::DensePolynomial;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
 
-mod verifier;
+pub use bitmask::Bitmask;
+pub use setup::Setup;
+pub use signer_set::{SignerSet, SignerSetCommitment};
+
+use crate::kzg::KZG10;
+use crate::piop::{RegisterCommitments, RegisterEvaluations};
+
+pub use self::prover::*;
 pub use self::verifier::*;
 
+mod prover;
+mod verifier;
 pub mod endo;
 pub mod utils;
 
@@ -14,146 +27,23 @@ pub mod bls;
 mod transcript;
 
 mod signer_set;
-pub use signer_set::{SignerSet, SignerSetCommitment};
-
 mod kzg;
 mod fsrng;
 mod domains;
-mod constraints;
 mod piop;
 
 mod setup;
-pub use setup::Setup;
-
 mod bitmask;
-pub use bitmask::Bitmask;
-
-use ark_poly::univariate::DensePolynomial;
-use ark_ec::PairingEngine;
-
-use ark_bw6_761::{BW6_761, Fr, G1Affine};
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
-use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
-
-use crate::kzg::KZG10;
-
-
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct BasicRegisterCommitments {
-    b_comm: ark_bw6_761::G1Affine,
-    acc_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
-}
-
-
-pub trait RegisterCommitments<AC: AdditionalCommitments> {
-    fn wrap(
-        basic_commitments: BasicRegisterCommitments,
-        accountability_commitments: Option<AC>,
-    ) -> Self;
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments;
-
-    fn get_additional_commitments(&self) -> Option<AC>;
-
-    fn all_as_vec(&self) -> Vec<ark_bw6_761::G1Affine> {
-        let mut res = self.get_basic_commitments().all_as_vec();
-        match self.get_additional_commitments() {
-            Some(accountable_commitments) => {
-                res.extend(accountable_commitments.as_vec());
-            },
-            _ => {},
-        }
-        res
-    }
-}
-
-impl RegisterCommitments<()> for BasicRegisterCommitments {
-    fn wrap(basic_commitments: BasicRegisterCommitments, accountability_commitments: Option<()>) -> Self {
-        basic_commitments
-    }
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
-        self
-    }
-
-    fn get_additional_commitments(&self) -> Option<()> {
-        None
-    }
-
-    fn all_as_vec(&self) -> Vec<G1Affine> {
-        vec![
-            self.b_comm,
-            self.acc_comm.0,
-            self.acc_comm.1,
-        ]
-    }
-}
-
-pub trait AdditionalCommitments {
-    fn as_vec(&self) -> Vec<G1Affine>;
-}
-
-#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
-pub struct PackedRegisterCommitments {
-    c_comm: ark_bw6_761::G1Affine,
-    acc_comm: ark_bw6_761::G1Affine,
-}
-
-impl PackedRegisterCommitments {
-    pub fn new(c_comm: G1Affine, acc_comm: G1Affine) -> Self {
-        PackedRegisterCommitments { c_comm, acc_comm }
-    }
-}
-
-impl AdditionalCommitments for PackedRegisterCommitments {
-    fn as_vec(&self) -> Vec<G1Affine> {
-        vec![
-            self.c_comm,
-            self.acc_comm,
-        ]
-    }
-}
-
-impl AdditionalCommitments for () {
-    fn as_vec(&self) -> Vec<G1Affine> {
-        unimplemented!()
-    }
-}
-
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct ExtendedRegisterCommitments<AC: CanonicalSerialize + CanonicalDeserialize> {
-    basic_commitments: BasicRegisterCommitments,
-    additional_commitments: Option<AC>,
-}
-
-impl RegisterCommitments<PackedRegisterCommitments> for ExtendedRegisterCommitments<PackedRegisterCommitments> {
-    fn wrap(
-        basic_commitments: BasicRegisterCommitments,
-        packed_commitments: Option<PackedRegisterCommitments>,
-    ) -> Self {
-        Self {
-            basic_commitments,
-            additional_commitments: packed_commitments,
-        }
-    }
-
-    fn get_basic_commitments(&self) -> &BasicRegisterCommitments {
-        &self.basic_commitments
-    }
-
-    fn get_additional_commitments(&self) -> Option<PackedRegisterCommitments> {
-        self.additional_commitments.clone()
-    }
-}
-
-// #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct Proof<E, C> {
+pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCommitments> {
     register_commitments: C,
+    // 2nd round commitments, used in "packed" scheme after get the bitmask aggregation challenge is received
+    additional_commitments: AC,
     // Prover receives \phi, the constraint polynomials batching challenge, here
     q_comm: ark_bw6_761::G1Affine,
     // Prover receives \zeta, the evaluation point challenge, here
@@ -166,7 +56,6 @@ pub struct Proof<E, C> {
 }
 
 
-use ark_ff::field_new;
 const H_X: Fr = field_new!(Fr, "0");
 const H_Y: Fr = field_new!(Fr, "1");
 fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
@@ -176,13 +65,13 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_std::{end_timer, start_timer};
-    use merlin::Transcript;
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
+    use merlin::Transcript;
     use rand::Rng;
-    use crate::constraints::{SuccinctlyAccountableRegisters, Registers, BasicRegisterEvaluations, SuccinctAccountableRegisterEvaluations};
+
+    use super::*;
 
     pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
         (0..size).map(|_| rng.gen_bool(density)).collect()
@@ -198,7 +87,7 @@ mod tests {
     #[test]
     fn test_packed_accountable_scheme() {
         let rng = &mut test_rng();
-        let log_domain_size = 10;
+        let log_domain_size = 8;
 
         let t_setup = start_timer!(|| "setup");
         let setup = Setup::generate(log_domain_size, rng);
@@ -229,12 +118,12 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_packed(&b);
+        let proof = prover.prove_packed(b.clone());
         end_timer!(prove_);
 
-        // let mut serialized_proof = vec![0; proof.serialized_size()];
-        // proof.serialize(&mut serialized_proof[..]).unwrap();
-        // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify_packed(&apk, &b, &proof);
@@ -246,7 +135,7 @@ mod tests {
     #[test]
     fn test_linear_accountable_scheme() {
         let rng = &mut test_rng();
-        let log_domain_size = 10;
+        let log_domain_size = 8;
 
         let t_setup = start_timer!(|| "setup");
         let setup = Setup::generate(log_domain_size, rng);
@@ -277,12 +166,12 @@ mod tests {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_simple(&b);
+        let proof = prover.prove_simple(b.clone());
         end_timer!(prove_);
 
-        // let mut serialized_proof = vec![0; proof.serialized_size()];
-        // proof.serialize(&mut serialized_proof[..]).unwrap();
-        // let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify_simple(&apk, &b, &proof);
