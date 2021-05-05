@@ -134,7 +134,6 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
 }
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
-#[derive(Clone)] //TODO: remove
 pub struct AffineAdditionRegisters {
     pub domains: Domains,
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
