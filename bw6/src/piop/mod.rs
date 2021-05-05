@@ -11,7 +11,7 @@ use crate::utils::LagrangeEvaluations;
 pub mod packed;
 pub mod affine_addition;
 pub mod basic;
-pub mod bit_packing;
+pub mod bitmask_packing;
 
 pub trait RegisterCommitments: CanonicalSerialize + CanonicalDeserialize {
     fn as_vec(&self) -> Vec<G1Affine>;

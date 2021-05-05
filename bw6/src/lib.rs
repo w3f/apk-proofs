@@ -71,7 +71,7 @@ mod tests {
     use merlin::Transcript;
     use rand::Rng;
 
-    use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
+    use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, SuccinctlyAccountableRegisters};
 
     use super::*;
 

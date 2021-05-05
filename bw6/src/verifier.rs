@@ -10,7 +10,7 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
-use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments, BitmaskPackingPolynomials};
+use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments, BitmaskPackingPolynomials};
 use crate::piop::{RegisterPolynomials, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
 
