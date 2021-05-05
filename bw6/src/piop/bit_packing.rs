@@ -12,6 +12,7 @@ use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{RegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
 use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
+use crate::domains::Domains;
 
 
 pub(crate) struct SuccinctAccountableRegisterPolynomials {
@@ -149,6 +150,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 
 
 pub(crate) struct SuccinctlyAccountableRegisters {
+    domains: Domains,
     registers: AffineAdditionRegisters,
     c: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     c_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -163,11 +165,12 @@ pub(crate) struct SuccinctlyAccountableRegisters {
 impl SuccinctlyAccountableRegisters {
 
     // TODO: remove bitmask arg
-    pub fn new(registers: AffineAdditionRegisters,
+    pub fn new(domains: Domains,
+               registers: AffineAdditionRegisters,
                bitmask: Vec<Fr>,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
-        let n = registers.domains.size;
+        let n = domains.size;
         let bits_in_bitmask_chunk = 256;  //256 is the highest power of 2 that fits field bit capacity //TODO: const
         assert_eq!(n % bits_in_bitmask_chunk, 0); // n is a power of 2
 
@@ -185,6 +188,7 @@ impl SuccinctlyAccountableRegisters {
         acc_shifted.rotate_left(1);
 
         Self::new_unchecked(
+            domains,
             registers,
             c,
             c_shifted,
@@ -196,6 +200,7 @@ impl SuccinctlyAccountableRegisters {
     }
 
     fn new_unchecked(
+        domains: Domains,
         registers: AffineAdditionRegisters,
         c: Vec<Fr>,
         c_shifted: Vec<Fr>,
@@ -204,9 +209,10 @@ impl SuccinctlyAccountableRegisters {
         bitmask_chunks_aggregated: Fr,
         r: Fr
     ) -> Self {
-        let c_polynomial = registers.domains.interpolate(c);
-        let acc_polynomial = registers.domains.interpolate(acc);
+        let c_polynomial = domains.interpolate(c);
+        let acc_polynomial = domains.interpolate(acc);
         Self {
+            domains,
             registers: registers.clone(), //TODO: fix
             c: registers.domains.amplify_polynomial(&c_polynomial),
             c_shifted: registers.domains.amplify(c_shifted),
@@ -406,6 +412,7 @@ mod tests {
         b.resize_with(n, || Fr::zero());
         let r = Fr::rand(rng);
         let acc_registers = SuccinctlyAccountableRegisters::new(
+            domains.clone(),
             registers,
             b,
             r
