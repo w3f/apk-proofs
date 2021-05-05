@@ -413,7 +413,6 @@ mod tests {
         let acc_registers = SuccinctlyAccountableRegisters::new(
             domains.clone(),
             &bitmask,
-            registers,
             r
         );
         let constraint_poly = acc_registers.compute_multipacking_mask_constraint_polynomial();
