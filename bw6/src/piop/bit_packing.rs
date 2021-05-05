@@ -326,8 +326,12 @@ impl SuccinctlyAccountableRegisters {
 
 
 impl  SuccinctlyAccountableRegisters {
-    pub fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
-        self.polynomials.evaluate(point)
+    pub fn evaluate_register_polynomials(&self, point: Fr) -> (Fr, Fr) {
+        //TODO: struct
+        (
+            self.polynomials.c_poly.evaluate(&point),
+            self.polynomials.acc_poly.evaluate(&point),
+        )
     }
 
     pub fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
