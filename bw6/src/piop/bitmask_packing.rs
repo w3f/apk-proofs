@@ -11,7 +11,7 @@ use ark_std::{end_timer, start_timer};
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{RegisterEvaluations, RegisterCommitments, RegisterPolynomials};
-use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
 use crate::domains::Domains;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
@@ -389,10 +389,10 @@ mod tests {
     use ark_std::rand::{Rng, rngs::StdRng};
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
-    use ark_ec::{ProjectiveCurve, AffineCurve};
+    use ark_ec::ProjectiveCurve;
     use crate::tests::random_bits;
-    use crate::utils;
     use crate::domains::Domains;
+    use crate::piop::affine_addition::AffineAdditionRegisters;
 
     // TODO: there's crate::tests::random_bits
     fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
@@ -438,11 +438,6 @@ mod tests {
         let domains = Domains::new(n);
 
         let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
-        let registers = AffineAdditionRegisters::new(
-            domains.clone(),
-            &bitmask,
-            random_pks(m, rng),
-        );
 
         let r = Fr::rand(rng);
         let acc_registers = BitmaskPackingRegisters::new(

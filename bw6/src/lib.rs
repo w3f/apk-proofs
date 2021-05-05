@@ -71,8 +71,6 @@ mod tests {
     use merlin::Transcript;
     use rand::Rng;
 
-    use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingRegisters};
-
     use super::*;
 
     pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {

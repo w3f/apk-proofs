@@ -1,8 +1,7 @@
 use ark_bw6_761::{Fr, G1Affine};
 use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::{Bitmask, utils};
 use crate::domains::Domains;
