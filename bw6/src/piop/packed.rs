@@ -34,15 +34,12 @@ impl Protocol for PackedRegisterBuilder {
             bitmask,
             bitmask_chunks_aggregation_challenge
         );
-        let res = PackedAccountabilityRegisterPolynomials::new(
+        let polys = PackedAccountabilityRegisterPolynomials::new(
             bitmask_packing_registers.polynomials.c_poly.clone(),
             bitmask_packing_registers.polynomials.acc_poly.clone(),
         );
-        *self = PackedRegisterBuilder {
-            affine_addition_registers: self.affine_addition_registers.clone(),
-            bitmask_packing_registers: Some(bitmask_packing_registers)
-        };
-        res
+        self.bitmask_packing_registers = Some(bitmask_packing_registers);
+        polys
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fq>> {
