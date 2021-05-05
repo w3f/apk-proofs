@@ -161,7 +161,6 @@ impl SuccinctlyAccountableRegisters {
     // TODO: remove bitmask arg
     pub fn new(domains: Domains,
                bitmask: &Bitmask,
-               registers: AffineAdditionRegisters,
                bitmask_chunks_aggregation_challenge: Fr, // denoted 'r' in the write-ups
     ) -> Self {
         let n = domains.size;
@@ -186,7 +185,6 @@ impl SuccinctlyAccountableRegisters {
 
         Self::new_unchecked(
             domains,
-            registers,
             bitmask,
             c,
             c_shifted,
@@ -199,7 +197,7 @@ impl SuccinctlyAccountableRegisters {
 
     fn new_unchecked(
         domains: Domains,
-        registers: AffineAdditionRegisters,
+
         bitmask: Vec<Fr>,
         c: Vec<Fr>,
         c_shifted: Vec<Fr>,

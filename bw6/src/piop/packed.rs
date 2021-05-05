@@ -34,7 +34,6 @@ impl Protocol for PackedRegisterBuilder {
         let bitmask_packing_registers = SuccinctlyAccountableRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,
-            self.affine_addition_registers.clone(),
             bitmask_chunks_aggregation_challenge
         );
         let polys = PackedAccountabilityRegisterPolynomials::new(
