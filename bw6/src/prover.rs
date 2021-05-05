@@ -12,7 +12,7 @@ use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::piop::bit_packing::{SuccinctAccountableRegisterEvaluations};
-use crate::piop::{Protocol, PackedRegisterCommitments};
+use crate::piop::{Protocol, BitmaskPackingCommitments};
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
@@ -107,7 +107,7 @@ impl<'a> Prover<'a> {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, PackedRegisterCommitments> {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, BitmaskPackingCommitments> {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 

@@ -10,7 +10,7 @@ use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{PackedRegisterCommitments, RegisterEvaluations, BitmaskPackingPolynomials};
+use crate::piop::{BitmaskPackingCommitments, RegisterEvaluations, BitmaskPackingPolynomials};
 use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 use crate::domains::Domains;
 
@@ -24,7 +24,7 @@ pub struct SuccinctAccountableRegisterEvaluations {
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
-    type AC = PackedRegisterCommitments;
+    type AC = BitmaskPackingCommitments;
     type C = PartialSumsCommitments;
 
     fn as_vec(&self) -> Vec<Fr> {
@@ -41,7 +41,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
                                                       commitments: &PartialSumsCommitments,
-                                                      extra_commitments: &PackedRegisterCommitments,
+                                                      extra_commitments: &BitmaskPackingCommitments,
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
         let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments, &());

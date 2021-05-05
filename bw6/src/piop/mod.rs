@@ -37,18 +37,18 @@ impl RegisterPolynomials for () {
 }
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
-pub struct PackedRegisterCommitments {
+pub struct BitmaskPackingCommitments {
     pub c_comm: ark_bw6_761::G1Affine,
     pub acc_comm: ark_bw6_761::G1Affine,
 }
 
-impl PackedRegisterCommitments {
+impl BitmaskPackingCommitments {
     pub fn new(c_comm: G1Affine, acc_comm: G1Affine) -> Self {
-        PackedRegisterCommitments { c_comm, acc_comm }
+        BitmaskPackingCommitments { c_comm, acc_comm }
     }
 }
 
-impl RegisterCommitments for PackedRegisterCommitments {
+impl RegisterCommitments for BitmaskPackingCommitments {
     fn as_vec(&self) -> Vec<G1Affine> {
         vec![
             self.c_comm,
@@ -107,10 +107,10 @@ impl BitmaskPackingPolynomials {
 }
 
 impl RegisterPolynomials for BitmaskPackingPolynomials {
-    type C = PackedRegisterCommitments;
+    type C = BitmaskPackingCommitments;
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C {
-            PackedRegisterCommitments::new(
+            BitmaskPackingCommitments::new(
                 f(&self.c_poly),
                 f(&self.acc_poly),
             )
