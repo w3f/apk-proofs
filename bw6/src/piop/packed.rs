@@ -1,4 +1,4 @@
-use crate::piop::bitmask_packing::{SuccinctlyAccountableRegisters, SuccinctAccountableRegisterEvaluations, BitmaskPackingPolynomials};
+use crate::piop::bitmask_packing::{BitmaskPackingRegisters, SuccinctAccountableRegisterEvaluations, BitmaskPackingPolynomials};
 use crate::piop::Protocol;
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
@@ -10,7 +10,7 @@ use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomia
 pub struct PackedRegisterBuilder {
     bitmask: Bitmask,
     affine_addition_registers: AffineAdditionRegisters,
-    bitmask_packing_registers: Option<SuccinctlyAccountableRegisters>,
+    bitmask_packing_registers: Option<BitmaskPackingRegisters>,
 }
 
 impl Protocol for PackedRegisterBuilder {
@@ -31,7 +31,7 @@ impl Protocol for PackedRegisterBuilder {
     }
 
     fn get_2nd_round_register_polynomials(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
-        let bitmask_packing_registers = SuccinctlyAccountableRegisters::new(
+        let bitmask_packing_registers = BitmaskPackingRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,
             bitmask_chunks_aggregation_challenge

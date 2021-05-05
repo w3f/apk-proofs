@@ -150,7 +150,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         let acc = self.acc;
         let c = self.c;
 
-        let a6 = SuccinctlyAccountableRegisters::evaluate_inner_product_constraint_linearized(
+        let a6 = BitmaskPackingRegisters::evaluate_inner_product_constraint_linearized(
             aggregated_bitmask,
             &evals_at_zeta,
             b,
@@ -158,7 +158,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
             acc,
         );
 
-        let a7 = SuccinctlyAccountableRegisters::evaluate_multipacking_mask_constraint_linearized(
+        let a7 = BitmaskPackingRegisters::evaluate_multipacking_mask_constraint_linearized(
             a,
             r_pow_m,
             &evals_at_zeta,
@@ -177,7 +177,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 
 
 
-pub(crate) struct SuccinctlyAccountableRegisters {
+pub(crate) struct BitmaskPackingRegisters {
     domains: Domains,
 
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -191,7 +191,7 @@ pub(crate) struct SuccinctlyAccountableRegisters {
     r: Fr,
 }
 
-impl SuccinctlyAccountableRegisters {
+impl BitmaskPackingRegisters {
 
     // TODO: remove bitmask arg
     pub fn new(domains: Domains,
@@ -350,7 +350,7 @@ impl SuccinctlyAccountableRegisters {
 
 
 
-impl  SuccinctlyAccountableRegisters {
+impl BitmaskPackingRegisters {
     pub fn evaluate_register_polynomials(&self, point: Fr) -> (Fr, Fr) {
         //TODO: struct
         (
@@ -417,7 +417,7 @@ mod tests {
     fn test_multipacking_mask_register() {
         let r = Fr::rand(&mut test_rng());
         let two = Fr::from(2u8);
-        let multipacking_mask = SuccinctlyAccountableRegisters::build_multipacking_mask_register(4, 2, r);
+        let multipacking_mask = BitmaskPackingRegisters::build_multipacking_mask_register(4, 2, r);
         assert_eq!(multipacking_mask, vec![Fr::one(), two, r, r * two]);
     }
 
@@ -426,7 +426,7 @@ mod tests {
         let from_u8_vec = |v: [u8; 4]| v.iter().map(|&x| Fr::from(x)).collect::<Vec<Fr>>();
         let a = from_u8_vec([1, 2, 3, 4]);
         let b = from_u8_vec([5, 6, 7, 8]);
-        let partial_inner_product = SuccinctlyAccountableRegisters::build_partial_inner_products_register(4, &a, &b);
+        let partial_inner_product = BitmaskPackingRegisters::build_partial_inner_products_register(4, &a, &b);
         assert_eq!(partial_inner_product, from_u8_vec([0, 1 * 5, 1 * 5 + 2 * 6, 1 * 5 + 2 * 6 + 3 * 7]));
     }
 
@@ -445,7 +445,7 @@ mod tests {
         );
 
         let r = Fr::rand(rng);
-        let acc_registers = SuccinctlyAccountableRegisters::new(
+        let acc_registers = BitmaskPackingRegisters::new(
             domains.clone(),
             &bitmask,
             r
