@@ -10,7 +10,7 @@ use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{RegisterPolynomials, PackedRegisterCommitments, RegisterEvaluations};
+use crate::piop::{PackedRegisterCommitments, RegisterEvaluations};
 use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 use crate::domains::Domains;
 
@@ -21,19 +21,11 @@ pub(crate) struct SuccinctAccountableRegisterPolynomials {
     pub acc_poly: DensePolynomial<Fr>,
 }
 
-impl RegisterPolynomials<SuccinctAccountableRegisterEvaluations> for SuccinctAccountableRegisterPolynomials {
-    fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+impl SuccinctAccountableRegisterPolynomials {
+    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         let mut res = self.basic_polynomials.to_vec();
         res.extend(vec![self.c_poly, self.acc_poly]);
         res
-    }
-
-    fn evaluate(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
-        SuccinctAccountableRegisterEvaluations {
-            c: self.c_poly.evaluate(&point),
-            acc: self.acc_poly.evaluate(&point),
-            basic_evaluations: self.basic_polynomials.evaluate(point)
-        }
     }
 }
 

@@ -1,6 +1,6 @@
 use ark_poly::univariate::DensePolynomial;
 use ark_bw6_761::{Fr, G1Affine};
-use crate::piop::{RegisterPolynomials, RegisterEvaluations, RegisterPolys, RegisterCommitments};
+use crate::piop::{ RegisterEvaluations, RegisterPolys, RegisterCommitments};
 use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
@@ -41,8 +41,8 @@ pub struct BasicRegisterPolynomials {
     partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
 }
 
-impl RegisterPolynomials<AffineAdditionEvaluations> for BasicRegisterPolynomials {
-    fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+impl BasicRegisterPolynomials {
+    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         vec![
             self.keyset.0,
             self.keyset.1,
