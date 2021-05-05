@@ -136,7 +136,7 @@ pub(crate) struct SuccinctlyAccountableRegisters {
     acc_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 
     bitmask_chunks_aggregated: Fr,
-    pub polynomials: BitmaskPackingPolynomials,
+    polynomials: BitmaskPackingPolynomials,
     r: Fr,
 }
 

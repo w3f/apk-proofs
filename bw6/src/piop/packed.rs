@@ -36,12 +36,9 @@ impl Protocol for PackedRegisterBuilder {
             &self.bitmask,
             bitmask_chunks_aggregation_challenge
         );
-        let polys = BitmaskPackingPolynomials::new(
-            bitmask_packing_registers.polynomials.c_poly.clone(),
-            bitmask_packing_registers.polynomials.acc_poly.clone(),
-        );
+        let res = bitmask_packing_registers.get_register_polynomials();
         self.bitmask_packing_registers = Some(bitmask_packing_registers);
-        polys
+        res
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
