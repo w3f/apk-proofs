@@ -10,7 +10,7 @@ use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{PackedRegisterCommitments, RegisterEvaluations};
+use crate::piop::{PackedRegisterCommitments, RegisterEvaluations, BitmaskPackingPolynomials};
 use crate::piop::affine_addition::{BasicRegisterPolynomials, AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsCommitments};
 use crate::domains::Domains;
 
@@ -152,7 +152,7 @@ pub(crate) struct SuccinctlyAccountableRegisters {
     acc_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 
     bitmask_chunks_aggregated: Fr,
-    pub polynomials: SuccinctAccountableRegisterPolynomials,
+    pub polynomials: BitmaskPackingPolynomials,
     r: Fr,
 }
 
@@ -217,7 +217,7 @@ impl SuccinctlyAccountableRegisters {
             acc: domains.amplify_polynomial(&acc_polynomial),
             acc_shifted: domains.amplify(acc_shifted),
             bitmask_chunks_aggregated,
-            polynomials: SuccinctAccountableRegisterPolynomials {
+            polynomials: BitmaskPackingPolynomials {
                 c_poly: c_polynomial,
                 acc_poly: acc_polynomial,
             },

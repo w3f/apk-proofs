@@ -95,6 +95,14 @@ impl BitmaskPackingPolynomials {
     pub fn new(c_poly: DensePolynomial<Fr>, acc_poly: DensePolynomial<Fr>) -> Self {
         BitmaskPackingPolynomials { c_poly, acc_poly }
     }
+
+    //TODO: &self
+    pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
+        vec![
+            self.c_poly,
+            self.acc_poly,
+        ]
+    }
 }
 
 impl RegisterPolynomials for BitmaskPackingPolynomials {
