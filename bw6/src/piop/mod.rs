@@ -18,7 +18,7 @@ pub trait RegisterCommitments: CanonicalSerialize + CanonicalDeserialize {
 
 pub trait RegisterPolynomials {
     type C: RegisterCommitments;
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C;
+    fn commit<F: Clone + Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C;
 }
 
 impl RegisterCommitments for () {

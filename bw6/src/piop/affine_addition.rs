@@ -13,7 +13,10 @@ use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct PartialSumsCommitments(pub ark_bw6_761::G1Affine, pub ark_bw6_761::G1Affine);
+pub struct PartialSumsCommitments(
+    pub ark_bw6_761::G1Affine,
+    pub ark_bw6_761::G1Affine
+);
 
 impl RegisterCommitments for PartialSumsCommitments {
     fn as_vec(&self) -> Vec<G1Affine> {
@@ -31,6 +34,38 @@ impl RegisterPolynomials for PartialSumsPolynomials {
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PartialSumsCommitments {
         PartialSumsCommitments(f(&self.0), f(&self.1))
+    }
+}
+
+//TODO: move to packed.rs?
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct PartialSumsAndBitmaskCommitments {
+    pub partial_sums: PartialSumsCommitments,
+    pub bitmask: ark_bw6_761::G1Affine,
+}
+
+impl RegisterCommitments for PartialSumsAndBitmaskCommitments {
+    fn as_vec(&self) -> Vec<G1Affine> {
+        let mut res = self.partial_sums.as_vec();
+        res.push(self.bitmask);
+        res
+    }
+}
+
+pub struct PartialSumsAndBitmaskPolynomials {
+    pub partial_sums: PartialSumsPolynomials,
+    pub bitmask: DensePolynomial<Fr>,
+}
+
+impl RegisterPolynomials for PartialSumsAndBitmaskPolynomials {
+    type C = PartialSumsAndBitmaskCommitments;
+
+    fn commit<F: Clone + Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PartialSumsAndBitmaskCommitments {
+        PartialSumsAndBitmaskCommitments {
+            partial_sums: self.partial_sums.commit(f.clone()),
+            bitmask: f(&self.bitmask),
+        }
     }
 }
 
