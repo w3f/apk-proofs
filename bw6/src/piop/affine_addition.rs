@@ -125,7 +125,7 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
     }
 
     fn set_bitmask_at_zeta<F: FnOnce() -> Fr>(&mut self, f: F) {
-        self.bitmask = Some(f())
+        self.bitmask.get_or_insert_with(f);
     }
 }
 

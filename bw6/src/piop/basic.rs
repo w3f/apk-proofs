@@ -35,8 +35,9 @@ impl Protocol for BasicRegisterBuilder {
     }
 
     fn evaluate_register_polynomials(&mut self, point: Fr) -> AffineAdditionEvaluations {
-        let evals = self.registers.evaluate_register_polynomials(point);
+        let mut evals = self.registers.evaluate_register_polynomials(point);
         self.register_evaluations = Some(evals.clone());
+        evals.bitmask = None;
         evals
     }
 
