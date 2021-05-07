@@ -11,6 +11,7 @@ pub struct PackedRegisterBuilder {
     bitmask: Bitmask,
     affine_addition_registers: AffineAdditionRegisters,
     bitmask_packing_registers: Option<BitmaskPackingRegisters>,
+    register_evaluations: Option<SuccinctAccountableRegisterEvaluations>,
 }
 
 impl Protocol for PackedRegisterBuilder {
@@ -22,7 +23,8 @@ impl Protocol for PackedRegisterBuilder {
         PackedRegisterBuilder {
             bitmask: bitmask.clone(),
             affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
-            bitmask_packing_registers: None
+            bitmask_packing_registers: None,
+            register_evaluations: None,
         }
     }
 
@@ -50,21 +52,23 @@ impl Protocol for PackedRegisterBuilder {
         constraints
     }
 
-    fn evaluate_register_polynomials(&self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
+    fn evaluate_register_polynomials(&mut self, point: Fr) -> SuccinctAccountableRegisterEvaluations {
         let affine_addition_evals = self.affine_addition_registers.evaluate_register_polynomials(point);
         let bitmask_packing_evals = self.bitmask_packing_registers.as_ref().unwrap().evaluate_register_polynomials(point);
-        SuccinctAccountableRegisterEvaluations {
+        let evals = SuccinctAccountableRegisterEvaluations {
             c: bitmask_packing_evals.0,
             acc: bitmask_packing_evals.1,
             basic_evaluations: affine_addition_evals,
-        }
+        };
+        self.register_evaluations = Some(evals.clone());
+        evals
     }
 
-    fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
         let affine_addition_lp =
-            self.affine_addition_registers.compute_linearization_polynomial(&evaluations.basic_evaluations, phi, zeta_minus_omega_inv);
+            self.affine_addition_registers.compute_linearization_polynomial(&self.register_evaluations.as_ref().unwrap().basic_evaluations, phi, zeta_minus_omega_inv);
         let bitmask_packing_lp =
-            self.bitmask_packing_registers.as_ref().unwrap().compute_linearization_polynomial(evaluations, phi, zeta_minus_omega_inv);
+            self.bitmask_packing_registers.as_ref().unwrap().compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv);
         affine_addition_lp + bitmask_packing_lp
     }
 

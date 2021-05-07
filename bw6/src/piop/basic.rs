@@ -6,7 +6,8 @@ use crate::Bitmask;
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
 
 pub struct BasicRegisterBuilder {
-    affine_addition_registers: AffineAdditionRegisters,
+    registers: AffineAdditionRegisters,
+    register_evaluations: Option<AffineAdditionEvaluations>,
 }
 
 impl Protocol for BasicRegisterBuilder {
@@ -16,12 +17,13 @@ impl Protocol for BasicRegisterBuilder {
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         BasicRegisterBuilder {
-            affine_addition_registers:  AffineAdditionRegisters::new(domains, &bitmask, pks)
+            registers:  AffineAdditionRegisters::new(domains, &bitmask, pks),
+            register_evaluations: None,
         }
     }
 
     fn get_1st_round_register_polynomials(&self) -> PartialSumsPolynomials {
-        self.affine_addition_registers.get_partial_sums_register_polynomials()
+        self.registers.get_partial_sums_register_polynomials()
     }
 
     fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> () {
@@ -29,18 +31,20 @@ impl Protocol for BasicRegisterBuilder {
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
-        self.affine_addition_registers.compute_constraint_polynomials()
+        self.registers.compute_constraint_polynomials()
     }
 
-    fn evaluate_register_polynomials(&self, point: Fr) -> AffineAdditionEvaluations {
-        self.affine_addition_registers.evaluate_register_polynomials(point)
+    fn evaluate_register_polynomials(&mut self, point: Fr) -> AffineAdditionEvaluations {
+        let evals = self.registers.evaluate_register_polynomials(point);
+        self.register_evaluations = Some(evals.clone());
+        evals
     }
 
-    fn compute_linearization_polynomial(&self, evaluations: &AffineAdditionEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        self.affine_addition_registers.compute_linearization_polynomial(evaluations, phi, zeta_minus_omega_inv)
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+        self.registers.compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv)
     }
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.affine_addition_registers.get_register_polynomials().to_vec()
+        self.registers.get_register_polynomials().to_vec()
     }
 }

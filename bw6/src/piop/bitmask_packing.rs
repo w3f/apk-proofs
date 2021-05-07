@@ -67,7 +67,7 @@ impl RegisterPolynomials for BitmaskPackingPolynomials {
 }
 
 //TODO: remove pubs
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct SuccinctAccountableRegisterEvaluations {
     pub c: Fr,
     pub acc: Fr,

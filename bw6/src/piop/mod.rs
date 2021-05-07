@@ -56,10 +56,11 @@ pub trait Protocol {
         q_poly
     }
 
+
+    fn evaluate_register_polynomials(&mut self, point: Fr) -> Self::E;
+
     // TODO: move zeta_minus_omega_inv param to evaluations
-    fn evaluate_register_polynomials(&self, point: Fr) -> Self::E;
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn compute_linearization_polynomial(&self, evaluations: &Self::E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 
     fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
 }

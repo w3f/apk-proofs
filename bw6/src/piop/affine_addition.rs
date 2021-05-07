@@ -62,7 +62,7 @@ impl BasicRegisterPolynomials {
 }
 
 
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct AffineAdditionEvaluations {
     pub keyset: (Fr, Fr),
     pub bitmask: Option<Fr>,
