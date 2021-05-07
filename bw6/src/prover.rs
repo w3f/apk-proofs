@@ -15,7 +15,7 @@ use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, Bitma
 use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskPolynomials, PartialSumsAndBitmaskCommitments};
 use crate::piop::basic::BasicRegisterBuilder;
 
 
@@ -107,7 +107,7 @@ impl<'a> Prover<'a> {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, BitmaskPackingCommitments> {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments> {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 

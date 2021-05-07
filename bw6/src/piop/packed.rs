@@ -5,7 +5,7 @@ use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_bls12_377::G1Affine;
 use crate::Bitmask;
 use ark_bw6_761::Fr;
-use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomials};
+use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomials, PartialSumsAndBitmaskPolynomials};
 
 pub struct PackedRegisterBuilder {
     bitmask: Bitmask,
@@ -15,7 +15,7 @@ pub struct PackedRegisterBuilder {
 }
 
 impl ProverProtocol for PackedRegisterBuilder {
-    type P1 = PartialSumsPolynomials;
+    type P1 = PartialSumsAndBitmaskPolynomials;
     type P2 = BitmaskPackingPolynomials;
     type E = SuccinctAccountableRegisterEvaluations;
 
@@ -28,15 +28,23 @@ impl ProverProtocol for PackedRegisterBuilder {
         }
     }
 
-    fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
-        self.affine_addition_registers.get_partial_sums_register_polynomials()
+    fn get_register_polynomials_to_commit1(&self) -> PartialSumsAndBitmaskPolynomials {
+        let polys = self.affine_addition_registers.get_register_polynomials();
+        PartialSumsAndBitmaskPolynomials {
+            partial_sums: PartialSumsPolynomials(
+                polys.partial_sums.0,
+                polys.partial_sums.1,
+            ),
+            bitmask: polys.bitmask,
+        }
     }
+
 
     fn get_register_polynomials_to_commit2(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
         let bitmask_packing_registers = BitmaskPackingRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,
-            bitmask_chunks_aggregation_challenge
+            bitmask_chunks_aggregation_challenge,
         );
         let res = bitmask_packing_registers.get_register_polynomials();
         self.bitmask_packing_registers = Some(bitmask_packing_registers);

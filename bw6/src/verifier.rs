@@ -12,7 +12,7 @@ use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::{RegisterPolynomials, RegisterEvaluations};
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 
 
 pub struct Verifier {
@@ -42,11 +42,11 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &mut Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, BitmaskPackingCommitments>
+        proof: &mut Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>
     ) -> bool {
         self.verify::<
             BitmaskPackingCommitments,
-            PartialSumsCommitments,
+            PartialSumsAndBitmaskCommitments,
             SuccinctAccountableRegisterEvaluations
         >(apk, bitmask, proof)
     }

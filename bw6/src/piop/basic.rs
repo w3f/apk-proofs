@@ -23,7 +23,11 @@ impl ProverProtocol for BasicRegisterBuilder {
     }
 
     fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
-        self.registers.get_partial_sums_register_polynomials()
+        let polys = self.registers.get_register_polynomials();
+        PartialSumsPolynomials(
+            polys.partial_sums.0,
+            polys.partial_sums.1,
+        )
     }
 
     fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> () {
@@ -31,7 +35,13 @@ impl ProverProtocol for BasicRegisterBuilder {
     }
 
     fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>> {
-        self.registers.get_register_polynomials().to_vec()
+        let polys = self.registers.get_register_polynomials();
+        vec![
+            polys.keyset.0,
+            polys.keyset.1,
+            polys.partial_sums.0,
+            polys.partial_sums.1,
+        ]
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
