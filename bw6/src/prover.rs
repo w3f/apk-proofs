@@ -132,7 +132,7 @@ impl<'a> Prover<'a> {
 
         // 1. Compute and commit to the basic registers.
         let mut protocol = P::init(self.domains.clone(), bitmask, pks);
-        let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
+        let partial_sums_polynomials = protocol.get_register_polynomials_to_commit();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
@@ -143,7 +143,7 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         // let acc_registers = D::wrap(registers, b, r);
-        let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
+        let acc_register_polynomials = protocol.get_register_polynomials_to_commit_extra(r);
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );

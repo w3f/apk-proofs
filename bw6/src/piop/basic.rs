@@ -22,11 +22,11 @@ impl ProverProtocol for BasicRegisterBuilder {
         }
     }
 
-    fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
+    fn get_register_polynomials_to_commit(&self) -> PartialSumsPolynomials {
         self.registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> () {
+    fn get_register_polynomials_to_commit_extra(&mut self, verifier_challenge: Fr) -> () {
         ()
     }
 

@@ -28,11 +28,11 @@ impl ProverProtocol for PackedRegisterBuilder {
         }
     }
 
-    fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
+    fn get_register_polynomials_to_commit(&self) -> PartialSumsPolynomials {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_register_polynomials_to_commit2(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
+    fn get_register_polynomials_to_commit_extra(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
         let bitmask_packing_registers = BitmaskPackingRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,
