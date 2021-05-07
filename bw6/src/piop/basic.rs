@@ -22,12 +22,16 @@ impl ProverProtocol for BasicRegisterBuilder {
         }
     }
 
-    fn get_register_polynomials_to_commit(&self) -> PartialSumsPolynomials {
+    fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
         self.registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_register_polynomials_to_commit_extra(&mut self, verifier_challenge: Fr) -> () {
+    fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> () {
         ()
+    }
+
+    fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>> {
+        self.registers.get_register_polynomials().to_vec()
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
@@ -43,9 +47,5 @@ impl ProverProtocol for BasicRegisterBuilder {
 
     fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
         self.registers.compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv)
-    }
-
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.registers.get_register_polynomials().to_vec()
     }
 }

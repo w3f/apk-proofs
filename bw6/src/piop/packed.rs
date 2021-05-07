@@ -28,11 +28,11 @@ impl ProverProtocol for PackedRegisterBuilder {
         }
     }
 
-    fn get_register_polynomials_to_commit(&self) -> PartialSumsPolynomials {
+    fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
         self.affine_addition_registers.get_partial_sums_register_polynomials()
     }
 
-    fn get_register_polynomials_to_commit_extra(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
+    fn get_register_polynomials_to_commit2(&mut self, bitmask_chunks_aggregation_challenge: Fr) -> BitmaskPackingPolynomials {
         let bitmask_packing_registers = BitmaskPackingRegisters::new(
             self.affine_addition_registers.domains.clone(),
             &self.bitmask,
@@ -41,6 +41,15 @@ impl ProverProtocol for PackedRegisterBuilder {
         let res = bitmask_packing_registers.get_register_polynomials();
         self.bitmask_packing_registers = Some(bitmask_packing_registers);
         res
+    }
+
+    fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>> {
+        let affine_addition_polys = self.affine_addition_registers.get_register_polynomials().to_vec();
+        let bitmask_packing_polys = self.bitmask_packing_registers.unwrap().get_register_polynomials().to_vec();
+        let mut polys = vec![];
+        polys.extend(affine_addition_polys);
+        polys.extend(bitmask_packing_polys);
+        polys
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
@@ -70,14 +79,5 @@ impl ProverProtocol for PackedRegisterBuilder {
         let bitmask_packing_lp =
             self.bitmask_packing_registers.as_ref().unwrap().compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv);
         affine_addition_lp + bitmask_packing_lp
-    }
-
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        let affine_addition_polys = self.affine_addition_registers.get_register_polynomials().to_vec();
-        let bitmask_packing_polys = self.bitmask_packing_registers.unwrap().get_register_polynomials().to_vec();
-        let mut polys = vec![];
-        polys.extend(affine_addition_polys);
-        polys.extend(bitmask_packing_polys);
-        polys
     }
 }

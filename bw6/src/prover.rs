@@ -132,7 +132,7 @@ impl<'a> Prover<'a> {
 
         // 1. Compute and commit to the basic registers.
         let mut protocol = P::init(self.domains.clone(), bitmask, pks);
-        let partial_sums_polynomials = protocol.get_register_polynomials_to_commit();
+        let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
@@ -143,7 +143,7 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         // let acc_registers = D::wrap(registers, b, r);
-        let acc_register_polynomials = protocol.get_register_polynomials_to_commit_extra(r);
+        let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
@@ -182,7 +182,7 @@ impl<'a> Prover<'a> {
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
-        let mut register_polynomials = protocol.get_all_register_polynomials();
+        let mut register_polynomials = protocol.get_register_polynomials_to_open();
         register_polynomials.push(q_poly);
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
