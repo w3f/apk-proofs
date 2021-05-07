@@ -55,7 +55,7 @@ impl BasicRegisterPolynomials {
     fn evaluate(&self, point: Fr) -> AffineAdditionEvaluations {
         AffineAdditionEvaluations {
             keyset: (self.keyset.0.evaluate(&point), self.keyset.1.evaluate(&point)),
-            bitmask: self.bitmask.evaluate(&point),
+            bitmask: Some(self.bitmask.evaluate(&point)),
             partial_sums: (self.partial_sums.0.evaluate(&point), self.partial_sums.1.evaluate(&point)),
         }
     }
@@ -65,7 +65,7 @@ impl BasicRegisterPolynomials {
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct AffineAdditionEvaluations {
     pub keyset: (Fr, Fr),
-    pub bitmask: Fr,
+    pub bitmask: Option<Fr>,
     pub partial_sums: (Fr, Fr),
 }
 
@@ -83,17 +83,13 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
         ]
     }
 
-    fn get_bitmask(&self) -> Fr {
-        self.bitmask
-    }
-
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
                                                       commitments: &PartialSumsCommitments,
                                                       _extra_commitments: &(),
     ) -> ark_bw6_761::G1Projective {
-        let b = self.bitmask;
+        let b = self.bitmask.unwrap();
         let (x1, y1) = self.partial_sums;
         let (x2, y2) = self.keyset;
 
@@ -118,7 +114,7 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
         bitmask: &Bitmask,
         domain_size: u64,
     ) -> Vec<Fr> {
-        let b = self.bitmask;
+        let b = self.bitmask.unwrap();
         let (x1, y1) = self.partial_sums;
         let (x2, y2) = self.keyset;
 
@@ -128,8 +124,8 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
         vec![a1, a2, a3, a4, a5]
     }
 
-    fn is_accountable(&self) -> bool {
-        false
+    fn set_bitmask_at_zeta<F: FnOnce() -> Fr>(&mut self, f: F) {
+        self.bitmask = Some(f())
     }
 }
 
@@ -272,7 +268,7 @@ impl AffineAdditionRegisters {
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
     // deg(r) = n, so it can be computed in the monomial basis
     pub fn compute_linearization_polynomial(&self, evaluations: &AffineAdditionEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        let b_zeta = evaluations.bitmask;
+        let b_zeta = evaluations.bitmask.unwrap();
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
         let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;

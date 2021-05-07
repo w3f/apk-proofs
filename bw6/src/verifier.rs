@@ -29,7 +29,7 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<AffineAdditionEvaluations, PartialSumsCommitments, ()>
+        proof: &mut Proof<AffineAdditionEvaluations, PartialSumsCommitments, ()>
     ) -> bool {
         self.verify::<
             (),
@@ -42,7 +42,7 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, BitmaskPackingCommitments>
+        proof: &mut Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, BitmaskPackingCommitments>
     ) -> bool {
         self.verify::<
             BitmaskPackingCommitments,
@@ -55,7 +55,7 @@ impl Verifier {
         &self,
         apk: &PublicKey,
         bitmask: &Bitmask,
-        proof: &Proof<E, C, AC>,
+        proof: &mut Proof<E, C, AC>,
     ) -> bool
     where
         AC: RegisterCommitments,
@@ -78,9 +78,14 @@ impl Verifier {
         transcript.append_proof_scalar(b"r_zeta_omega", &proof.r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
 
-
         let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
 
+        proof.register_evaluations.set_bitmask_at_zeta(|| {
+            let t_linear_accountability = start_timer!(|| "linear accountability check");
+            let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
+            end_timer!(t_linear_accountability);
+            b_at_zeta
+        });
 
         let t_kzg = start_timer!(|| "KZG check");
         // Reconstruct the commitment to the linearization polynomial using the commitments to the registers from the proof.
@@ -135,15 +140,6 @@ impl Verifier {
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
         end_timer!(t_kzg);
-
-
-        if !proof.register_evaluations.is_accountable() {
-            let t_linear_accountability = start_timer!(|| "linear accountability check");
-            let b = proof.register_evaluations.get_bitmask();
-            let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
-            assert_eq!(b_at_zeta, b);
-            end_timer!(t_linear_accountability);
-        }
 
         let apk = apk.0.into_affine();
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, r, bitmask, self.domain.size);

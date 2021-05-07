@@ -123,10 +123,10 @@ mod tests {
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
         proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let mut proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_packed(&apk, &b, &proof);
+        let valid = verifier.verify_packed(&apk, &b, &mut proof);
         end_timer!(verify_);
 
         assert!(valid);
@@ -171,10 +171,10 @@ mod tests {
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
         proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let mut proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_simple(&apk, &b, &proof);
+        let valid = verifier.verify_simple(&apk, &b, &mut proof);
         end_timer!(verify_);
 
         assert!(valid);

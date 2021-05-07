@@ -84,10 +84,6 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         res
     }
 
-    fn get_bitmask(&self) -> Fr {
-        self.basic_evaluations.bitmask
-    }
-
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
@@ -146,7 +142,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
 
-        let b = self.basic_evaluations.bitmask;
+        let b = self.basic_evaluations.bitmask.unwrap();
         let acc = self.acc;
         let c = self.c;
 
@@ -168,10 +164,6 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, r, bitmask, domain_size);
         res.extend(vec![a6, a7]);
         res
-    }
-
-    fn is_accountable(&self) -> bool {
-        true
     }
 }
 

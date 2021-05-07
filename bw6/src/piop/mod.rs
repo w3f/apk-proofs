@@ -70,7 +70,7 @@ pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
     type C: RegisterCommitments;
 
     fn as_vec(&self) -> Vec<Fr>;
-    fn get_bitmask(&self) -> Fr;
+
     fn restore_commitment_to_linearization_polynomial(
         &self,
         phi: Fr,
@@ -88,6 +88,5 @@ pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
         domain_size: u64,
     ) -> Vec<Fr>;
 
-    //TODO: move somewhere
-    fn is_accountable(&self) -> bool;
+    fn set_bitmask_at_zeta<F: FnOnce() -> Fr>(&mut self, f: F) {}
 }
