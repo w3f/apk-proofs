@@ -35,6 +35,9 @@ impl RegisterPolynomials for () {
     }
 }
 
+// Represents 2-round interactive oracle protocol as seen by the prover.
+// The 2nd round is used only by the "packed" scheme as it requires additional challenge from the verifier
+// to aggregate the bitmask chunks after the bitmask register polynomial has been committed.
 pub trait Protocol {
     type P1: RegisterPolynomials;
     type P2: RegisterPolynomials;
