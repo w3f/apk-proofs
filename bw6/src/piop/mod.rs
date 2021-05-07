@@ -35,19 +35,25 @@ impl RegisterPolynomials for () {
     }
 }
 
-// Represents 2-round interactive oracle protocol as seen by the prover.
-// The 2nd round is used only by the "packed" scheme as it requires additional challenge from the verifier
-// to aggregate the bitmask chunks after the bitmask register polynomial has been committed.
-pub trait Protocol {
+// Represents a polynomial protocol as seen by the prover.
+pub trait ProverProtocol {
     type P1: RegisterPolynomials;
     type P2: RegisterPolynomials;
     type E: RegisterEvaluations;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
 
-    fn get_1st_round_register_polynomials(&self) -> Self::P1;
+    // These 2 methods together return register polynomials the prover should commit to.
+    // The 2nd one is used only in the "packed" scheme as it requires an additional challenge
+    // (to aggregate the bitmask chunks) from the verifier,
+    // that can be received only after the bitmask has been committed.
+    fn get_register_polynomials_to_commit1(&self) -> Self::P1;
+    fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> Self::P2;
 
-    fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> Self::P2;
+    // This method returns register polynomials the prover should open. Those are the same polynomials
+    // as the previous 2 methods together, and additionally 2 polynomials representing the keyset
+    // (prover doesn't need to commit to them, as verifier knows them anyway, but still should open).
+    fn get_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>>;
 
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
@@ -65,7 +71,7 @@ pub trait Protocol {
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
+
 }
 
 

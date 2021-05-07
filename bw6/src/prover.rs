@@ -12,7 +12,7 @@ use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
-use crate::piop::Protocol;
+use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
@@ -112,7 +112,7 @@ impl<'a> Prover<'a> {
     }
 
     #[allow(non_snake_case)]
-    fn prove<P: Protocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
+    fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
@@ -132,7 +132,7 @@ impl<'a> Prover<'a> {
 
         // 1. Compute and commit to the basic registers.
         let mut protocol = P::init(self.domains.clone(), bitmask, pks);
-        let partial_sums_polynomials = protocol.get_1st_round_register_polynomials();
+        let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
@@ -143,7 +143,7 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         // let acc_registers = D::wrap(registers, b, r);
-        let acc_register_polynomials = protocol.get_2nd_round_register_polynomials(r);
+        let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
