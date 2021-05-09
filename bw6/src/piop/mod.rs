@@ -7,10 +7,15 @@ use crate::{Bitmask, utils};
 use crate::domains::Domains;
 use crate::utils::LagrangeEvaluations;
 
-pub mod packed;
+
 pub mod affine_addition;
-pub mod basic;
 pub mod bitmask_packing;
+pub mod bit_counting;
+
+pub mod basic;
+pub mod packed;
+pub mod counting;
+
 
 pub trait RegisterCommitments: CanonicalSerialize + CanonicalDeserialize {
     fn as_vec(&self) -> Vec<G1Affine>;
