@@ -11,9 +11,9 @@ use ark_std::{end_timer, start_timer};
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
 use crate::piop::{VerifierProtocol, RegisterCommitments, RegisterPolynomials, RegisterEvaluations};
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
 use crate::domains::Domains;
-use ark_bls12_377::Fq;
+
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct BitmaskPackingCommitments {

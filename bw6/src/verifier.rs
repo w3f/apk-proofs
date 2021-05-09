@@ -11,7 +11,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
-use crate::piop::{RegisterPolynomials, VerifierProtocol, RegisterEvaluations};
+use crate::piop::{VerifierProtocol, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 
