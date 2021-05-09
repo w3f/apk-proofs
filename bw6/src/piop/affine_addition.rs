@@ -47,8 +47,8 @@ pub struct PartialSumsAndBitmaskCommitments {
 
 impl RegisterCommitments for PartialSumsAndBitmaskCommitments {
     fn as_vec(&self) -> Vec<G1Affine> {
-        let mut res = self.partial_sums.as_vec();
-        res.push(self.bitmask);
+        let mut res = vec![self.bitmask];
+        res.extend(self.partial_sums.as_vec());
         res
     }
 }
@@ -321,6 +321,17 @@ impl AffineAdditionRegisters {
     pub fn get_register_polynomials(&self) -> AffineAdditionPolynomials {
         self.polynomials.clone()
     }
+
+    pub fn get_partial_sums_and_bitmask_polynomials(&self) -> PartialSumsAndBitmaskPolynomials {
+        let polys = self.get_register_polynomials();
+        PartialSumsAndBitmaskPolynomials {
+            partial_sums: PartialSumsPolynomials(
+                polys.partial_sums.0,
+                polys.partial_sums.1,
+            ),
+            bitmask: polys.bitmask,
+        }
+    }
 }
 
 pub(crate) struct Constraints {}
@@ -485,19 +496,11 @@ fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
 mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
-    use ark_std::rand::{Rng, rngs::StdRng};
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
     use ark_ec::{ProjectiveCurve, AffineCurve};
-    use crate::tests::{random_bits, random_bitmask};
+    use crate::tests::{random_bits, random_bitmask, random_pks};
     use crate::utils;
-
-    fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
-        (0..n)
-            .map(|_| G1Projective::rand(rng))
-            .map(|p| p.into_affine())
-            .collect()
-    }
 
     fn dummy_registers(n: usize) -> (Vec<Fr>, Vec<Fr>) {
         (vec![Fr::zero(); n], vec![Fr::zero(); n])

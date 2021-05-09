@@ -29,14 +29,7 @@ impl ProverProtocol for PackedRegisterBuilder {
     }
 
     fn get_register_polynomials_to_commit1(&self) -> PartialSumsAndBitmaskPolynomials {
-        let polys = self.affine_addition_registers.get_register_polynomials();
-        PartialSumsAndBitmaskPolynomials {
-            partial_sums: PartialSumsPolynomials(
-                polys.partial_sums.0,
-                polys.partial_sums.1,
-            ),
-            bitmask: polys.bitmask,
-        }
+        self.affine_addition_registers.get_partial_sums_and_bitmask_polynomials()
     }
 
 

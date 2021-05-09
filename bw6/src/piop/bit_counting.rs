@@ -48,7 +48,7 @@ impl BitCountingRegisters {
             .collect()
     }
 
-    fn compute_bit_counting_constraint(&self) -> DensePolynomial<Fr> {
+    pub fn compute_bit_counting_constraint(&self) -> DensePolynomial<Fr> {
         let count = self.bitmask.evals.iter().sum();
         let n = self.domain.size();
         let mut count_at_l_last = vec![Fr::zero(); n];
@@ -57,9 +57,11 @@ impl BitCountingRegisters {
         let constraint = &(&(&self.partial_counts_shifted - &self.partial_counts) - &self.bitmask) + &count_at_l_last;
         constraint.interpolate()
     }
-}
 
-pub(crate) struct BitCountingPolynomials {}
+    pub fn get_partial_counts_polynomial(&self) -> DensePolynomial<Fr> {
+        self.partial_counts.interpolate_by_ref()
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -67,12 +67,14 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 mod tests {
     use super::*;
 
-    use ark_std::{end_timer, start_timer};
+    use ark_std::{end_timer, start_timer, UniformRand};
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use ark_std::rand::Rng;
     use merlin::Transcript;
     use ark_ff::{One, Zero};
+    use ark_bls12_377::G1Projective;
+    use ark_ec::ProjectiveCurve;
 
 
     pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
@@ -84,6 +86,14 @@ mod tests {
             .map(|b| if b { Fr::one() } else { Fr::zero() })
             .collect()
     }
+
+    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Affine> {
+        (0..n)
+            .map(|_| G1Projective::rand(rng))
+            .map(|p| p.into_affine())
+            .collect()
+    }
+
 
     #[test]
     fn h_is_not_in_g1() {
