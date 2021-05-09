@@ -489,16 +489,8 @@ mod tests {
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
     use ark_ec::{ProjectiveCurve, AffineCurve};
-    use crate::tests::random_bits;
+    use crate::tests::{random_bits, random_bitmask};
     use crate::utils;
-
-    // TODO: there's crate::tests::random_bits
-    fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
-        (0..n)
-            .map(|_| rng.gen_bool(2.0 / 3.0))
-            .map(|b| if b { Fr::one() } else { Fr::zero() })
-            .collect()
-    }
 
     fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
         (0..n)
@@ -535,7 +527,7 @@ mod tests {
             constraint_poly.evaluate(&zeta)
         );
 
-        let mut bad_bitmask = random_bitmask(rng, m);
+        let mut bad_bitmask = random_bitmask(m, rng);
         bad_bitmask[0] = Fr::rand(rng);
         let registers = AffineAdditionRegisters::new_unchecked(
             domains.clone(),

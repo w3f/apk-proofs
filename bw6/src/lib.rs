@@ -65,16 +65,24 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use ark_std::{end_timer, start_timer};
     use ark_std::convert::TryInto;
     use ark_std::test_rng;
+    use ark_std::rand::Rng;
     use merlin::Transcript;
-    use rand::Rng;
+    use ark_ff::{One, Zero};
 
-    use super::*;
 
-    pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
-        (0..size).map(|_| rng.gen_bool(density)).collect()
+    pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
+        (0..n).map(|_| rng.gen_bool(density)).collect()
+    }
+
+    pub fn random_bitmask<R: Rng>(n: usize, rng: &mut R) -> Vec<Fr> {
+        random_bits(n, 2.0 / 3.0, rng).into_iter()
+            .map(|b| if b { Fr::one() } else { Fr::zero() })
+            .collect()
     }
 
     #[test]

@@ -212,6 +212,7 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use ark_ff::One;
 
 
     #[test]

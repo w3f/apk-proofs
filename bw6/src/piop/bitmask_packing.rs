@@ -391,14 +391,6 @@ mod tests {
     use crate::domains::Domains;
     use crate::piop::affine_addition::AffineAdditionRegisters;
 
-    // TODO: there's crate::tests::random_bits
-    fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
-        (0..n)
-            .map(|_| rng.gen_bool(2.0 / 3.0))
-            .map(|b| if b { Fr::one() } else { Fr::zero() })
-            .collect()
-    }
-
     fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
         (0..n)
             .map(|_| G1Projective::rand(rng))
