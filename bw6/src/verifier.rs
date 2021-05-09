@@ -11,7 +11,7 @@ use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::bls::PublicKey;
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
-use crate::piop::{RegisterPolynomials, RegisterEvaluations};
+use crate::piop::{RegisterPolynomials, VerifierProtocol, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 
 
@@ -60,7 +60,7 @@ impl Verifier {
     where
         AC: RegisterCommitments,
         C: RegisterCommitments,
-        E: RegisterEvaluations<C = C> + RegisterEvaluations<AC = AC>,
+        E: RegisterEvaluations + VerifierProtocol<C = C> + VerifierProtocol<AC = AC>,
     {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
 
@@ -80,12 +80,12 @@ impl Verifier {
 
         let evals_at_zeta = utils::lagrange_evaluations(zeta, self.domain);
 
-        proof.register_evaluations.set_bitmask_at_zeta(|| {
+        let f = || {
             let t_linear_accountability = start_timer!(|| "linear accountability check");
             let b_at_zeta = utils::barycentric_eval_binary_at(zeta, &bitmask, self.domain);
             end_timer!(t_linear_accountability);
             b_at_zeta
-        });
+        };
 
         let t_kzg = start_timer!(|| "KZG check");
         // Reconstruct the commitment to the linearization polynomial using the commitments to the registers from the proof.

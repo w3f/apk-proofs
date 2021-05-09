@@ -12,7 +12,7 @@ pub use setup::Setup;
 pub use signer_set::{SignerSet, SignerSetCommitment};
 
 use crate::kzg::KZG10;
-use crate::piop::{RegisterCommitments, RegisterEvaluations};
+use crate::piop::{RegisterCommitments, VerifierProtocol, RegisterEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;

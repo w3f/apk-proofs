@@ -10,9 +10,10 @@ use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{RegisterEvaluations, RegisterCommitments, RegisterPolynomials};
+use crate::piop::{VerifierProtocol, RegisterCommitments, RegisterPolynomials, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::domains::Domains;
+use ark_bls12_377::Fq;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct BitmaskPackingCommitments {
@@ -75,14 +76,18 @@ pub struct SuccinctAccountableRegisterEvaluations {
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
-    type AC = BitmaskPackingCommitments;
-    type C = PartialSumsAndBitmaskCommitments;
-
     fn as_vec(&self) -> Vec<Fr> {
         let mut res = self.basic_evaluations.as_vec();
         res.extend(vec![self.c, self.acc]);
         res
     }
+}
+
+impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
+    type AC = BitmaskPackingCommitments;
+    type C = PartialSumsAndBitmaskCommitments;
+
+
 
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
@@ -142,7 +147,7 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         let a = two + (r / two.pow([255u64]) - two) * a_zeta_omega1;
 
 
-        let b = self.basic_evaluations.bitmask.unwrap();
+        let b = self.basic_evaluations.bitmask;
         let acc = self.acc;
         let c = self.c;
 

@@ -71,12 +71,13 @@ pub trait ProverProtocol {
     fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 }
 
-
 pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
+    fn as_vec(&self) -> Vec<Fr>;
+}
+
+pub trait VerifierProtocol {
     type AC: RegisterCommitments;
     type C: RegisterCommitments;
-
-    fn as_vec(&self) -> Vec<Fr>;
 
     fn restore_commitment_to_linearization_polynomial(
         &self,
@@ -94,6 +95,4 @@ pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
         bitmask: &Bitmask,
         domain_size: u64,
     ) -> Vec<Fr>;
-
-    fn set_bitmask_at_zeta<F: FnOnce() -> Fr>(&mut self, f: F) {}
 }

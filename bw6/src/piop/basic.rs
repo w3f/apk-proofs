@@ -1,9 +1,29 @@
-use crate::piop::ProverProtocol;
+use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
 use crate::Bitmask;
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
+
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct AffineAdditionEvaluationsWithoutBitmask {
+    pub keyset: (Fr, Fr),
+    pub partial_sums: (Fr, Fr),
+}
+
+impl RegisterEvaluations for AffineAdditionEvaluationsWithoutBitmask {
+    fn as_vec(&self) -> Vec<Fr> {
+        vec![
+            self.keyset.0,
+            self.keyset.1,
+            self.partial_sums.0,
+            self.partial_sums.1,
+        ]
+    }
+}
 
 pub struct BasicRegisterBuilder {
     registers: AffineAdditionRegisters,
@@ -51,7 +71,6 @@ impl ProverProtocol for BasicRegisterBuilder {
     fn evaluate_register_polynomials(&mut self, point: Fr) -> AffineAdditionEvaluations {
         let mut evals = self.registers.evaluate_register_polynomials(point);
         self.register_evaluations = Some(evals.clone());
-        evals.bitmask = None;
         evals
     }
 
