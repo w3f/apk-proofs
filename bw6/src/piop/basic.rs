@@ -33,7 +33,7 @@ pub struct BasicRegisterBuilder {
 impl ProverProtocol for BasicRegisterBuilder {
     type P1 = PartialSumsPolynomials;
     type P2 = ();
-    type E = AffineAdditionEvaluations;
+    type E = AffineAdditionEvaluationsWithoutBitmask;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         BasicRegisterBuilder {
@@ -68,10 +68,14 @@ impl ProverProtocol for BasicRegisterBuilder {
         self.registers.compute_constraint_polynomials()
     }
 
-    fn evaluate_register_polynomials(&mut self, point: Fr) -> AffineAdditionEvaluations {
-        let mut evals = self.registers.evaluate_register_polynomials(point);
+    // bitmask register polynomial is not committed to...
+    fn evaluate_register_polynomials(&mut self, point: Fr) -> AffineAdditionEvaluationsWithoutBitmask {
+        let evals: AffineAdditionEvaluations = self.registers.evaluate_register_polynomials(point);
         self.register_evaluations = Some(evals.clone());
-        evals
+        AffineAdditionEvaluationsWithoutBitmask {
+            keyset: evals.keyset,
+            partial_sums: evals.partial_sums,
+        }
     }
 
     fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
