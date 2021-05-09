@@ -34,14 +34,35 @@ impl BitCountingRegisters {
 
     /// Returns length n vec (0, b[0], b[0] + b[1], ..., b[0] + b[1] + b[n-2])
     fn build_partial_counts_register(bitmask: &[Fr]) -> Vec<Fr> {
-        let partial_sums = bitmask.iter().scan(Fr::zero(), |state, bit| {
+        let partial_counts = bitmask.iter().scan(Fr::zero(), |state, bit| {
             *state += bit;
             Some(*state)
         });
         once(Fr::zero())
-            .chain(partial_sums.take(bitmask.len() - 1))
+            .chain(partial_counts.take(bitmask.len() - 1))
             .collect()
     }
 }
 
 pub(crate) struct BitCountingPolynomials {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ark_std::{test_rng, UniformRand};
+    use crate::tests::random_bitmask;
+
+    #[test]
+    fn test_partial_counts_register() {
+        let rng = &mut test_rng();
+        let n = 16;
+        let bitmask = random_bitmask(n, rng);
+        let partial_counts = BitCountingRegisters::build_partial_counts_register(&bitmask);
+
+        assert_eq!(partial_counts.len(), 16);
+        assert_eq!(partial_counts[0], Fr::zero());
+        for i in 1..n-1 {
+            assert_eq!(partial_counts[i], bitmask[..i].iter().sum());
+        }
+    }
+}
