@@ -72,6 +72,17 @@ pub trait ProverProtocol {
 
     fn evaluate_register_polynomials(&mut self, point: Fr) -> Self::E;
 
+    // Some constraints require access to 2 consecutive rows of the registers, e.g. affine addition
+    // adds 2 points that are represented as consecutive rows. In polynomials it is represented by evaluating
+    // a register polynomial in 2 points: zeta and zeta * omega. (An alternative would be for each register f(Z),
+    // that needs to be constrained in more than one location, introduce an additional "shifted" register f(Z * omega),
+    // and evaluate all the registers in the single point. But proving evaluations is such way would require additionally
+    // committing to the new registers.) So the prover batch-opens all the registers in zeta, but instead of also batch-openning some of them in zeta * omega
+    // (that would require communicating more evaluations), it opens in zeta * omega only their linear combination.
+    // Example: //TODO
+    // The verifier can restore the commitment to this "linearization" polynomial from the commitments to the register polynomials and their evaluations in zeta,
+    // so the required communication (for any number of polynomials) is just the proof and the evaluation.
+    // Plonk section "Reducing the number of field elements" describes the same for some more general case.
     // TODO: move zeta_minus_omega_inv param to evaluations
     fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 }
