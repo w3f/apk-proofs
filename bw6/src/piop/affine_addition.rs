@@ -287,7 +287,8 @@ impl AffineAdditionRegisters {
     // Compute linearization polynomial
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
     // deg(r) = n, so it can be computed in the monomial basis
-    pub fn compute_constraints_linearized(&self, evaluations: &AffineAdditionEvaluations, zeta_minus_omega_inv: Fr) -> Vec<DensePolynomial<Fr>> {
+    pub fn compute_constraints_linearized(&self, evaluations: &AffineAdditionEvaluations, zeta: Fr) -> Vec<DensePolynomial<Fr>> {
+        let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
         let b_zeta = evaluations.bitmask;
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);

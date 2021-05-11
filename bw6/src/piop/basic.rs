@@ -78,9 +78,9 @@ impl ProverProtocol for BasicRegisterBuilder {
         }
     }
 
-    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta: Fr) -> DensePolynomial<Fr> {
         let evals = self.register_evaluations.as_ref().unwrap();
-        let parts = self.registers.compute_constraints_linearized(evals, zeta_minus_omega_inv);
+        let parts = self.registers.compute_constraints_linearized(evals, zeta);
         utils::randomize(phi, &parts)
     }
 }

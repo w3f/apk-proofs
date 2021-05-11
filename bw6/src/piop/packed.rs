@@ -74,12 +74,14 @@ impl ProverProtocol for PackedRegisterBuilder {
         evals
     }
 
-    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta: Fr) -> DensePolynomial<Fr> {
         let evals = self.register_evaluations.as_ref().unwrap();
+
         let affine_addition_parts =
-            self.affine_addition_registers.compute_constraints_linearized(&evals.basic_evaluations, zeta_minus_omega_inv);
+            self.affine_addition_registers.compute_constraints_linearized(&evals.basic_evaluations, zeta);
         let bitmask_packing_parts =
-            self.bitmask_packing_registers.as_ref().unwrap().compute_constraints_linearized(evals, zeta_minus_omega_inv);
+            self.bitmask_packing_registers.as_ref().unwrap().compute_constraints_linearized();
+
         let mut parts = vec![];
         parts.extend(affine_addition_parts);
         parts.extend(bitmask_packing_parts);

@@ -356,7 +356,7 @@ impl BitmaskPackingRegisters {
         )
     }
 
-    pub fn compute_constraints_linearized(&self, evaluations: &SuccinctAccountableRegisterEvaluations, zeta_minus_omega_inv: Fr) -> Vec<DensePolynomial<Fr>> {
+    pub fn compute_constraints_linearized(&self) -> Vec<DensePolynomial<Fr>> {
         vec![
             self.polynomials.acc_poly.clone(),
             self.polynomials.c_poly.clone(),

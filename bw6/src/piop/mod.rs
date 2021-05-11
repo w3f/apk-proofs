@@ -136,8 +136,7 @@ pub trait ProverProtocol {
     // The verifier can restore the commitment to this "linearization" polynomial from the commitments to the register polynomials and their evaluations in zeta,
     // so the required communication (for any number of polynomials) is just the proof and the evaluation.
     // Plonk section "Reducing the number of field elements" describes the same for some more general case.
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta: Fr) -> DensePolynomial<Fr>;
 }
 
 pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {

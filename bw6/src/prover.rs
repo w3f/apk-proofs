@@ -171,8 +171,7 @@ impl<'a> Prover<'a> {
         // evaluate it at the shifted evaluation point,
         // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
-        let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
-        let r_poly = protocol.compute_linearization_polynomial(phi, zeta_minus_omega_inv);
+        let r_poly = protocol.compute_linearization_polynomial(phi, zeta);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
 
