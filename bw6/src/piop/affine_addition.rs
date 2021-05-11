@@ -287,7 +287,7 @@ impl AffineAdditionRegisters {
     // Compute linearization polynomial
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
     // deg(r) = n, so it can be computed in the monomial basis
-    pub fn compute_linearization_polynomial(&self, evaluations: &AffineAdditionEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    pub fn compute_constraints_linearized(&self, evaluations: &AffineAdditionEvaluations, zeta_minus_omega_inv: Fr) -> Vec<DensePolynomial<Fr>> {
         let b_zeta = evaluations.bitmask;
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
@@ -296,16 +296,23 @@ impl AffineAdditionRegisters {
         let mut a1_lin = DensePolynomial::<Fr>::zero();
         a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
         a1_lin += (Fr::one() - b_zeta, acc_y_poly);
+        // a1_lin = zeta_minus_omega_inv * a1_lin // TODO: fix in arkworks
+        a1_lin.coeffs.iter_mut().for_each(|c| *c *= zeta_minus_omega_inv);
 
         let mut a2_lin = DensePolynomial::<Fr>::zero();
         a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
         a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
         a2_lin += (Fr::one() - b_zeta, acc_x_poly);
+        // a2_lin = zeta_minus_omega_inv * a2_lin // TODO: fix in arkworks
+        a2_lin.coeffs.iter_mut().for_each(|c| *c *= zeta_minus_omega_inv);
 
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (zeta_minus_omega_inv, &a1_lin);
-        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
-        r_poly
+        vec![
+            a1_lin,
+            a2_lin,
+            DensePolynomial::zero(),
+            DensePolynomial::zero(),
+            DensePolynomial::zero(),
+        ]
     }
 
     pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {

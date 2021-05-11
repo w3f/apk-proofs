@@ -3,7 +3,7 @@ use crate::piop::ProverProtocol;
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_bls12_377::G1Affine;
-use crate::Bitmask;
+use crate::{Bitmask, utils};
 use ark_bw6_761::Fr;
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomials, PartialSumsAndBitmaskPolynomials};
 
@@ -75,10 +75,14 @@ impl ProverProtocol for PackedRegisterBuilder {
     }
 
     fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        let affine_addition_lp =
-            self.affine_addition_registers.compute_linearization_polynomial(&self.register_evaluations.as_ref().unwrap().basic_evaluations, phi, zeta_minus_omega_inv);
-        let bitmask_packing_lp =
-            self.bitmask_packing_registers.as_ref().unwrap().compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv);
-        affine_addition_lp + bitmask_packing_lp
+        let evals = self.register_evaluations.as_ref().unwrap();
+        let affine_addition_parts =
+            self.affine_addition_registers.compute_constraints_linearized(&evals.basic_evaluations, zeta_minus_omega_inv);
+        let bitmask_packing_parts =
+            self.bitmask_packing_registers.as_ref().unwrap().compute_constraints_linearized(evals, zeta_minus_omega_inv);
+        let mut parts = vec![];
+        parts.extend(affine_addition_parts);
+        parts.extend(bitmask_packing_parts);
+        utils::randomize(phi, &parts)
     }
 }

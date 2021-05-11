@@ -356,16 +356,11 @@ impl BitmaskPackingRegisters {
         )
     }
 
-    pub fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        let powers_of_phi = &utils::powers(phi, 6);
-        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6_lin = &self.polynomials.acc_poly;
-        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7_lin = &self.polynomials.c_poly;
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (powers_of_phi[5], a6_lin);
-        r_poly += (powers_of_phi[6], a7_lin);
-        r_poly
+    pub fn compute_constraints_linearized(&self, evaluations: &SuccinctAccountableRegisterEvaluations, zeta_minus_omega_inv: Fr) -> Vec<DensePolynomial<Fr>> {
+        vec![
+            self.polynomials.acc_poly.clone(),
+            self.polynomials.c_poly.clone(),
+        ]
     }
 
     pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
