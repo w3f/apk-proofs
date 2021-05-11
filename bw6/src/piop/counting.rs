@@ -2,7 +2,7 @@ use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionPolyno
 use crate::piop::{ProverProtocol, RegisterPolynomials, RegisterEvaluations, RegisterCommitments};
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use crate::Bitmask;
+use crate::{Bitmask, utils};
 use ark_bw6_761::{Fr};
 use crate::piop::bit_counting::BitCountingRegisters;
 
@@ -101,8 +101,17 @@ impl ProverProtocol for CountingScheme {
         evals
     }
 
-    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        unimplemented!()
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta: Fr) -> DensePolynomial<Fr> {
+        let evals = self.register_evaluations.as_ref().unwrap();
+        let affine_addition_parts =
+            self.affine_addition_registers.compute_constraints_linearized(&evals.affine_addition_evaluations, zeta);
+        let bit_counting_part =
+            self.bit_counting_registers.compute_bit_counting_constraint_linearized();
+
+        let mut parts = vec![];
+        parts.extend(affine_addition_parts);
+        parts.push(bit_counting_part);
+        utils::randomize(phi, &parts)
     }
 }
 

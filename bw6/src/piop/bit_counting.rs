@@ -58,6 +58,10 @@ impl BitCountingRegisters {
         constraint.interpolate()
     }
 
+    pub fn compute_bit_counting_constraint_linearized(&self) -> DensePolynomial<Fr> {
+        self.get_partial_counts_polynomial()
+    }
+
     pub fn get_partial_counts_polynomial(&self) -> DensePolynomial<Fr> {
         self.partial_counts.interpolate_by_ref()
     }
