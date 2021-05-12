@@ -117,8 +117,8 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
 }
 
 impl VerifierProtocol for AffineAdditionEvaluations {
-    type AC = ();
-    type C = PartialSumsCommitments;
+    type C2 = ();
+    type C1 = PartialSumsCommitments;
 
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,

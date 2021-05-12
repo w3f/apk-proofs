@@ -88,7 +88,7 @@ impl Verifier {
             AC: RegisterCommitments,
             C: RegisterCommitments,
             E: RegisterEvaluations,
-            P: VerifierProtocol<C=C> + VerifierProtocol<AC=AC>,
+            P: VerifierProtocol<C1=C> + VerifierProtocol<C2=AC>,
     {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
 

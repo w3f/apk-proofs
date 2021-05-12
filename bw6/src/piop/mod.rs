@@ -144,15 +144,15 @@ pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
 }
 
 pub trait VerifierProtocol {
-    type AC: RegisterCommitments;
-    type C: RegisterCommitments;
+    type C1: RegisterCommitments; // commitments to ProverProtocol::P1
+    type C2: RegisterCommitments; // commitments to ProverProtocol::P2
 
     fn restore_commitment_to_linearization_polynomial(
         &self,
         phi: Fr,
         zeta_minus_omega_inv: Fr,
-        commitments: &Self::C,
-        extra_commitments: &Self::AC,
+        commitments: &Self::C1,
+        extra_commitments: &Self::C2,
     ) -> ark_bw6_761::G1Projective;
 
     fn evaluate_constraint_polynomials(

@@ -84,8 +84,8 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
 }
 
 impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
-    type AC = BitmaskPackingCommitments;
-    type C = PartialSumsAndBitmaskCommitments;
+    type C2 = BitmaskPackingCommitments;
+    type C1 = PartialSumsAndBitmaskCommitments;
 
 
 
