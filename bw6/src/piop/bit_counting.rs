@@ -6,6 +6,21 @@ use ark_std::iter::once;
 use ark_poly::univariate::DensePolynomial;
 
 
+// This "gadget" is used in the 'counting' scheme to constraint the number of set bits in the bitmask.
+
+// It adds a single register tracking partial bitmask sums:
+// r[0] = 0, r[i] = b[0] + ... + b[i-1], i = 1,...,n-1,
+// and a single constraint operating on this register and the bitmask register b.
+// Let S = b[0]+...+b[n-1] - the value we want to constraint and
+// let L[i] = 0, i = 0,...,n-2, and L[n-1] = S.
+// The constraint then is
+// r[i+1] = r[i] + b[i] - L[i], i = 0,...,n-1
+// For i = 0,...,n-2 it ensures that the register is well-formed: r[i+1] = r[i] + b[i],
+// for i = n-1, r[n] = r[n-1] + b[n-1] - S, but r[n] = r[0] and r[n-1] + b[n-1] = S.
+// It follows that r[0] = 0 and S is properly constrained.
+
+// After interpolation L this defined becomes S * L_{n-1}(Z) that is known by the verifier, and easy to compute.
+
 pub(crate) struct BitCountingRegisters {
     domain: Radix2EvaluationDomain<Fr>,
 
