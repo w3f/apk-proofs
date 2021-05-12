@@ -83,26 +83,8 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     }
 }
 
-impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
-    type C2 = BitmaskPackingCommitments;
-    type C1 = PartialSumsAndBitmaskCommitments;
-
-
-
-    fn restore_commitment_to_linearization_polynomial(&self,
-                                                      phi: Fr,
-                                                      zeta_minus_omega_inv: Fr,
-                                                      commitments: &PartialSumsAndBitmaskCommitments,
-                                                      extra_commitments: &BitmaskPackingCommitments,
-    ) -> ark_bw6_761::G1Projective {
-        let powers_of_phi = utils::powers(phi, 6);
-        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.partial_sums, &());
-        r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
-        r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
-        r_comm
-    }
-
-    fn evaluate_constraint_polynomials(
+impl SuccinctAccountableRegisterEvaluations {
+    pub fn evaluate_constraint_polynomials(
         &self,
         apk: ark_bls12_377::G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
@@ -166,9 +148,29 @@ impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
             c,
         );
 
-        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, r, bitmask, domain_size);
+        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta);
         res.extend(vec![a6, a7]);
         res
+    }
+}
+
+impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
+    type C1 = PartialSumsAndBitmaskCommitments;
+    type C2 = BitmaskPackingCommitments;
+
+
+
+    fn restore_commitment_to_linearization_polynomial(&self,
+                                                      phi: Fr,
+                                                      zeta_minus_omega_inv: Fr,
+                                                      commitments: &PartialSumsAndBitmaskCommitments,
+                                                      extra_commitments: &BitmaskPackingCommitments,
+    ) -> ark_bw6_761::G1Projective {
+        let powers_of_phi = utils::powers(phi, 6);
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.partial_sums, &());
+        r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
+        r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
+        r_comm
     }
 }
 

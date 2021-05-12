@@ -142,14 +142,13 @@ impl VerifierProtocol for AffineAdditionEvaluations {
         r_comm += commitments.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
         r_comm
     }
+}
 
-    fn evaluate_constraint_polynomials(
+impl AffineAdditionEvaluations {
+    pub fn evaluate_constraint_polynomials(
         &self,
         apk: ark_bls12_377::G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
-        r: Fr,
-        bitmask: &Bitmask,
-        domain_size: u64,
     ) -> Vec<Fr> {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;

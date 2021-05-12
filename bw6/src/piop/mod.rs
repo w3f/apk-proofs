@@ -155,12 +155,12 @@ pub trait VerifierProtocol {
         extra_commitments: &Self::C2,
     ) -> ark_bw6_761::G1Projective;
 
-    fn evaluate_constraint_polynomials(
-        &self,
-        apk: ark_bls12_377::G1Affine,
-        evals_at_zeta: &LagrangeEvaluations<Fr>,
-        r: Fr,
-        bitmask: &Bitmask,
-        domain_size: u64,
-    ) -> Vec<Fr>;
+    // fn evaluate_constraint_polynomials(
+    //     &self,
+    //     apk: ark_bls12_377::G1Affine,
+    //     evals_at_zeta: &LagrangeEvaluations<Fr>,
+    //     r: Fr,
+    //     bitmask: &Bitmask,
+    //     domain_size: u64,
+    // ) -> Vec<Fr>;
 }

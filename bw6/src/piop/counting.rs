@@ -150,10 +150,6 @@ impl VerifierProtocol for CountingEvaluations {
         r_comm += commitments.partial_counts_commitment.mul(powers_of_phi[5]);
         r_comm
     }
-
-    fn evaluate_constraint_polynomials(&self, apk: G1Affine, evals_at_zeta: &LagrangeEvaluations<Fr>, r: Fr, bitmask: &Bitmask, domain_size: u64) -> Vec<Fr> {
-        unimplemented!()
-    }
 }
 
 #[cfg(test)]

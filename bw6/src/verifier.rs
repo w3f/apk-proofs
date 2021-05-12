@@ -62,7 +62,7 @@ impl Verifier {
         >(proof, &evaluations_with_bitmask, &challenges, &mut fsrng, &evals_at_zeta);
 
         let apk = apk.0.into_affine();
-        let constraint_polynomial_evals = evaluations_with_bitmask.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, bitmask, self.domain.size);
+        let constraint_polynomial_evals = evaluations_with_bitmask.evaluate_constraint_polynomials(apk, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
