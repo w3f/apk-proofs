@@ -31,29 +31,23 @@ pub(crate) struct BitCountingRegisters {
 
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     partial_counts: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    partial_counts_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 }
 
 impl BitCountingRegisters {
     pub fn new(bitmask: &Bitmask) -> Self {
         let bitmask = bitmask.to_bits_as_field_elements();
         let partial_counts = Self::build_partial_counts_register(&bitmask);
-        let mut partial_counts_shifted = partial_counts.clone();
-        partial_counts_shifted.rotate_left(1);
-        Self::new_unchecked(bitmask, partial_counts, partial_counts_shifted)
+        Self::new_unchecked(bitmask, partial_counts)
     }
 
     fn new_unchecked(bitmask: Vec<Fr>,
                      partial_counts: Vec<Fr>,
-                     partial_counts_shifted: Vec<Fr>,
     ) -> Self {
         let domain = Radix2EvaluationDomain::<Fr>::new(bitmask.len()).unwrap();
         Self {
             domain,
-
             bitmask: Evaluations::from_vec_and_domain(bitmask, domain),
             partial_counts: Evaluations::from_vec_and_domain(partial_counts, domain),
-            partial_counts_shifted: Evaluations::from_vec_and_domain(partial_counts_shifted, domain),
         }
     }
 
@@ -69,23 +63,17 @@ impl BitCountingRegisters {
     }
 
     pub fn compute_bit_counting_constraint(&self) -> DensePolynomial<Fr> {
-        // let count = self.bitmask.evals.iter().sum();
-        // let n = self.domain.size();
-        // let mut count_at_l_last = vec![Fr::zero(); n];
-        // count_at_l_last[n-1] = count;
-        // let count_at_l_last = Evaluations::from_vec_and_domain(count_at_l_last, self.domain);
-        // let constraint = &(&(&self.partial_counts_shifted - &self.partial_counts) - &self.bitmask) + &count_at_l_last;
-        // constraint.interpolate()
         DensePolynomial::zero()
+    }
+
+    // Though the constraint is zero, the verifier still needs the opening of the register in zeta * omega.
+    pub fn compute_bit_counting_constraint_linearized(&self) -> DensePolynomial<Fr> {
+        self.get_partial_counts_polynomial()
     }
 
     pub fn get_partial_counts_polynomial(&self) -> DensePolynomial<Fr> {
         //TODO: cache
         self.partial_counts.interpolate_by_ref()
-    }
-
-    pub fn compute_bit_counting_constraint_linearized(&self) -> DensePolynomial<Fr> {
-        self.get_partial_counts_polynomial()
     }
 
     pub fn evaluate_register(&self, zeta: Fr) -> BitCountingEvaluation {
