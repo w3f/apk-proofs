@@ -5,6 +5,9 @@ use ark_ff::Zero;
 use ark_std::iter::once;
 use ark_poly::univariate::DensePolynomial;
 
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
 
 // This "gadget" is used in the 'counting' scheme to constraint the number of set bits in the bitmask.
 
@@ -34,8 +37,9 @@ pub(crate) struct BitCountingRegisters {
 }
 
 impl BitCountingRegisters {
-    pub fn new(bitmask: &Bitmask) -> Self {
-        let bitmask = bitmask.to_bits_as_field_elements();
+    pub fn new(n: usize, bitmask: &Bitmask) -> Self {
+        let mut bitmask = bitmask.to_bits_as_field_elements();
+        bitmask.resize_with(n, || Fr::zero());
         let partial_counts = Self::build_partial_counts_register(&bitmask);
         Self::new_unchecked(bitmask, partial_counts)
     }
@@ -88,7 +92,8 @@ impl BitCountingRegisters {
     }
 }
 
-pub struct BitCountingEvaluation(Fr);
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
+pub struct BitCountingEvaluation(pub Fr);
 
 impl BitCountingEvaluation {
     fn evaluate_constraint(
@@ -101,7 +106,7 @@ impl BitCountingEvaluation {
         partial_counts_at_zeta_omega - self.0 - bitmask_at_zeta + count * l_last_at_zeta
     }
 
-    fn evaluate_constraint_at_zeta(
+    pub fn evaluate_constraint_at_zeta(
         &self,
         count: Fr,
         bitmask_at_zeta: Fr,
@@ -138,7 +143,7 @@ mod tests {
         let rng = &mut test_rng();
         let n = 16;
         let bitmask = Bitmask::from_bits(&random_bits(n, 2.0 / 3.0, rng));
-        let registers = BitCountingRegisters::new(&bitmask);
+        let registers = BitCountingRegisters::new(n, &bitmask);
 
         let constraint = registers.compute_bit_counting_constraint();
         assert!(constraint.divide_by_vanishing_poly(registers.domain).unwrap().1.is_zero());
@@ -150,7 +155,7 @@ mod tests {
         let n = 16;
         let domain = Radix2EvaluationDomain::<Fr>::new(n).unwrap();
         let bitmask = Bitmask::from_bits(&random_bits(n, 2.0 / 3.0, rng));
-        let registers = BitCountingRegisters::new(&bitmask);
+        let registers = BitCountingRegisters::new(n, &bitmask);
 
         let zeta = Fr::rand(rng);
 

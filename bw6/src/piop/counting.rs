@@ -4,7 +4,7 @@ use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use crate::{Bitmask, utils};
 use ark_bw6_761::{Fr, G1Projective};
-use crate::piop::bit_counting::BitCountingRegisters;
+use crate::piop::bit_counting::{BitCountingRegisters, BitCountingEvaluation};
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
@@ -15,7 +15,7 @@ use ark_ec::AffineCurve;
 
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-struct CountingCommitments {
+pub struct CountingCommitments {
     affine_addition_commitments: PartialSumsAndBitmaskCommitments,
     partial_counts_commitment: ark_bw6_761::G1Affine,
 }
@@ -29,8 +29,7 @@ impl RegisterCommitments for CountingCommitments {
 }
 
 
-
-struct CountingPolynomials {
+pub struct CountingPolynomials {
     affine_addition_polynomials: PartialSumsAndBitmaskPolynomials,
     partial_counts_polynomial: DensePolynomial<Fr>,
 }
@@ -47,24 +46,22 @@ impl RegisterPolynomials for CountingPolynomials {
 }
 
 
-
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
-struct CountingEvaluations {
+pub struct CountingEvaluations {
     affine_addition_evaluations: AffineAdditionEvaluations,
-    partial_counts_evaluation: Fr,
+    partial_counts_evaluation: BitCountingEvaluation,
 }
 
 impl RegisterEvaluations for CountingEvaluations {
     fn as_vec(&self) -> Vec<Fr> {
         let mut evals = self.affine_addition_evaluations.as_vec();
-        evals.push(self.partial_counts_evaluation);
+        evals.push(self.partial_counts_evaluation.0);
         evals
     }
 }
 
 
-
-struct CountingScheme {
+pub struct CountingScheme {
     affine_addition_registers: AffineAdditionRegisters,
     bit_counting_registers: BitCountingRegisters,
     register_evaluations: Option<CountingEvaluations>,
@@ -76,9 +73,10 @@ impl ProverProtocol for CountingScheme {
     type E = CountingEvaluations;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
+        let n = domains.size;
         CountingScheme {
             affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
-            bit_counting_registers: BitCountingRegisters::new(&bitmask),
+            bit_counting_registers: BitCountingRegisters::new(n, &bitmask),
             register_evaluations: None,
         }
     }
@@ -86,7 +84,7 @@ impl ProverProtocol for CountingScheme {
     fn get_register_polynomials_to_commit1(&self) -> Self::P1 {
         CountingPolynomials {
             affine_addition_polynomials: self.affine_addition_registers.get_partial_sums_and_bitmask_polynomials(),
-            partial_counts_polynomial: self.bit_counting_registers.get_partial_counts_polynomial()
+            partial_counts_polynomial: self.bit_counting_registers.get_partial_counts_polynomial(),
         }
     }
 
@@ -117,7 +115,7 @@ impl ProverProtocol for CountingScheme {
         let partial_counts_evaluation = self.bit_counting_registers.get_partial_counts_polynomial().evaluate(&point);
         let evals = CountingEvaluations {
             affine_addition_evaluations,
-            partial_counts_evaluation,
+            partial_counts_evaluation: BitCountingEvaluation(partial_counts_evaluation),
         };
         self.register_evaluations = Some(evals.clone());
         evals
@@ -138,19 +136,34 @@ impl ProverProtocol for CountingScheme {
 }
 
 
-
 impl VerifierProtocol for CountingEvaluations {
     type C1 = CountingCommitments;
     type C2 = ();
 
     fn restore_commitment_to_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr, commitments: &Self::C1, extra_commitments: &Self::C2) -> G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
-        let partial_sums_commitments= &commitments.affine_addition_commitments.partial_sums;
+        let partial_sums_commitments = &commitments.affine_addition_commitments.partial_sums;
         let mut r_comm = self.affine_addition_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, partial_sums_commitments, &());
         r_comm += commitments.partial_counts_commitment.mul(powers_of_phi[5]);
         r_comm
     }
 }
+
+
+impl CountingEvaluations {
+    pub fn evaluate_constraint_polynomials(&self,
+                                           apk: ark_bls12_377::G1Affine,
+                                           count: Fr,
+                                           evals_at_zeta: &LagrangeEvaluations<Fr>,
+    ) -> Vec<Fr> {
+        let mut res = self.affine_addition_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta);
+        let b_at_zeta = self.affine_addition_evaluations.bitmask;
+        let a6 = self.partial_counts_evaluation.evaluate_constraint_at_zeta(count, b_at_zeta, evals_at_zeta.l_last);
+        res.push(a6);
+        res
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

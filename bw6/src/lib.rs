@@ -197,4 +197,52 @@ mod tests {
 
         assert!(valid);
     }
+
+    #[test]
+    fn test_counting_scheme() {
+        let rng = &mut test_rng();
+        let log_domain_size = 8;
+
+        let t_setup = start_timer!(|| "setup");
+        let setup = Setup::generate(log_domain_size, rng);
+        end_timer!(t_setup);
+
+        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = keyset_size.try_into().unwrap();
+        let signer_set = SignerSet::random(keyset_size, rng);
+
+        let pks_commitment_ = start_timer!(|| "signer set commitment");
+        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        end_timer!(pks_commitment_);
+
+        let t_prover_new = start_timer!(|| "prover precomputation");
+        let prover = Prover::new(
+            setup.domain_size,
+            setup.kzg_params.get_pk(),
+            &pks_comm,
+            signer_set.get_all(),
+            Transcript::new(b"apk_proof")
+        );
+        end_timer!(t_prover_new);
+
+        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+
+        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
+        let b = Bitmask::from_bits(&bits);
+        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
+
+        let prove_ = start_timer!(|| "BW6 prove");
+        let proof = prover.prove_counting(b.clone());
+        end_timer!(prove_);
+
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+
+        let verify_ = start_timer!(|| "BW6 verify");
+        let valid = verifier.verify_counting(&apk, &b, &proof);
+        end_timer!(verify_);
+
+        assert!(valid);
+    }
 }

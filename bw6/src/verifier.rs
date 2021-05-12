@@ -15,6 +15,7 @@ use crate::piop::{VerifierProtocol, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 use crate::utils::LagrangeEvaluations;
+use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 
 
 pub struct Verifier {
@@ -89,6 +90,31 @@ impl Verifier {
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
+
+    pub fn verify_counting(
+        &self,
+        apk: &PublicKey,
+        bitmask: &Bitmask, //TODO: remove
+        proof: &Proof<CountingEvaluations, CountingCommitments, ()>,
+    ) -> bool {
+        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
+        let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
+        let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
+        let count = Fr::from(bitmask.count_ones() as u16);
+
+        self.validate_evaluations::<
+            (),
+            CountingCommitments,
+            CountingEvaluations,
+            CountingEvaluations,
+        >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
+
+        let apk = apk.0.into_affine();
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, count, &evals_at_zeta);
+        let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
+        proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
+    }
+
 
 
     fn validate_evaluations<AC, C, E, P>(

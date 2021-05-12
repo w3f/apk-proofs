@@ -16,6 +16,8 @@ use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::basic::{BasicRegisterBuilder, AffineAdditionEvaluationsWithoutBitmask};
+use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use crate::piop::counting::CountingScheme;
 
 
 struct Params {
@@ -108,6 +110,10 @@ impl<'a> Prover<'a> {
 
     pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments> {
         self.prove::<PackedRegisterBuilder>(bitmask)
+    }
+
+    pub fn prove_counting(&self, bitmask: Bitmask) -> Proof<CountingEvaluations, CountingCommitments, ()> {
+        self.prove::<CountingScheme>(bitmask)
     }
 
     #[allow(non_snake_case)]
