@@ -63,6 +63,7 @@ impl BitCountingRegisters {
     }
 
     pub fn compute_bit_counting_constraint(&self) -> DensePolynomial<Fr> {
+        // partial_counts(wZ) - partial_counts(Z) - bitmask(Z) + count*L_{n-1}(Z)
         DensePolynomial::zero()
     }
 
@@ -76,7 +77,7 @@ impl BitCountingRegisters {
         self.partial_counts.interpolate_by_ref()
     }
 
-    pub fn evaluate_register(&self, zeta: Fr) -> BitCountingEvaluation {
+    pub fn evaluate_partial_counts_register(&self, zeta: Fr) -> BitCountingEvaluation {
         let eval = self.get_partial_counts_polynomial().evaluate(&zeta);
         BitCountingEvaluation(eval)
     }
@@ -162,7 +163,7 @@ mod tests {
         let partial_counts_at_zeta_omega = registers.get_partial_counts_polynomial().evaluate(&(zeta * omega));
         let bitmask_at_zeta = registers.get_bitmask_polynomial().evaluate(&zeta);
 
-        let register_eval = registers.evaluate_register(zeta);
+        let register_eval = registers.evaluate_partial_counts_register(zeta);
         let actual_constraint_eval = register_eval.evaluate_constraint(count, partial_counts_at_zeta_omega, bitmask_at_zeta, evals_at_zeta.l_last);
         assert_eq!(actual_constraint_eval, expected_constraint_eval);
 
