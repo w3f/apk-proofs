@@ -14,6 +14,8 @@ use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, Bitma
 use crate::piop::{VerifierProtocol, RegisterEvaluations};
 use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
+use crate::utils::LagrangeEvaluations;
+use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 
 
 pub struct Verifier {
@@ -39,7 +41,9 @@ impl Verifier {
         bitmask: &Bitmask,
         proof: &Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>,
     ) -> bool {
+        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
         let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
+        let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
         let b_at_zeta = utils::barycentric_eval_binary_at(challenges.zeta, &bitmask, self.domain);
@@ -51,12 +55,17 @@ impl Verifier {
             partial_sums: proof.register_evaluations.partial_sums,
         };
 
-        self.verify::<
+        self.validate_evaluations::<
             (),
             PartialSumsCommitments,
             AffineAdditionEvaluationsWithoutBitmask,
             AffineAdditionEvaluations,
-        >(apk, bitmask, proof, &evaluations_with_bitmask, challenges, &mut fsrng)
+        >(proof, &evaluations_with_bitmask, &challenges, &mut fsrng, &evals_at_zeta);
+
+        let apk = apk.0.into_affine();
+        let constraint_polynomial_evals = evaluations_with_bitmask.evaluate_constraint_polynomials(apk, &evals_at_zeta);
+        let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
+        proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
 
     pub fn verify_packed(
@@ -65,35 +74,63 @@ impl Verifier {
         bitmask: &Bitmask,
         proof: &Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>,
     ) -> bool {
+        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
         let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
-        self.verify::<
+        let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
+
+        self.validate_evaluations::<
             BitmaskPackingCommitments,
             PartialSumsAndBitmaskCommitments,
             SuccinctAccountableRegisterEvaluations,
             SuccinctAccountableRegisterEvaluations,
-        >(apk, bitmask, proof, &proof.register_evaluations, challenges, &mut fsrng)
+        >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
+
+        let apk = apk.0.into_affine();
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, bitmask, self.domain.size);
+        let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
+        proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
+    }
+
+    pub fn verify_counting(
+        &self,
+        apk: &PublicKey,
+        bitmask: &Bitmask, //TODO: remove
+        proof: &Proof<CountingEvaluations, CountingCommitments, ()>,
+    ) -> bool {
+        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
+        let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
+        let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
+        let count = Fr::from(bitmask.count_ones() as u16);
+
+        self.validate_evaluations::<
+            (),
+            CountingCommitments,
+            CountingEvaluations,
+            CountingEvaluations,
+        >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
+
+        let apk = apk.0.into_affine();
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, count, &evals_at_zeta);
+        let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
+        proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
 
 
-    fn verify<AC, C, E, P>(
+
+    fn validate_evaluations<AC, C, E, P>(
         &self,
-        apk: &PublicKey,
-        bitmask: &Bitmask,
         proof: &Proof<E, C, AC>,
         protocol: &P,
-        challenges: Challenges,
+        challenges: &Challenges,
         fsrng: &mut TranscriptRng,
-    ) -> bool
+        evals_at_zeta: &LagrangeEvaluations<Fr>,
+    ) -> ()
         where
             AC: RegisterCommitments,
             C: RegisterCommitments,
             E: RegisterEvaluations,
-            P: VerifierProtocol<C=C> + VerifierProtocol<AC=AC>,
+            P: VerifierProtocol<C1=C> + VerifierProtocol<C2=AC>,
     {
-        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
-
-        let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
-
         let t_kzg = start_timer!(|| "KZG check");
         // Reconstruct the commitment to the linearization polynomial using the commitments to the registers from the proof.
         let t_r_comm = start_timer!(|| "linearization polynomial commitment");
@@ -145,11 +182,6 @@ impl Verifier {
         endo::subgroup_check(&total_w);
         end_timer!(t_lazy_subgroup_checks);
         end_timer!(t_kzg);
-
-        let apk = apk.0.into_affine();
-        let constraint_polynomial_evals = protocol.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, bitmask, self.domain.size);
-        let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
-        proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
 
     fn restore_challenges<E, C, AC>(&self, apk: &PublicKey, bitmask: &Bitmask, proof: &Proof<E, C, AC>) -> (Challenges, TranscriptRng)

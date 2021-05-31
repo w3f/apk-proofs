@@ -83,26 +83,8 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
     }
 }
 
-impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
-    type AC = BitmaskPackingCommitments;
-    type C = PartialSumsAndBitmaskCommitments;
-
-
-
-    fn restore_commitment_to_linearization_polynomial(&self,
-                                                      phi: Fr,
-                                                      zeta_minus_omega_inv: Fr,
-                                                      commitments: &PartialSumsAndBitmaskCommitments,
-                                                      extra_commitments: &BitmaskPackingCommitments,
-    ) -> ark_bw6_761::G1Projective {
-        let powers_of_phi = utils::powers(phi, 6);
-        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.partial_sums, &());
-        r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
-        r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
-        r_comm
-    }
-
-    fn evaluate_constraint_polynomials(
+impl SuccinctAccountableRegisterEvaluations {
+    pub fn evaluate_constraint_polynomials(
         &self,
         apk: ark_bls12_377::G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
@@ -166,9 +148,29 @@ impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
             c,
         );
 
-        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, r, bitmask, domain_size);
+        let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta);
         res.extend(vec![a6, a7]);
         res
+    }
+}
+
+impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
+    type C1 = PartialSumsAndBitmaskCommitments;
+    type C2 = BitmaskPackingCommitments;
+
+
+
+    fn restore_commitment_to_linearization_polynomial(&self,
+                                                      phi: Fr,
+                                                      zeta_minus_omega_inv: Fr,
+                                                      commitments: &PartialSumsAndBitmaskCommitments,
+                                                      extra_commitments: &BitmaskPackingCommitments,
+    ) -> ark_bw6_761::G1Projective {
+        let powers_of_phi = utils::powers(phi, 6);
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.partial_sums, &());
+        r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
+        r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
+        r_comm
     }
 }
 
@@ -356,16 +358,11 @@ impl BitmaskPackingRegisters {
         )
     }
 
-    pub fn compute_linearization_polynomial(&self, evaluations: &SuccinctAccountableRegisterEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        let powers_of_phi = &utils::powers(phi, 6);
-        // let a6 = &(&(&acc_shifted_x4 - &acc_x4) - &(&B * &c_x4)) + &(bc_ln_x4);
-        let a6_lin = &self.polynomials.acc_poly;
-        // let a7 = &(&c_shifted_x4 - &(&c_x4 * &a_x4)) - &ln_x4;
-        let a7_lin = &self.polynomials.c_poly;
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (powers_of_phi[5], a6_lin);
-        r_poly += (powers_of_phi[6], a7_lin);
-        r_poly
+    pub fn compute_constraints_linearized(&self) -> Vec<DensePolynomial<Fr>> {
+        vec![
+            self.polynomials.acc_poly.clone(),
+            self.polynomials.c_poly.clone(),
+        ]
     }
 
     pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
@@ -390,14 +387,6 @@ mod tests {
     use crate::tests::random_bits;
     use crate::domains::Domains;
     use crate::piop::affine_addition::AffineAdditionRegisters;
-
-    // TODO: there's crate::tests::random_bits
-    fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
-        (0..n)
-            .map(|_| rng.gen_bool(2.0 / 3.0))
-            .map(|b| if b { Fr::one() } else { Fr::zero() })
-            .collect()
-    }
 
     fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
         (0..n)

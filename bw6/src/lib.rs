@@ -65,17 +65,35 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 
 #[cfg(test)]
 mod tests {
-    use ark_std::{end_timer, start_timer};
-    use ark_std::convert::TryInto;
-    use ark_std::test_rng;
-    use merlin::Transcript;
-    use rand::Rng;
-
     use super::*;
 
-    pub fn random_bits<R: Rng>(size: usize, density: f64, rng: &mut R) -> Vec<bool> {
-        (0..size).map(|_| rng.gen_bool(density)).collect()
+    use ark_std::{end_timer, start_timer, UniformRand};
+    use ark_std::convert::TryInto;
+    use ark_std::test_rng;
+    use ark_std::rand::Rng;
+    use merlin::Transcript;
+    use ark_ff::{One, Zero};
+    use ark_bls12_377::G1Projective;
+    use ark_ec::ProjectiveCurve;
+
+
+    pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
+        (0..n).map(|_| rng.gen_bool(density)).collect()
     }
+
+    pub fn random_bitmask<R: Rng>(n: usize, rng: &mut R) -> Vec<Fr> {
+        random_bits(n, 2.0 / 3.0, rng).into_iter()
+            .map(|b| if b { Fr::one() } else { Fr::zero() })
+            .collect()
+    }
+
+    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Affine> {
+        (0..n)
+            .map(|_| G1Projective::rand(rng))
+            .map(|p| p.into_affine())
+            .collect()
+    }
+
 
     #[test]
     fn h_is_not_in_g1() {
@@ -175,6 +193,54 @@ mod tests {
 
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify_simple(&apk, &b, &proof);
+        end_timer!(verify_);
+
+        assert!(valid);
+    }
+
+    #[test]
+    fn test_counting_scheme() {
+        let rng = &mut test_rng();
+        let log_domain_size = 8;
+
+        let t_setup = start_timer!(|| "setup");
+        let setup = Setup::generate(log_domain_size, rng);
+        end_timer!(t_setup);
+
+        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = keyset_size.try_into().unwrap();
+        let signer_set = SignerSet::random(keyset_size, rng);
+
+        let pks_commitment_ = start_timer!(|| "signer set commitment");
+        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        end_timer!(pks_commitment_);
+
+        let t_prover_new = start_timer!(|| "prover precomputation");
+        let prover = Prover::new(
+            setup.domain_size,
+            setup.kzg_params.get_pk(),
+            &pks_comm,
+            signer_set.get_all(),
+            Transcript::new(b"apk_proof")
+        );
+        end_timer!(t_prover_new);
+
+        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+
+        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
+        let b = Bitmask::from_bits(&bits);
+        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
+
+        let prove_ = start_timer!(|| "BW6 prove");
+        let proof = prover.prove_counting(b.clone());
+        end_timer!(prove_);
+
+        let mut serialized_proof = vec![0; proof.serialized_size()];
+        proof.serialize(&mut serialized_proof[..]).unwrap();
+        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+
+        let verify_ = start_timer!(|| "BW6 verify");
+        let valid = verifier.verify_counting(&apk, &b, &proof);
         end_timer!(verify_);
 
         assert!(valid);

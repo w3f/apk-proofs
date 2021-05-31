@@ -16,6 +16,8 @@ use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::basic::{BasicRegisterBuilder, AffineAdditionEvaluationsWithoutBitmask};
+use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use crate::piop::counting::CountingScheme;
 
 
 struct Params {
@@ -110,6 +112,10 @@ impl<'a> Prover<'a> {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
+    pub fn prove_counting(&self, bitmask: Bitmask) -> Proof<CountingEvaluations, CountingCommitments, ()> {
+        self.prove::<CountingScheme>(bitmask)
+    }
+
     #[allow(non_snake_case)]
     fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
     {
@@ -171,8 +177,7 @@ impl<'a> Prover<'a> {
         // evaluate it at the shifted evaluation point,
         // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
-        let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
-        let r_poly = protocol.compute_linearization_polynomial(phi, zeta_minus_omega_inv);
+        let r_poly = protocol.compute_linearization_polynomial(phi, zeta);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
 
@@ -212,6 +217,7 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use ark_ff::One;
 
 
     #[test]

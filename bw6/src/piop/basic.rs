@@ -2,7 +2,7 @@ use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
-use crate::Bitmask;
+use crate::{Bitmask, utils};
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
 
 use ark_std::io::{Read, Write};
@@ -78,7 +78,9 @@ impl ProverProtocol for BasicRegisterBuilder {
         }
     }
 
-    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        self.registers.compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv)
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta: Fr) -> DensePolynomial<Fr> {
+        let evals = self.register_evaluations.as_ref().unwrap();
+        let parts = self.registers.compute_constraints_linearized(evals, zeta);
+        utils::randomize(phi, &parts)
     }
 }

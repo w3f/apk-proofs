@@ -47,8 +47,8 @@ pub struct PartialSumsAndBitmaskCommitments {
 
 impl RegisterCommitments for PartialSumsAndBitmaskCommitments {
     fn as_vec(&self) -> Vec<G1Affine> {
-        let mut res = self.partial_sums.as_vec();
-        res.push(self.bitmask);
+        let mut res = vec![self.bitmask];
+        res.extend(self.partial_sums.as_vec());
         res
     }
 }
@@ -117,8 +117,8 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
 }
 
 impl VerifierProtocol for AffineAdditionEvaluations {
-    type AC = ();
-    type C = PartialSumsCommitments;
+    type C2 = ();
+    type C1 = PartialSumsCommitments;
 
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
@@ -142,14 +142,13 @@ impl VerifierProtocol for AffineAdditionEvaluations {
         r_comm += commitments.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
         r_comm
     }
+}
 
-    fn evaluate_constraint_polynomials(
+impl AffineAdditionEvaluations {
+    pub fn evaluate_constraint_polynomials(
         &self,
         apk: ark_bls12_377::G1Affine,
         evals_at_zeta: &LagrangeEvaluations<Fr>,
-        r: Fr,
-        bitmask: &Bitmask,
-        domain_size: u64,
     ) -> Vec<Fr> {
         let b = self.bitmask;
         let (x1, y1) = self.partial_sums;
@@ -287,7 +286,8 @@ impl AffineAdditionRegisters {
     // Compute linearization polynomial
     // See https://hackmd.io/CdZkCe2PQuy7XG7CLOBRbA step 4
     // deg(r) = n, so it can be computed in the monomial basis
-    pub fn compute_linearization_polynomial(&self, evaluations: &AffineAdditionEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+    pub fn compute_constraints_linearized(&self, evaluations: &AffineAdditionEvaluations, zeta: Fr) -> Vec<DensePolynomial<Fr>> {
+        let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
         let b_zeta = evaluations.bitmask;
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
@@ -296,16 +296,23 @@ impl AffineAdditionRegisters {
         let mut a1_lin = DensePolynomial::<Fr>::zero();
         a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
         a1_lin += (Fr::one() - b_zeta, acc_y_poly);
+        // a1_lin = zeta_minus_omega_inv * a1_lin // TODO: fix in arkworks
+        a1_lin.coeffs.iter_mut().for_each(|c| *c *= zeta_minus_omega_inv);
 
         let mut a2_lin = DensePolynomial::<Fr>::zero();
         a2_lin += (b_zeta * (acc_x_zeta - pks_x_zeta), acc_y_poly);
         a2_lin += (b_zeta * (acc_y_zeta - pks_y_zeta), acc_x_poly);
         a2_lin += (Fr::one() - b_zeta, acc_x_poly);
+        // a2_lin = zeta_minus_omega_inv * a2_lin // TODO: fix in arkworks
+        a2_lin.coeffs.iter_mut().for_each(|c| *c *= zeta_minus_omega_inv);
 
-        let mut r_poly = DensePolynomial::<Fr>::zero();
-        r_poly += (zeta_minus_omega_inv, &a1_lin);
-        r_poly += (zeta_minus_omega_inv * phi, &a2_lin);
-        r_poly
+        vec![
+            a1_lin,
+            a2_lin,
+            DensePolynomial::zero(),
+            DensePolynomial::zero(),
+            DensePolynomial::zero(),
+        ]
     }
 
     pub fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
@@ -320,6 +327,17 @@ impl AffineAdditionRegisters {
 
     pub fn get_register_polynomials(&self) -> AffineAdditionPolynomials {
         self.polynomials.clone()
+    }
+
+    pub fn get_partial_sums_and_bitmask_polynomials(&self) -> PartialSumsAndBitmaskPolynomials {
+        let polys = self.get_register_polynomials();
+        PartialSumsAndBitmaskPolynomials {
+            partial_sums: PartialSumsPolynomials(
+                polys.partial_sums.0,
+                polys.partial_sums.1,
+            ),
+            bitmask: polys.bitmask,
+        }
     }
 }
 
@@ -485,27 +503,11 @@ fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
 mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
-    use ark_std::rand::{Rng, rngs::StdRng};
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
     use ark_ec::{ProjectiveCurve, AffineCurve};
-    use crate::tests::random_bits;
+    use crate::tests::{random_bits, random_bitmask, random_pks};
     use crate::utils;
-
-    // TODO: there's crate::tests::random_bits
-    fn random_bitmask(rng: &mut StdRng, n: usize) -> Vec<Fr> {
-        (0..n)
-            .map(|_| rng.gen_bool(2.0 / 3.0))
-            .map(|b| if b { Fr::one() } else { Fr::zero() })
-            .collect()
-    }
-
-    fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
-        (0..n)
-            .map(|_| G1Projective::rand(rng))
-            .map(|p| p.into_affine())
-            .collect()
-    }
 
     fn dummy_registers(n: usize) -> (Vec<Fr>, Vec<Fr>) {
         (vec![Fr::zero(); n], vec![Fr::zero(); n])
@@ -535,7 +537,7 @@ mod tests {
             constraint_poly.evaluate(&zeta)
         );
 
-        let mut bad_bitmask = random_bitmask(rng, m);
+        let mut bad_bitmask = random_bitmask(m, rng);
         bad_bitmask[0] = Fr::rand(rng);
         let registers = AffineAdditionRegisters::new_unchecked(
             domains.clone(),
