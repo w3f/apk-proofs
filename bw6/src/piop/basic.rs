@@ -1,46 +1,84 @@
-use crate::piop::Protocol;
+use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
 use crate::Bitmask;
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
 
-pub struct BasicRegisterBuilder {
-    affine_addition_registers: AffineAdditionRegisters,
+use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct AffineAdditionEvaluationsWithoutBitmask {
+    pub keyset: (Fr, Fr),
+    pub partial_sums: (Fr, Fr),
 }
 
-impl Protocol for BasicRegisterBuilder {
+impl RegisterEvaluations for AffineAdditionEvaluationsWithoutBitmask {
+    fn as_vec(&self) -> Vec<Fr> {
+        vec![
+            self.keyset.0,
+            self.keyset.1,
+            self.partial_sums.0,
+            self.partial_sums.1,
+        ]
+    }
+}
+
+pub struct BasicRegisterBuilder {
+    registers: AffineAdditionRegisters,
+    register_evaluations: Option<AffineAdditionEvaluations>,
+}
+
+impl ProverProtocol for BasicRegisterBuilder {
     type P1 = PartialSumsPolynomials;
     type P2 = ();
-    type E = AffineAdditionEvaluations;
+    type E = AffineAdditionEvaluationsWithoutBitmask;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         BasicRegisterBuilder {
-            affine_addition_registers:  AffineAdditionRegisters::new(domains, &bitmask, pks)
+            registers:  AffineAdditionRegisters::new(domains, &bitmask, pks),
+            register_evaluations: None,
         }
     }
 
-    fn get_1st_round_register_polynomials(&self) -> PartialSumsPolynomials {
-        self.affine_addition_registers.get_partial_sums_register_polynomials()
+    fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
+        let polys = self.registers.get_register_polynomials();
+        PartialSumsPolynomials(
+            polys.partial_sums.0,
+            polys.partial_sums.1,
+        )
     }
 
-    fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> () {
+    fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> () {
         ()
     }
 
+    fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>> {
+        let polys = self.registers.get_register_polynomials();
+        vec![
+            polys.keyset.0,
+            polys.keyset.1,
+            polys.partial_sums.0,
+            polys.partial_sums.1,
+        ]
+    }
+
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
-        self.affine_addition_registers.compute_constraint_polynomials()
+        self.registers.compute_constraint_polynomials()
     }
 
-    fn evaluate_register_polynomials(&self, point: Fr) -> AffineAdditionEvaluations {
-        self.affine_addition_registers.evaluate_register_polynomials(point)
+    // bitmask register polynomial is not committed to...
+    fn evaluate_register_polynomials(&mut self, point: Fr) -> AffineAdditionEvaluationsWithoutBitmask {
+        let evals: AffineAdditionEvaluations = self.registers.evaluate_register_polynomials(point);
+        self.register_evaluations = Some(evals.clone());
+        AffineAdditionEvaluationsWithoutBitmask {
+            keyset: evals.keyset,
+            partial_sums: evals.partial_sums,
+        }
     }
 
-    fn compute_linearization_polynomial(&self, evaluations: &AffineAdditionEvaluations, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
-        self.affine_addition_registers.compute_linearization_polynomial(evaluations, phi, zeta_minus_omega_inv)
-    }
-
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>> {
-        self.affine_addition_registers.get_register_polynomials().to_vec()
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr> {
+        self.registers.compute_linearization_polynomial(self.register_evaluations.as_ref().unwrap(), phi, zeta_minus_omega_inv)
     }
 }

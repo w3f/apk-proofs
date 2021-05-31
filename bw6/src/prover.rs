@@ -1,6 +1,5 @@
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use ark_ff::One;
 use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
@@ -12,11 +11,11 @@ use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
-use crate::piop::Protocol;
+use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
-use crate::piop::basic::BasicRegisterBuilder;
+use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
+use crate::piop::basic::{BasicRegisterBuilder, AffineAdditionEvaluationsWithoutBitmask};
 
 
 struct Params {
@@ -103,16 +102,16 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: Bitmask) -> Proof<AffineAdditionEvaluations, PartialSumsCommitments, ()> {
+    pub fn prove_simple(&self, bitmask: Bitmask) -> Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()> {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsCommitments, BitmaskPackingCommitments> {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments> {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<P: Protocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
+    fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
@@ -132,7 +131,7 @@ impl<'a> Prover<'a> {
 
         // 1. Compute and commit to the basic registers.
         let mut protocol = P::init(self.domains.clone(), bitmask, pks);
-        let partial_sums_polynomials = protocol.get_1st_round_register_polynomials();
+        let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
@@ -143,7 +142,7 @@ impl<'a> Prover<'a> {
         // compute and commit to succinct accountability registers.
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
         // let acc_registers = D::wrap(registers, b, r);
-        let acc_register_polynomials = protocol.get_2nd_round_register_polynomials(r);
+        let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
@@ -173,7 +172,7 @@ impl<'a> Prover<'a> {
         // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
         let zeta_minus_omega_inv = zeta - self.domains.omega_inv;
-        let r_poly = protocol.compute_linearization_polynomial(&register_evaluations, phi, zeta_minus_omega_inv);
+        let r_poly = protocol.compute_linearization_polynomial(phi, zeta_minus_omega_inv);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
         transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
 
@@ -182,7 +181,7 @@ impl<'a> Prover<'a> {
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
-        let mut register_polynomials = protocol.get_all_register_polynomials();
+        let mut register_polynomials = protocol.get_register_polynomials_to_open();
         register_polynomials.push(q_poly);
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);

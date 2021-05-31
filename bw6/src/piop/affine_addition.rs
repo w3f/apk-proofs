@@ -1,6 +1,6 @@
 use ark_poly::univariate::DensePolynomial;
 use ark_bw6_761::{Fr, G1Affine};
-use crate::piop::{RegisterEvaluations, RegisterPolynomials, RegisterCommitments};
+use crate::piop::{VerifierProtocol, RegisterPolynomials, RegisterCommitments, RegisterEvaluations};
 use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
@@ -13,7 +13,10 @@ use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-pub struct PartialSumsCommitments(pub ark_bw6_761::G1Affine, pub ark_bw6_761::G1Affine);
+pub struct PartialSumsCommitments(
+    pub ark_bw6_761::G1Affine,
+    pub ark_bw6_761::G1Affine
+);
 
 impl RegisterCommitments for PartialSumsCommitments {
     fn as_vec(&self) -> Vec<G1Affine> {
@@ -34,19 +37,51 @@ impl RegisterPolynomials for PartialSumsPolynomials {
     }
 }
 
-#[derive(Clone)] //TODO: remove
-pub struct BasicRegisterPolynomials {
-    keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
-    bitmask: DensePolynomial<Fr>,
-    partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+//TODO: move to packed.rs?
+
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct PartialSumsAndBitmaskCommitments {
+    pub partial_sums: PartialSumsCommitments,
+    pub bitmask: ark_bw6_761::G1Affine,
 }
 
-impl BasicRegisterPolynomials {
+impl RegisterCommitments for PartialSumsAndBitmaskCommitments {
+    fn as_vec(&self) -> Vec<G1Affine> {
+        let mut res = self.partial_sums.as_vec();
+        res.push(self.bitmask);
+        res
+    }
+}
+
+pub struct PartialSumsAndBitmaskPolynomials {
+    pub partial_sums: PartialSumsPolynomials,
+    pub bitmask: DensePolynomial<Fr>,
+}
+
+impl RegisterPolynomials for PartialSumsAndBitmaskPolynomials {
+    type C = PartialSumsAndBitmaskCommitments;
+
+    fn commit<F: Clone + Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PartialSumsAndBitmaskCommitments {
+        PartialSumsAndBitmaskCommitments {
+            partial_sums: self.partial_sums.commit(f.clone()),
+            bitmask: f(&self.bitmask),
+        }
+    }
+}
+
+#[derive(Clone)] //TODO: remove
+pub struct AffineAdditionPolynomials {
+    pub keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+    pub bitmask: DensePolynomial<Fr>,
+    pub partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+}
+
+impl AffineAdditionPolynomials {
     pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
         vec![
             self.keyset.0,
             self.keyset.1,
-            // self.bitmask,
+            self.bitmask,
             self.partial_sums.0,
             self.partial_sums.1,
         ]
@@ -62,7 +97,7 @@ impl BasicRegisterPolynomials {
 }
 
 
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct AffineAdditionEvaluations {
     pub keyset: (Fr, Fr),
     pub bitmask: Fr,
@@ -70,22 +105,20 @@ pub struct AffineAdditionEvaluations {
 }
 
 impl RegisterEvaluations for AffineAdditionEvaluations {
-    type AC = ();
-    type C = PartialSumsCommitments;
-
     fn as_vec(&self) -> Vec<Fr> {
         vec![
             self.keyset.0,
             self.keyset.1,
-            // self.bitmask,
+            self.bitmask,
             self.partial_sums.0,
             self.partial_sums.1,
         ]
     }
+}
 
-    fn get_bitmask(&self) -> Fr {
-        self.bitmask
-    }
+impl VerifierProtocol for AffineAdditionEvaluations {
+    type AC = ();
+    type C = PartialSumsCommitments;
 
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
@@ -127,10 +160,6 @@ impl RegisterEvaluations for AffineAdditionEvaluations {
         let (a4, a5) = Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1);
         vec![a1, a2, a3, a4, a5]
     }
-
-    fn is_accountable(&self) -> bool {
-        false
-    }
 }
 
 /// Register polynomials in evaluation form amplified to support degree 4n constraints
@@ -147,7 +176,7 @@ pub struct AffineAdditionRegisters {
     apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_plus_h: ark_bls12_377::G1Affine,
-    pub polynomials: BasicRegisterPolynomials,
+    pub polynomials: AffineAdditionPolynomials,
 }
 
 impl AffineAdditionRegisters {
@@ -243,25 +272,12 @@ impl AffineAdditionRegisters {
             apk_acc_x_shifted: domains.amplify(apk_acc_shifted.0),
             apk_acc_y_shifted: domains.amplify(apk_acc_shifted.1),
             apk_plus_h,
-            polynomials: BasicRegisterPolynomials {
+            polynomials: AffineAdditionPolynomials {
                 bitmask: bitmask_polynomial,
                 keyset: keyset_polynomial,
                 partial_sums: partial_sums_polynomial,
             },
         }
-    }
-
-    // TODO: interpolate over the smaller domain
-    pub fn get_bitmask_register_polynomial(&self) -> DensePolynomial<Fr> {
-        self.bitmask.interpolate_by_ref()
-    }
-
-    // TODO: interpolate over the smaller domain
-    pub fn get_partial_sums_register_polynomials(&self) -> PartialSumsPolynomials {
-        PartialSumsPolynomials(
-            self.apk_acc_x.interpolate_by_ref(),
-            self.apk_acc_y.interpolate_by_ref()
-        )
     }
 
     pub fn evaluate_register_polynomials(&self, point: Fr) -> AffineAdditionEvaluations {
@@ -302,7 +318,7 @@ impl AffineAdditionRegisters {
         vec![a1_poly, a2_poly, a3_poly, a4_poly, a5_poly]
     }
 
-    pub fn get_register_polynomials(&self) -> BasicRegisterPolynomials {
+    pub fn get_register_polynomials(&self) -> AffineAdditionPolynomials {
         self.polynomials.clone()
     }
 }
@@ -513,7 +529,7 @@ mod tests {
         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
         assert!(domains.is_zero(&constraint_poly));
         let zeta = Fr::rand(rng);
-        let bitmask_at_zeta = registers.get_bitmask_register_polynomial().evaluate(&zeta);
+        let bitmask_at_zeta = registers.get_register_polynomials().bitmask.evaluate(&zeta);
         assert_eq!(
             Constraints::evaluate_bitmask_booleanity_constraint(bitmask_at_zeta),
             constraint_poly.evaluate(&zeta)
@@ -587,7 +603,7 @@ mod tests {
             .sum::<ark_bls12_377::G1Projective>().into_affine();
         let zeta = Fr::rand(rng);
         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
-        let acc_polys = registers.get_partial_sums_register_polynomials();
+        let acc_polys = registers.get_register_polynomials().partial_sums;
         let (x1, y1) = (acc_polys.0.evaluate(&zeta), acc_polys.1.evaluate(&zeta));
         assert_eq!(
             Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),

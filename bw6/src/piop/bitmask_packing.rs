@@ -10,9 +10,10 @@ use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
 use crate::utils::LagrangeEvaluations;
-use crate::piop::{RegisterEvaluations, RegisterCommitments, RegisterPolynomials};
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments};
+use crate::piop::{VerifierProtocol, RegisterCommitments, RegisterPolynomials, RegisterEvaluations};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
 use crate::domains::Domains;
+
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct BitmaskPackingCommitments {
@@ -67,7 +68,7 @@ impl RegisterPolynomials for BitmaskPackingPolynomials {
 }
 
 //TODO: remove pubs
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct SuccinctAccountableRegisterEvaluations {
     pub c: Fr,
     pub acc: Fr,
@@ -75,27 +76,27 @@ pub struct SuccinctAccountableRegisterEvaluations {
 }
 
 impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
-    type AC = BitmaskPackingCommitments;
-    type C = PartialSumsCommitments;
-
     fn as_vec(&self) -> Vec<Fr> {
         let mut res = self.basic_evaluations.as_vec();
         res.extend(vec![self.c, self.acc]);
         res
     }
+}
 
-    fn get_bitmask(&self) -> Fr {
-        self.basic_evaluations.bitmask
-    }
+impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
+    type AC = BitmaskPackingCommitments;
+    type C = PartialSumsAndBitmaskCommitments;
+
+
 
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,
-                                                      commitments: &PartialSumsCommitments,
+                                                      commitments: &PartialSumsAndBitmaskCommitments,
                                                       extra_commitments: &BitmaskPackingCommitments,
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
-        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments, &());
+        let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.partial_sums, &());
         r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
         r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
         r_comm
@@ -168,10 +169,6 @@ impl RegisterEvaluations for SuccinctAccountableRegisterEvaluations {
         let mut res = self.basic_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta, r, bitmask, domain_size);
         res.extend(vec![a6, a7]);
         res
-    }
-
-    fn is_accountable(&self) -> bool {
-        true
     }
 }
 

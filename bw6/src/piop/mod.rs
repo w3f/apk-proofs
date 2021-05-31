@@ -18,7 +18,7 @@ pub trait RegisterCommitments: CanonicalSerialize + CanonicalDeserialize {
 
 pub trait RegisterPolynomials {
     type C: RegisterCommitments;
-    fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C;
+    fn commit<F: Clone + Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> Self::C;
 }
 
 impl RegisterCommitments for () {
@@ -35,19 +35,28 @@ impl RegisterPolynomials for () {
     }
 }
 
-pub trait Protocol {
+// Represents a polynomial protocol as seen by the prover.
+pub trait ProverProtocol {
     type P1: RegisterPolynomials;
     type P2: RegisterPolynomials;
     type E: RegisterEvaluations;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
 
-    fn get_1st_round_register_polynomials(&self) -> Self::P1;
+    // These 2 methods together return register polynomials the prover should commit to.
+    // The 2nd one is used only in the "packed" scheme as it requires an additional challenge
+    // (to aggregate the bitmask chunks) from the verifier,
+    // that can be received only after the bitmask has been committed.
+    fn get_register_polynomials_to_commit1(&self) -> Self::P1;
+    fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> Self::P2;
 
-    fn get_2nd_round_register_polynomials(&mut self, verifier_challenge: Fr) -> Self::P2;
-
+    // This method returns register polynomials the prover should open. Those are the same polynomials
+    // as the previous 2 methods together, and additionally 2 polynomials representing the keyset
+    // (prover doesn't need to commit to them, as verifier knows them anyway, but still should open).
+    fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>>;
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
+
     //TODO: remove domains param
     fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
         let w = utils::randomize(phi, &self.compute_constraint_polynomials());
@@ -56,21 +65,20 @@ pub trait Protocol {
         q_poly
     }
 
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn evaluate_register_polynomials(&self, point: Fr) -> Self::E;
-    // TODO: move zeta_minus_omega_inv param to evaluations
-    fn compute_linearization_polynomial(&self, evaluations: &Self::E, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
+    fn evaluate_register_polynomials(&mut self, point: Fr) -> Self::E;
 
-    fn get_all_register_polynomials(self) -> Vec<DensePolynomial<Fr>>;
+    // TODO: move zeta_minus_omega_inv param to evaluations
+    fn compute_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr) -> DensePolynomial<Fr>;
 }
 
-
 pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
+    fn as_vec(&self) -> Vec<Fr>;
+}
+
+pub trait VerifierProtocol {
     type AC: RegisterCommitments;
     type C: RegisterCommitments;
 
-    fn as_vec(&self) -> Vec<Fr>;
-    fn get_bitmask(&self) -> Fr;
     fn restore_commitment_to_linearization_polynomial(
         &self,
         phi: Fr,
@@ -87,7 +95,4 @@ pub trait RegisterEvaluations: CanonicalSerialize + CanonicalDeserialize {
         bitmask: &Bitmask,
         domain_size: u64,
     ) -> Vec<Fr>;
-
-    //TODO: move somewhere
-    fn is_accountable(&self) -> bool;
 }
