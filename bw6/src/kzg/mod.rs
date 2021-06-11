@@ -277,7 +277,7 @@ impl<E, P> KZG10<E, P>
             temp.add_assign_mixed(&c); // $[p_i(x)]_1 + x_i [q_i(x)]_1$
             let c = temp;
             g_multiplier += &(randomizer * v); // $r_i y_i$
-            total_c += &c.mul(randomizer.into()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
+            total_c += &c.mul(randomizer.into_repr()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
             total_w += &w.mul(randomizer); //  $r_i [q_i(x)]_1$
             // We don't need to sample randomizers from the full field,
             // only from 128-bit strings.
@@ -399,7 +399,7 @@ mod tests {
         let pk = params.get_pk();
         let pvk = params.get_vk().prepare();
 
-        let degree = rng.gen_range(0, max_degree + 1);
+        let degree = rng.gen_range(0..=max_degree);
         let poly = P::rand(degree, rng);
         let comm = KZG10::<E, P>::commit(&pk, &poly);
 
@@ -429,8 +429,8 @@ mod tests {
         let params = KzgBw6::setup(max_degree, rng);
         let pk = params.get_pk();
 
-        let poly1 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
-        let poly2 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
+        let poly1 = Bw6Poly::rand(rng.gen_range(0..=max_degree), rng);
+        let poly2 = Bw6Poly::rand(rng.gen_range(0..=max_degree), rng);
 
         let comm1 = KzgBw6::commit(&pk, &poly1);
         let comm2 = KzgBw6::commit(&pk, &poly2);
@@ -453,8 +453,8 @@ mod tests {
         let pk = params.get_pk();
         let pvk = params.get_vk().prepare();
 
-        let poly1 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
-        let poly2 = Bw6Poly::rand(rng.gen_range(0, max_degree + 1), rng);
+        let poly1 = Bw6Poly::rand(rng.gen_range(0..=max_degree), rng);
+        let poly2 = Bw6Poly::rand(rng.gen_range(0..=max_degree), rng);
         let x = Fr::rand(rng);
         let y1 = poly1.evaluate(&x);
         let y2 = poly2.evaluate(&x);

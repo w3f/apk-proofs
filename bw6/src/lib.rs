@@ -111,7 +111,7 @@ mod tests {
         let setup = Setup::generate(log_domain_size, rng);
         end_timer!(t_setup);
 
-        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
         let keyset_size = keyset_size.try_into().unwrap();
         let signer_set = SignerSet::random(keyset_size, rng);
 
@@ -159,7 +159,7 @@ mod tests {
         let setup = Setup::generate(log_domain_size, rng);
         end_timer!(t_setup);
 
-        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
         let keyset_size = keyset_size.try_into().unwrap();
         let signer_set = SignerSet::random(keyset_size, rng);
 
@@ -207,7 +207,7 @@ mod tests {
         let setup = Setup::generate(log_domain_size, rng);
         end_timer!(t_setup);
 
-        let keyset_size = rng.gen_range(0, setup.max_keyset_size()) + 1;
+        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
         let keyset_size = keyset_size.try_into().unwrap();
         let signer_set = SignerSet::random(keyset_size, rng);
 
