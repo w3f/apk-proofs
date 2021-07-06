@@ -1,10 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use ark_ff::{Field, PrimeField};
 use ark_std::{UniformRand, test_rng};
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use apk_proofs::{Prover, Verifier};
-use merlin::Transcript;
-use rand::seq::SliceRandom;
 
 extern crate apk_proofs;
 
@@ -58,8 +55,6 @@ fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
 
     {
         let bases = bases.clone();
-        let nu = nu.into_repr();
-
         c.bench_function("128-bit Horner", move |b| {
             b.iter(|| apk_proofs::utils::horner(black_box(&bases), black_box(nu)))
         });
@@ -81,46 +76,82 @@ fn bw6_subgroup_check(c: &mut Criterion) {
     });
 }
 
-fn apk_verification(c: &mut Criterion) {
-    use ark_poly::{GeneralEvaluationDomain, EvaluationDomain};
-    use apk_proofs::Params;
-    use bitvec::vec::BitVec;
+fn verification(c: &mut Criterion) {
+    use apk_proofs::{Prover, Verifier, Setup, SignerSet, Bitmask, bls};
+    use merlin::Transcript;
+    use rand::{Rng, seq::SliceRandom};
+    use std::convert::TryInto;
 
-    let num_pks = 1000;
+    let mut group = c.benchmark_group("verification");
 
     let rng = &mut test_rng();
+    let log_domain_size_range = 8..=10;
 
-    let signer_set = apk_proofs::SignerSet::random(num_pks, rng);
-    let params = Params::new(signer_set.size(), rng);
-    let pks_domain_size = GeneralEvaluationDomain::<ark_bw6_761::Fr>::compute_size_of_domain(num_pks).unwrap();
-    let pks_comm = signer_set.commit(&params.get_ck(pks_domain_size));
-    let prover = Prover::new(params.to_pk(), &pks_comm, signer_set.get_all(), Transcript::new(b"apk_proof"));
-    let verifier = Verifier::new(params.to_vk(), pks_comm, Transcript::new(b"apk_proof"));
+    for log_domain_size in log_domain_size_range {
+        let setup = Setup::generate(log_domain_size, rng);
+        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
+        let keyset_size = keyset_size.try_into().unwrap();
+        let signer_set = SignerSet::random(keyset_size, rng);
+        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
+        let bitmask = Bitmask::from_bits(&bits);
+        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
 
-    let mut bitmask = Vec::with_capacity(num_pks);
-    let set_bits_count = num_pks / 2;
-    bitmask.extend_from_slice(&vec![true; set_bits_count]);
-    bitmask.extend_from_slice(&vec![false; num_pks - set_bits_count]);
-    bitmask.shuffle(rng);
-    let bitmask: BitVec = bitmask.iter().collect();
+        let prover = Prover::new(
+            setup.domain_size,
+            setup.kzg_params.get_pk(),
+            &pks_comm,
+            signer_set.get_all(),
+            Transcript::new(b"apk_proof"),
+        );
+        let proof_basic = prover.prove_simple(bitmask.clone());
+        let proof_packed = prover.prove_packed(bitmask.clone());
+        let proof_counting = prover.prove_counting(bitmask.clone());
 
-    let apk = apk_proofs::bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
-    let proof = prover.prove(&bitmask);
-    c.bench_function("apk verification", move |b| {
-        b.iter(|| assert!(verifier.verify(
-            black_box(&apk),
-            black_box(&bitmask),
-            black_box(&proof)
-        )))
-    });
+        let create_verifier = || {
+            Verifier::new(
+                setup.domain_size,
+                setup.kzg_params.get_vk(),
+                pks_comm.clone(),
+                Transcript::new(b"apk_proof"),
+            )
+        };
+
+        group.bench_with_input(
+            BenchmarkId::new("basic", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let verifier = create_verifier();
+                verifier.verify_simple(&apk, &bitmask, &proof_basic);
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("packed", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let verifier = create_verifier();
+                verifier.verify_packed(&apk, &bitmask, &proof_packed);
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("counting", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let verifier = create_verifier();
+                verifier.verify_counting(&apk, &bitmask, &proof_counting);
+            }),
+        );
+    }
+    group.finish();
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+fn components(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
     barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
     bw6_subgroup_check(c);
-    apk_verification(c);
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group!(benches, components, verification);
 criterion_main!(benches);
