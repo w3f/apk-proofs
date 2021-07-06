@@ -85,7 +85,7 @@ fn verification(c: &mut Criterion) {
     let mut group = c.benchmark_group("verification");
 
     let rng = &mut test_rng();
-    let log_domain_size_range = 8..=10;
+    let log_domain_size_range = 8..=20;
 
     for log_domain_size in log_domain_size_range {
         let setup = Setup::generate(log_domain_size, rng);
@@ -93,8 +93,7 @@ fn verification(c: &mut Criterion) {
         let keyset_size = keyset_size.try_into().unwrap();
         let signer_set = SignerSet::random(keyset_size, rng);
         let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
-        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
-        let bitmask = Bitmask::from_bits(&bits);
+        let bitmask = Bitmask::from_bits(&vec![true; keyset_size]);
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
 
         let prover = Prover::new(
