@@ -85,7 +85,7 @@ fn verification(c: &mut Criterion) {
     let mut group = c.benchmark_group("verification");
 
     let rng = &mut test_rng();
-    let log_domain_size_range = 8..=20;
+    let log_domain_size_range = 8..=16;
 
     for log_domain_size in log_domain_size_range {
         let setup = Setup::generate(log_domain_size, rng);
@@ -121,7 +121,7 @@ fn verification(c: &mut Criterion) {
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_simple(&apk, &bitmask, &proof_basic);
+                verifier.verify_simple(&apk, black_box(&bitmask), &proof_basic);
             }),
         );
 
@@ -130,7 +130,7 @@ fn verification(c: &mut Criterion) {
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_packed(&apk, &bitmask, &proof_packed);
+                verifier.verify_packed(&apk, black_box(&bitmask), &proof_packed);
             }),
         );
 
@@ -139,10 +139,11 @@ fn verification(c: &mut Criterion) {
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_counting(&apk, &bitmask, &proof_counting);
+                verifier.verify_counting(&apk, black_box(&bitmask), &proof_counting);
             }),
         );
     }
+
     group.finish();
 }
 
