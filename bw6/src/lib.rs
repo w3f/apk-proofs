@@ -16,6 +16,7 @@ use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;
+use crate::bls::PublicKey;
 
 mod prover;
 mod verifier;
@@ -38,6 +39,42 @@ mod bitmask;
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 #[allow(non_camel_case_types)]
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
+
+pub trait PublicInput : CanonicalSerialize + CanonicalDeserialize {
+    fn from(apk: PublicKey, bitmask: Bitmask) -> Self;
+}
+
+// Used in 'basic' and 'packed' schemes
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct AccountablePublicInput {
+    apk: PublicKey,
+    bitmask: Bitmask,
+}
+
+impl PublicInput for AccountablePublicInput {
+    fn from(apk: PublicKey, bitmask: Bitmask) -> Self {
+        AccountablePublicInput {
+            apk,
+            bitmask,
+        }
+    }
+}
+
+// Used in 'counting' scheme
+#[derive(CanonicalSerialize, CanonicalDeserialize)]
+pub struct CountingPublicInput {
+    apk: PublicKey,
+    count: usize,
+}
+
+impl PublicInput for CountingPublicInput {
+    fn from(apk: PublicKey, bitmask: Bitmask) -> Self {
+        CountingPublicInput {
+            apk,
+            count: bitmask.count_ones(),
+        }
+    }
+}
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCommitments> {
@@ -143,6 +180,8 @@ mod tests {
         proof.serialize(&mut serialized_proof[..]).unwrap();
         let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
+        assert_eq!(proof.serialized_size(), (8 * 2 + 9) * 48); // 8C + 9F
+
         let verify_ = start_timer!(|| "BW6 verify");
         let valid = verifier.verify_packed(&apk, &b, &proof);
         end_timer!(verify_);
@@ -186,6 +225,8 @@ mod tests {
         let prove_ = start_timer!(|| "BW6 prove");
         let proof = prover.prove_simple(b.clone());
         end_timer!(prove_);
+
+        assert_eq!(proof.serialized_size(), (5 * 2 + 6) * 48); // 5C + 6F
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
         proof.serialize(&mut serialized_proof[..]).unwrap();
@@ -234,6 +275,8 @@ mod tests {
         let prove_ = start_timer!(|| "BW6 prove");
         let proof = prover.prove_counting(b.clone());
         end_timer!(prove_);
+
+        assert_eq!(proof.serialized_size(), (7 * 2 + 8) * 48); // 7C + 8F
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
         proof.serialize(&mut serialized_proof[..]).unwrap();
