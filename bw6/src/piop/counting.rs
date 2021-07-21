@@ -2,7 +2,7 @@ use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionPolyno
 use crate::piop::{ProverProtocol, RegisterPolynomials, RegisterEvaluations, RegisterCommitments, VerifierProtocol};
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use crate::{Bitmask, utils};
+use crate::{Bitmask, utils, CountingPublicInput};
 use ark_bw6_761::{Fr, G1Projective};
 use crate::piop::bit_counting::{BitCountingRegisters, BitCountingEvaluation};
 
@@ -71,6 +71,7 @@ impl ProverProtocol for CountingScheme {
     type P1 = CountingPolynomials;
     type P2 = ();
     type E = CountingEvaluations;
+    type PI = CountingPublicInput;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         let n = domains.size;
