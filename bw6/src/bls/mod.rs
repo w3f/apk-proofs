@@ -63,7 +63,7 @@ impl SecretKey {
 
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PublicKey(pub G1Projective); // TODO: remove pub
 
 impl From<G1Projective> for PublicKey {
