@@ -10,64 +10,58 @@ use crate::piop::{RegisterCommitments, RegisterEvaluations};
 /// E - evaluations
 pub(crate) trait ApkTranscript {
 
-    fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine);
+    // fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine);
 
-    fn set_signer_set(&mut self, signer_set_comm: &SignerSetCommitment) {
-        self._append_bytes(b"pks_x_comm", &signer_set_comm.pks_x_comm);
-        self._append_bytes(b"pks_y_comm", &signer_set_comm.pks_y_comm);
-        self._append_bytes(b"pks_size", &(signer_set_comm.signer_set_size as u32));
+    fn set_keyset_commitment(&mut self, keyset_commitment: &SignerSetCommitment) {
+        self._append_serializable(b"keyset_commitment", keyset_commitment);
     }
 
-    fn append_public_input<PI: PublicInput>(&mut self, public_input: &PI) {
+    fn append_public_input(&mut self, public_input: & impl PublicInput) {
         self._append_serializable(b"public_input", public_input);
     }
 
-    fn append_evals<E: RegisterEvaluations>(&mut self, evals: &E) {
-        self._append_bytes(b"evals", &evals.as_vec());
+    fn append_register_commitments(&mut self, register_commitments: &impl RegisterCommitments) {
+        self._append_serializable(b"register_commitments", register_commitments);
     }
 
-    fn append_basic_commitments<C: RegisterCommitments>(&mut self, commitments: &C) {
-        self._append_bytes(b"basic_comms", &commitments.as_vec());
+    fn append_2nd_round_register_commitments(&mut self, register_commitments: &impl RegisterCommitments) {
+        self._append_serializable(b"2nd_round_register_commitments", register_commitments);
     }
 
-    fn append_accountability_commitments<C: RegisterCommitments>(&mut self, commitments: &C) {
-        self._append_bytes(b"add_comms", &commitments.as_vec());
+    fn append_quotient_commitment(&mut self, point: &ark_bw6_761::G1Affine) {
+        self._append_serializable(b"quotient", point);
     }
 
-    fn append_proof_point(&mut self, label: &'static [u8], point: &ark_bw6_761::G1Affine) {
-        self._append_bytes(label, point);
+    fn append_register_evaluations(&mut self, evals: &impl RegisterEvaluations) {
+        self._append_serializable(b"register_evaluations", evals);
     }
 
-    fn append_proof_scalar(&mut self, label: &'static [u8], scalar: &ark_bw6_761::Fr) {
-        self._append_bytes(label, scalar);
+    fn append_quotient_evaluation(&mut self, scalar: &ark_bw6_761::Fr) {
+        self._append_serializable(b"quotient_evaluation", scalar);
+    }
+
+    fn append_shifted_quotient_evaluation(&mut self, scalar: &ark_bw6_761::Fr) {
+        self._append_serializable(b"shifted_quotient_evaluation", scalar);
     }
 
     fn get_128_bit_challenge(&mut self, label: &'static [u8]) -> ark_bw6_761::Fr;
-
-    fn _append_bytes<T: ToBytes>(&mut self, label: &'static [u8], message: &T);
 
     fn _append_serializable(&mut self, label: &'static [u8], message: &impl CanonicalSerialize);
 }
 
 impl ApkTranscript for Transcript {
-    fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine) {
-        let mut buffer = vec![0; domain_size.serialized_size()];
-        domain_size.serialize(&mut buffer);
-        self.append_message(b"domain_size", &buffer);
-
-        self._append_bytes(b"h", h);
-    }
+    // fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine) {
+    //     let mut buffer = vec![0; domain_size.serialized_size()];
+    //     domain_size.serialize(&mut buffer);
+    //     self.append_message(b"domain_size", &buffer);
+    //
+    //     self._append_bytes(b"h", h);
+    // }
 
     fn get_128_bit_challenge(&mut self, label: &'static [u8]) -> ark_bw6_761::Fr {
         let mut buf = [0u8; 16];
         self.challenge_bytes(label, &mut buf);
         ark_bw6_761::Fr::from_random_bytes(&buf).unwrap()
-    }
-
-    fn _append_bytes<T: ToBytes>(&mut self, label: &'static [u8], message: &T) {
-        let mut buf = Vec::new(); //TODO: suboptimal
-        message.write(&mut buf);
-        self.append_message(label, &buf);
     }
 
     fn _append_serializable(&mut self, label: &'static [u8], message: &impl CanonicalSerialize) {

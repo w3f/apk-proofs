@@ -198,18 +198,16 @@ impl Verifier {
     {
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(public_input);
-        transcript.append_basic_commitments(&proof.register_commitments);
+        transcript.append_register_commitments(&proof.register_commitments);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
-        transcript.append_accountability_commitments(&proof.additional_commitments);
+        transcript.append_2nd_round_register_commitments(&proof.additional_commitments);
         let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
-        transcript.append_proof_point(b"q_comm", &proof.q_comm);
+        transcript.append_quotient_commitment(&proof.q_comm);
         let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
-        transcript.append_evals(&proof.register_evaluations);
-        transcript.append_proof_scalar(b"q_zeta", &proof.q_zeta);
-        transcript.append_proof_scalar(b"r_zeta_omega", &proof.r_zeta_omega);
+        transcript.append_register_evaluations(&proof.register_evaluations);
+        transcript.append_quotient_evaluation(&proof.q_zeta);
+        transcript.append_shifted_quotient_evaluation(&proof.r_zeta_omega);
         let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
-        // transcript.append_proof_point(b"w_at_zeta_proof", &proof.w_at_zeta_proof);
-        // transcript.append_proof_point(b"r_at_zeta_omega_proof", &proof.r_at_zeta_omega_proof);
         (Challenges { r, phi, zeta, nu }, fiat_shamir_rng(&mut transcript))
     }
 
@@ -220,7 +218,7 @@ impl Verifier {
         mut empty_transcript: Transcript,
     ) -> Self {
         // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_signer_set(&pks_comm);
+        empty_transcript.set_keyset_commitment(&pks_comm);
         let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
         let kzg_pvk = kzg_vk.prepare();
         Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }

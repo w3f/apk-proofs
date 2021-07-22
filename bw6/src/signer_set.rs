@@ -4,13 +4,15 @@ use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain};
 use ark_ec::ProjectiveCurve;
 use rand::Rng;
 
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
 
 use crate::kzg::ProverKey;
 use crate::bls::{PublicKey, SecretKey};
 
 pub struct SignerSet(Vec<PublicKey>);
 
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SignerSetCommitment {
     pub pks_x_comm: ark_bw6_761::G1Affine,
     pub pks_y_comm: ark_bw6_761::G1Affine,
