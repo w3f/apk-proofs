@@ -41,7 +41,7 @@ type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
 pub trait PublicInput : CanonicalSerialize + CanonicalDeserialize {
-    fn from(apk: PublicKey, bitmask: Bitmask) -> Self;
+    fn new(apk: PublicKey, bitmask: Bitmask) -> Self;
 }
 
 // Used in 'basic' and 'packed' schemes
@@ -52,7 +52,7 @@ pub struct AccountablePublicInput {
 }
 
 impl PublicInput for AccountablePublicInput {
-    fn from(apk: PublicKey, bitmask: Bitmask) -> Self {
+    fn new(apk: PublicKey, bitmask: Bitmask) -> Self {
         AccountablePublicInput {
             apk,
             bitmask,
@@ -68,7 +68,7 @@ pub struct CountingPublicInput {
 }
 
 impl PublicInput for CountingPublicInput {
-    fn from(apk: PublicKey, bitmask: Bitmask) -> Self {
+    fn new(apk: PublicKey, bitmask: Bitmask) -> Self {
         CountingPublicInput {
             apk,
             count: bitmask.count_ones(),
