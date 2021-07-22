@@ -178,8 +178,8 @@ impl Verifier {
 
 
         let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
-        endo::subgroup_check(&total_c);
-        endo::subgroup_check(&total_w);
+        assert!(endo::subgroup_check(&total_c));
+        assert!(endo::subgroup_check(&total_w));
         end_timer!(t_lazy_subgroup_checks);
         end_timer!(t_kzg);
     }
