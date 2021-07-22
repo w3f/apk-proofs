@@ -142,7 +142,7 @@ impl<'a> Prover<'a> {
 
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
-        let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
+        let r = transcript.get_bitmask_aggregation_challenge();
         // let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
@@ -152,7 +152,7 @@ impl<'a> Prover<'a> {
 
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
-        let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
+        let phi = transcript.get_constraints_aggregation_challenge();
         let q_poly = protocol.compute_quotient_polynomial(phi, &self.domains);
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         assert_eq!(q_poly.degree(), 3 * n - 3);
@@ -162,7 +162,7 @@ impl<'a> Prover<'a> {
         // 4. Receive the evaluation point,
         // evaluate register polynomials and the quotient polynomial,
         // and commit to the evaluations.
-        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
+        let zeta = transcript.get_evaluation_point();
         let register_evaluations = protocol.evaluate_register_polynomials(zeta);
         let q_zeta = q_poly.evaluate(&zeta);
         transcript.append_register_evaluations(&register_evaluations);
@@ -181,7 +181,7 @@ impl<'a> Prover<'a> {
         // open the aggregated polynomial at the evaluation point,
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
+        let nu = transcript.get_kzg_aggregation_challenge();
         let mut register_polynomials = protocol.get_register_polynomials_to_open();
         register_polynomials.push(q_poly);
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);

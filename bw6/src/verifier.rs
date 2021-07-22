@@ -199,15 +199,15 @@ impl Verifier {
         let mut transcript = self.preprocessed_transcript.clone();
         transcript.append_public_input(public_input);
         transcript.append_register_commitments(&proof.register_commitments);
-        let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
+        let r = transcript.get_bitmask_aggregation_challenge();
         transcript.append_2nd_round_register_commitments(&proof.additional_commitments);
-        let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
+        let phi = transcript.get_constraints_aggregation_challenge();
         transcript.append_quotient_commitment(&proof.q_comm);
-        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
+        let zeta = transcript.get_evaluation_point();
         transcript.append_register_evaluations(&proof.register_evaluations);
         transcript.append_quotient_evaluation(&proof.q_zeta);
         transcript.append_shifted_quotient_evaluation(&proof.r_zeta_omega);
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
+        let nu = transcript.get_kzg_aggregation_challenge();
         (Challenges { r, phi, zeta, nu }, fiat_shamir_rng(&mut transcript))
     }
 
