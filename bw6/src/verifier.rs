@@ -217,9 +217,11 @@ impl Verifier {
         pks_comm: SignerSetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
-        // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_keyset_commitment(&pks_comm);
         let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
+
+        empty_transcript.set_protocol_params(&domain, &kzg_vk);
+        empty_transcript.set_keyset_commitment(&pks_comm);
+
         let kzg_pvk = kzg_vk.prepare();
         Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
     }

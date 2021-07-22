@@ -4,7 +4,7 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -75,26 +75,22 @@ pub struct Prover<'a> {
 
 impl<'a> Prover<'a> {
     pub fn new(
-        domain_size: usize,
-        kzg_pk: ProverKey<BW6_761>,
+        setup: &Setup,
         signer_set_comm: &SignerSetCommitment,
         pks: &'a [PublicKey],
         mut empty_transcript: Transcript,
     ) -> Self {
-        assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
-        assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
-
-        // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_keyset_commitment(&signer_set_comm);
-
         let params = Params {
-            domain_size,
-            kzg_pk,
+            domain_size: setup.domain_size,
+            kzg_pk: setup.kzg_params.get_pk(),
             h: point_in_g1_complement(),
         };
 
-        let domains = Domains::new(domain_size);
+        let domains = Domains::new(params.domain_size);
         let session = Session::new(pks, &domains);
+
+        empty_transcript.set_protocol_params(&domains.domain, &setup.kzg_params.get_vk());
+        empty_transcript.set_keyset_commitment(&signer_set_comm);
 
         Self {
             params,

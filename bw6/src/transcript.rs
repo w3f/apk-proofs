@@ -6,17 +6,23 @@ use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
 use crate::{Bitmask, PublicInput};
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
+use ark_poly::Radix2EvaluationDomain;
+use ark_bw6_761::{Fr, BW6_761};
+use crate::kzg::VerifierKey;
 
-/// E - evaluations
+
 pub(crate) trait ApkTranscript {
 
-    // fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine);
+    fn set_protocol_params(&mut self, domain: &Radix2EvaluationDomain<Fr>, kzg_vk: &VerifierKey<BW6_761>) {
+        self._append_serializable(b"domain", domain);
+        self._append_serializable(b"vk", kzg_vk);
+    }
 
     fn set_keyset_commitment(&mut self, keyset_commitment: &SignerSetCommitment) {
         self._append_serializable(b"keyset_commitment", keyset_commitment);
     }
 
-    fn append_public_input(&mut self, public_input: & impl PublicInput) {
+    fn append_public_input(&mut self, public_input: &impl PublicInput) {
         self._append_serializable(b"public_input", public_input);
     }
 
@@ -50,13 +56,6 @@ pub(crate) trait ApkTranscript {
 }
 
 impl ApkTranscript for Transcript {
-    // fn set_protocol_params(&mut self, domain_size: u64, h: &ark_bls12_377::G1Affine) {
-    //     let mut buffer = vec![0; domain_size.serialized_size()];
-    //     domain_size.serialize(&mut buffer);
-    //     self.append_message(b"domain_size", &buffer);
-    //
-    //     self._append_bytes(b"h", h);
-    // }
 
     fn get_128_bit_challenge(&mut self, label: &'static [u8]) -> ark_bw6_761::Fr {
         let mut buf = [0u8; 16];

@@ -97,8 +97,7 @@ fn verification(c: &mut Criterion) {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
 
         let prover = Prover::new(
-            setup.domain_size,
-            setup.kzg_params.get_pk(),
+            &setup,
             &pks_comm,
             signer_set.get_all(),
             Transcript::new(b"apk_proof"),
