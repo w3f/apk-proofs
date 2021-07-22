@@ -134,12 +134,13 @@ fn verification(c: &mut Criterion) {
             }),
         );
 
+        let count = bitmask.count_ones();
         group.bench_with_input(
             BenchmarkId::new("counting", log_domain_size),
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_counting(&apk, black_box(&bitmask), &proof_counting);
+                verifier.verify_counting(&apk, black_box(count), &proof_counting);
             }),
         );
     }

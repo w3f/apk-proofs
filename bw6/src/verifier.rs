@@ -96,17 +96,17 @@ impl Verifier {
     pub fn verify_counting(
         &self,
         apk: &PublicKey,
-        bitmask: &Bitmask, //TODO: remove
+        count: usize,
         proof: &Proof<CountingEvaluations, CountingCommitments, ()>,
     ) -> bool {
-        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
+        assert!(count > 0);
         let public_input = CountingPublicInput {
             apk: apk.clone(),
-            count: bitmask.count_ones(),
+            count,
         };
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
-        let count = Fr::from(bitmask.count_ones() as u16);
+        let count = Fr::from(count as u16);
 
         self.validate_evaluations::<
             (),

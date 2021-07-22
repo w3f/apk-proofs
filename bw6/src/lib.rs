@@ -285,7 +285,7 @@ mod tests {
         let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_counting(&apk, &b, &proof);
+        let valid = verifier.verify_counting(&apk, b.count_ones(), &proof);
         end_timer!(verify_);
 
         assert!(valid);
