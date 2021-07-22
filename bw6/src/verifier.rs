@@ -204,9 +204,7 @@ impl Verifier {
         let phi = transcript.get_constraints_aggregation_challenge();
         transcript.append_quotient_commitment(&proof.q_comm);
         let zeta = transcript.get_evaluation_point();
-        transcript.append_register_evaluations(&proof.register_evaluations);
-        transcript.append_quotient_evaluation(&proof.q_zeta);
-        transcript.append_shifted_quotient_evaluation(&proof.r_zeta_omega);
+        transcript.append_evaluations(&proof.register_evaluations, &proof.q_zeta, &proof.r_zeta_omega);
         let nu = transcript.get_kzg_aggregation_challenge();
         (Challenges { r, phi, zeta, nu }, fiat_shamir_rng(&mut transcript))
     }

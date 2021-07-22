@@ -161,23 +161,17 @@ impl<'a> Prover<'a> {
 
         // 4. Receive the evaluation point,
         // evaluate register polynomials and the quotient polynomial,
-        // and commit to the evaluations.
+        // compute the linearization polynomial and evaluate it at the shifted evaluation point,
+        // commit to all the evaluations.
         let zeta = transcript.get_evaluation_point();
         let register_evaluations = protocol.evaluate_register_polynomials(zeta);
         let q_zeta = q_poly.evaluate(&zeta);
-        transcript.append_register_evaluations(&register_evaluations);
-        transcript.append_quotient_evaluation(&q_zeta);
-
-
-        // 5. Compute the linearization polynomial,
-        // evaluate it at the shifted evaluation point,
-        // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
         let r_poly = protocol.compute_linearization_polynomial(phi, zeta);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
-        transcript.append_shifted_quotient_evaluation(&r_zeta_omega);
+        transcript.append_evaluations(&register_evaluations, &q_zeta, &r_zeta_omega);
 
-        // 6. Receive the polynomials aggregation challenge,
+        // 5. Receive the polynomials aggregation challenge,
         // open the aggregated polynomial at the evaluation point,
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
