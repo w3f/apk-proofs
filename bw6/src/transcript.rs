@@ -4,7 +4,7 @@ use ark_ff::{Field, ToBytes};
 use ark_ec::ProjectiveCurve;
 use crate::signer_set::SignerSetCommitment;
 use crate::bls::PublicKey;
-use crate::{Bitmask};
+use crate::{Bitmask, PublicInput};
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 /// E - evaluations
@@ -18,7 +18,9 @@ pub(crate) trait ApkTranscript {
         self._append_bytes(b"pks_size", &(signer_set_comm.signer_set_size as u32));
     }
 
-    fn append_public_input(&mut self, apk: &PublicKey, bitmask: &Bitmask);
+    fn append_public_input<PI: PublicInput>(&mut self, public_input: &PI) {
+        self._append_serializable(b"public_input", public_input);
+    }
 
     fn append_evals<E: RegisterEvaluations>(&mut self, evals: &E) {
         self._append_bytes(b"evals", &evals.as_vec());
@@ -43,6 +45,8 @@ pub(crate) trait ApkTranscript {
     fn get_128_bit_challenge(&mut self, label: &'static [u8]) -> ark_bw6_761::Fr;
 
     fn _append_bytes<T: ToBytes>(&mut self, label: &'static [u8], message: &T);
+
+    fn _append_serializable(&mut self, label: &'static [u8], message: &impl CanonicalSerialize);
 }
 
 impl ApkTranscript for Transcript {
@@ -52,16 +56,6 @@ impl ApkTranscript for Transcript {
         self.append_message(b"domain_size", &buffer);
 
         self._append_bytes(b"h", h);
-    }
-
-    fn append_public_input(&mut self, apk: &PublicKey, bitmask: &Bitmask) {
-        let apk = apk.0.into_affine();
-        self._append_bytes(b"apk", &apk);
-
-        // let bitmask = bitmask.clone().into_vec();
-        // let mut buffer = vec![0; bitmask.serialized_size()];
-        // bitmask.serialize(&mut buffer);
-        // self.append_message(b"bitmask", &buffer);
     }
 
     fn get_128_bit_challenge(&mut self, label: &'static [u8]) -> ark_bw6_761::Fr {
@@ -74,5 +68,11 @@ impl ApkTranscript for Transcript {
         let mut buf = Vec::new(); //TODO: suboptimal
         message.write(&mut buf);
         self.append_message(label, &buf);
+    }
+
+    fn _append_serializable(&mut self, label: &'static [u8], message: &impl CanonicalSerialize) {
+        let mut buffer = vec![0; message.serialized_size()];
+        message.serialize(&mut buffer);
+        self.append_message(label, &buffer);
     }
 }

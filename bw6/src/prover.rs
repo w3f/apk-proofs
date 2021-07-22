@@ -4,7 +4,7 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -128,7 +128,7 @@ impl<'a> Prover<'a> {
         let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&apk.into(), &bitmask);
+        transcript.append_public_input(&P::PI::new(&apk.into(), &bitmask));
 
         // TODO: move to Session
         let pks = self.session.pks.iter()

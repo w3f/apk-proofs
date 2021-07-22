@@ -4,7 +4,7 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
@@ -42,7 +42,8 @@ impl Verifier {
         proof: &Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>,
     ) -> bool {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
-        let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
+        let public_input = AccountablePublicInput::new(apk, bitmask);
+        let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
@@ -75,7 +76,8 @@ impl Verifier {
         proof: &Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>,
     ) -> bool {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
-        let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
+        let public_input = AccountablePublicInput::new(apk, bitmask);
+        let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         self.validate_evaluations::<
@@ -98,7 +100,11 @@ impl Verifier {
         proof: &Proof<CountingEvaluations, CountingCommitments, ()>,
     ) -> bool {
         assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
-        let (challenges, mut fsrng) = self.restore_challenges(&apk, bitmask, &proof);
+        let public_input = CountingPublicInput {
+            apk: apk.clone(),
+            count: bitmask.count_ones(),
+        };
+        let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
         let count = Fr::from(bitmask.count_ones() as u16);
 
@@ -184,14 +190,14 @@ impl Verifier {
         end_timer!(t_kzg);
     }
 
-    fn restore_challenges<E, C, AC>(&self, apk: &PublicKey, bitmask: &Bitmask, proof: &Proof<E, C, AC>) -> (Challenges, TranscriptRng)
+    fn restore_challenges<E, C, AC>(&self, public_input: &impl PublicInput, proof: &Proof<E, C, AC>) -> (Challenges, TranscriptRng)
         where
             AC: RegisterCommitments,
             C: RegisterCommitments,
             E: RegisterEvaluations,
     {
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&apk, bitmask);
+        transcript.append_public_input(public_input);
         transcript.append_basic_commitments(&proof.register_commitments);
         let r = transcript.get_128_bit_challenge(b"r"); // bitmask batching challenge
         transcript.append_accountability_commitments(&proof.additional_commitments);
