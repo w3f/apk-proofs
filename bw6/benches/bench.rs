@@ -97,8 +97,7 @@ fn verification(c: &mut Criterion) {
         let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
 
         let prover = Prover::new(
-            setup.domain_size,
-            setup.kzg_params.get_pk(),
+            &setup,
             &pks_comm,
             signer_set.get_all(),
             Transcript::new(b"apk_proof"),
@@ -134,12 +133,13 @@ fn verification(c: &mut Criterion) {
             }),
         );
 
+        let count = bitmask.count_ones();
         group.bench_with_input(
             BenchmarkId::new("counting", log_domain_size),
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_counting(&apk, black_box(&bitmask), &proof_counting);
+                verifier.verify_counting(&apk, black_box(count), &proof_counting);
             }),
         );
     }

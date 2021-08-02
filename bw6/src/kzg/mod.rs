@@ -11,6 +11,9 @@ use ark_ff::{One, PrimeField, UniformRand, Zero};
 use ark_poly::UVPolynomial;
 use ark_std::{format, marker::PhantomData, ops::Div, vec};
 
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
+
 use ark_std::{end_timer, start_timer};
 
 use crate::utils;
@@ -61,7 +64,7 @@ impl <E: PairingEngine> ProverKey<E> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct VerifierKey<E: PairingEngine> {
     /// The generator of G1.
     pub g: E::G1Affine,

@@ -3,9 +3,10 @@ use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{Bitmask, utils};
+use crate::{Bitmask, utils, PublicInput, AccountablePublicInput};
 use crate::domains::Domains;
 use crate::utils::LagrangeEvaluations;
+use crate::bls::PublicKey;
 
 
 pub mod affine_addition;
@@ -93,11 +94,11 @@ impl RegisterPolynomials for () {
 //    verifier is given the "linearization" polynomial that is enough to be queried once.
 //    It is efficient if the constraint polynomial is linear in all "shifted" terms ri(Zw).
 
-
 pub trait ProverProtocol {
     type P1: RegisterPolynomials;
     type P2: RegisterPolynomials;
     type E: RegisterEvaluations;
+    type PI: PublicInput;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
 

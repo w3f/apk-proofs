@@ -1,10 +1,13 @@
 use ark_ff::{PrimeField, FpParameters, BitIteratorLE};
 use ark_std::convert::{TryInto, TryFrom};
 
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
+
 const BITS_IN_LIMB: usize = 64;
 
 /// A bitmask that can be encoded as a Vec of field elements.
-#[derive(Clone)]
+#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Bitmask {
     limbs: Vec<u64>,
     padding_size: usize,

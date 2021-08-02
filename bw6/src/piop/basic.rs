@@ -2,7 +2,7 @@ use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use crate::domains::Domains;
-use crate::{Bitmask, utils};
+use crate::{Bitmask, utils, AccountablePublicInput};
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
 
 use ark_std::io::{Read, Write};
@@ -34,6 +34,7 @@ impl ProverProtocol for BasicRegisterBuilder {
     type P1 = PartialSumsPolynomials;
     type P2 = ();
     type E = AffineAdditionEvaluationsWithoutBitmask;
+    type PI = AccountablePublicInput;
 
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         BasicRegisterBuilder {

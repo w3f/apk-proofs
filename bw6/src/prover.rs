@@ -4,7 +4,7 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -75,26 +75,22 @@ pub struct Prover<'a> {
 
 impl<'a> Prover<'a> {
     pub fn new(
-        domain_size: usize,
-        kzg_pk: ProverKey<BW6_761>,
+        setup: &Setup,
         signer_set_comm: &SignerSetCommitment,
         pks: &'a [PublicKey],
         mut empty_transcript: Transcript,
     ) -> Self {
-        assert!(domain_size.is_power_of_two(), "domain size should be a power of 2");
-        assert!(domain_size <= kzg_pk.max_coeffs(), "domain size shouldn't exceed srs length");
-
-        // empty_transcript.set_protocol_params(); //TODO
-        empty_transcript.set_signer_set(&signer_set_comm);
-
         let params = Params {
-            domain_size,
-            kzg_pk,
+            domain_size: setup.domain_size,
+            kzg_pk: setup.kzg_params.get_pk(),
             h: point_in_g1_complement(),
         };
 
-        let domains = Domains::new(domain_size);
+        let domains = Domains::new(params.domain_size);
         let session = Session::new(pks, &domains);
+
+        empty_transcript.set_protocol_params(&domains.domain, &setup.kzg_params.get_vk());
+        empty_transcript.set_keyset_commitment(&signer_set_comm);
 
         Self {
             params,
@@ -128,7 +124,7 @@ impl<'a> Prover<'a> {
         let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&apk.into(), &bitmask);
+        transcript.append_public_input(&P::PI::new(&apk.into(), &bitmask));
 
         // TODO: move to Session
         let pks = self.session.pks.iter()
@@ -142,58 +138,49 @@ impl<'a> Prover<'a> {
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
 
-        transcript.append_basic_commitments(&partial_sums_commitments);
+        transcript.append_register_commitments(&partial_sums_commitments);
 
         // 2. Receive bitmask aggregation challenge,
         // compute and commit to succinct accountability registers.
-        let r = transcript.get_128_bit_challenge(b"r"); // bitmask aggregation challenge
+        let r = transcript.get_bitmask_aggregation_challenge();
         // let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
         );
-        transcript.append_accountability_commitments(&acc_register_commitments);
+        transcript.append_2nd_round_register_commitments(&acc_register_commitments);
 
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
-        let phi = transcript.get_128_bit_challenge(b"phi"); // constraint polynomials batching challenge
+        let phi = transcript.get_constraints_aggregation_challenge();
         let q_poly = protocol.compute_quotient_polynomial(phi, &self.domains);
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         assert_eq!(q_poly.degree(), 3 * n - 3);
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
-        transcript.append_proof_point(b"q_comm", &q_comm);
+        transcript.append_quotient_commitment(&q_comm);
 
         // 4. Receive the evaluation point,
         // evaluate register polynomials and the quotient polynomial,
-        // and commit to the evaluations.
-        let zeta = transcript.get_128_bit_challenge(b"zeta"); // evaluation point challenge
+        // compute the linearization polynomial and evaluate it at the shifted evaluation point,
+        // commit to all the evaluations.
+        let zeta = transcript.get_evaluation_point();
         let register_evaluations = protocol.evaluate_register_polynomials(zeta);
         let q_zeta = q_poly.evaluate(&zeta);
-        transcript.append_evals(&register_evaluations);
-        transcript.append_proof_scalar(b"q_zeta", &q_zeta);
-
-
-        // 5. Compute the linearization polynomial,
-        // evaluate it at the shifted evaluation point,
-        // and commit to the evaluation.
         let zeta_omega = zeta * self.domains.omega;
         let r_poly = protocol.compute_linearization_polynomial(phi, zeta);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
-        transcript.append_proof_scalar(b"r_zeta_omega", &r_zeta_omega);
+        transcript.append_evaluations(&register_evaluations, &q_zeta, &r_zeta_omega);
 
-        // 6. Receive the polynomials aggregation challenge,
+        // 5. Receive the polynomials aggregation challenge,
         // open the aggregated polynomial at the evaluation point,
         // and the linearization polynomial at the shifted evaluation point,
         // and commit to the opening proofs.
-        let nu: Fr = transcript.get_128_bit_challenge(b"nu"); // KZG opening batching challenge
+        let nu = transcript.get_kzg_aggregation_challenge();
         let mut register_polynomials = protocol.get_register_polynomials_to_open();
         register_polynomials.push(q_poly);
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
         let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
-        transcript.append_proof_point(b"w_at_zeta_proof", &w_at_zeta_proof);
-
         let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
-        transcript.append_proof_point(b"r_at_zeta_omega_proof", &r_at_zeta_omega_proof);
 
         // Finally, compose the proof.
         Proof {
