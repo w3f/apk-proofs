@@ -151,7 +151,7 @@ mod tests {
 
     fn _test_prove_verify<P, V, PI, E, C, AC>(prove: P, verify: V, proof_size: usize)
         where
-            P: Fn(Prover, Bitmask) -> Proof<E, C, AC>,
+            P: Fn(Prover, Bitmask) -> (Proof<E, C, AC>, PI),
             V: Fn(Verifier, Proof<E, C, AC>, PI) -> bool,
             PI: PublicInput,
             E: RegisterEvaluations,
@@ -186,10 +186,9 @@ mod tests {
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
         let b = Bitmask::from_bits(&bits);
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prove(prover, b.clone());
+        let (proof, public_input) = prove(prover, b.clone());
         end_timer!(prove_);
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
@@ -198,10 +197,7 @@ mod tests {
 
         assert_eq!(proof.serialized_size(), proof_size);
 
-        let public_input = PI::new(&apk, &b);
-
         let verify_ = start_timer!(|| "BW6 verify");
-        let public_input = PI::new(&apk.into(), &b);
         let valid = verify(verifier, proof, public_input);
         end_timer!(verify_);
 

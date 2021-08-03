@@ -4,7 +4,7 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -100,20 +100,20 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: Bitmask) -> SimpleProof {
+    pub fn prove_simple(&self, bitmask: Bitmask) -> (SimpleProof, AccountablePublicInput) {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: Bitmask) -> PackedProof {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> (PackedProof, AccountablePublicInput) {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_counting(&self, bitmask: Bitmask) -> CountingProof {
+    pub fn prove_counting(&self, bitmask: Bitmask) -> (CountingProof, CountingPublicInput) {
         self.prove::<CountingScheme>(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
+    fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> (Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>, P::PI)
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
@@ -124,7 +124,8 @@ impl<'a> Prover<'a> {
         let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&P::PI::new(&apk.into(), &bitmask));
+        let public_input = P::PI::new(&apk.into(), &bitmask);
+        transcript.append_public_input(&public_input);
 
         // TODO: move to Session
         let pks = self.session.pks.iter()
@@ -183,7 +184,7 @@ impl<'a> Prover<'a> {
         let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
 
         // Finally, compose the proof.
-        Proof {
+        let proof = Proof {
             register_commitments: partial_sums_commitments,
             additional_commitments: acc_register_commitments,
             // phi <-
@@ -195,7 +196,9 @@ impl<'a> Prover<'a> {
             // <- nu
             w_at_zeta_proof,
             r_at_zeta_omega_proof,
-        }
+        };
+
+        (proof, public_input)
     }
 }
 
