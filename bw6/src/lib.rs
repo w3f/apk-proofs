@@ -218,7 +218,7 @@ mod tests {
     fn test_simple_scheme() {
         _test_prove_verify(
             |prover, bitmask| prover.prove_simple(bitmask),
-            |verifier, proof, public_input| verifier.verify_simple(public_input, &proof),
+            |verifier, proof, public_input| verifier.verify_simple(&public_input, &proof),
             (5 * 2 + 6) * 48 // 5C + 6F
         );
     }
@@ -228,7 +228,7 @@ mod tests {
     fn test_packed_scheme() {
         _test_prove_verify(
             |prover, bitmask| prover.prove_packed(bitmask),
-            |verifier, proof, public_input| verifier.verify_packed(public_input, &proof),
+            |verifier, proof, public_input| verifier.verify_packed(&public_input, &proof),
             (8 * 2 + 9) * 48 // 8C + 9F
         );
     }
@@ -237,7 +237,7 @@ mod tests {
     fn test_counting_scheme() {
         _test_prove_verify(
             |prover, bitmask| prover.prove_counting(bitmask),
-            |verifier, proof, public_input| verifier.verify_counting(public_input, &proof),
+            |verifier, proof, public_input| verifier.verify_counting(&public_input, &proof),
             (7 * 2 + 8) * 48 // 7C + 8F
         );
     }

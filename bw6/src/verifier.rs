@@ -37,11 +37,11 @@ struct Challenges {
 impl Verifier {
     pub fn verify_simple(
         &self,
-        public_input: AccountablePublicInput,
+        public_input: &AccountablePublicInput,
         proof: &SimpleProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
-        let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
@@ -69,11 +69,11 @@ impl Verifier {
 
     pub fn verify_packed(
         &self,
-        public_input: AccountablePublicInput,
+        public_input: &AccountablePublicInput,
         proof: &PackedProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
-        let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         self.validate_evaluations::<
@@ -91,11 +91,11 @@ impl Verifier {
 
     pub fn verify_counting(
         &self,
-        public_input: CountingPublicInput,
+        public_input: &CountingPublicInput,
         proof: &CountingProof,
     ) -> bool {
         assert!(public_input.count > 0);
-        let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
         let count = Fr::from(public_input.count as u16);
 
