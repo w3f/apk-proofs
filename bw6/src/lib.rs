@@ -1,7 +1,7 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::PairingEngine;
+use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::field_new;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
@@ -33,7 +33,7 @@ pub mod bls;
 mod transcript;
 
 mod signer_set;
-mod kzg;
+pub mod kzg;
 mod fsrng;
 mod domains;
 mod piop;
@@ -111,13 +111,13 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
 }
 
 // TODO: switch to better hash to curve when available
-fn hash_to_bls_g2(message: &[u8]) -> ark_bls12_377::G2Projective {
+pub fn hash_to_curve<G: ProjectiveCurve>(message: &[u8]) -> G {
     use blake2::Digest;
     use ark_std::{UniformRand, rand::SeedableRng};
 
     let seed = blake2::Blake2s::digest(message);
     let rng = &mut rand::rngs::StdRng::from_seed(seed.into());
-    ark_bls12_377::G2Projective::rand(rng)
+    G::rand(rng)
 }
 
 #[cfg(test)]
