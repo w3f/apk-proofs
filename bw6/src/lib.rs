@@ -99,9 +99,9 @@ pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCom
     r_at_zeta_omega_proof: ark_bw6_761::G1Affine,
 }
 
-type SimpleProof = Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>;
-type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>;
-type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
+pub type SimpleProof = Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>;
+pub type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>;
+pub type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
 
 
 const H_X: Fr = field_new!(Fr, "0");
