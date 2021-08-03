@@ -37,17 +37,15 @@ struct Challenges {
 impl Verifier {
     pub fn verify_simple(
         &self,
-        apk: &PublicKey,
-        bitmask: &Bitmask,
+        public_input: AccountablePublicInput,
         proof: &Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>,
     ) -> bool {
-        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
-        let public_input = AccountablePublicInput::new(apk, bitmask);
+        assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
-        let b_at_zeta = utils::barycentric_eval_binary_at(challenges.zeta, &bitmask, self.domain);
+        let b_at_zeta = utils::barycentric_eval_binary_at(challenges.zeta, &public_input.bitmask, self.domain);
         end_timer!(t_linear_accountability);
 
         let evaluations_with_bitmask = AffineAdditionEvaluations {
@@ -63,7 +61,7 @@ impl Verifier {
             AffineAdditionEvaluations,
         >(proof, &evaluations_with_bitmask, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = apk.0.into_affine();
+        let apk = public_input.apk.0.into_affine();
         let constraint_polynomial_evals = evaluations_with_bitmask.evaluate_constraint_polynomials(apk, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -71,12 +69,10 @@ impl Verifier {
 
     pub fn verify_packed(
         &self,
-        apk: &PublicKey,
-        bitmask: &Bitmask,
+        public_input: AccountablePublicInput,
         proof: &Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>,
     ) -> bool {
-        assert_eq!(bitmask.size(), self.pks_comm.signer_set_size);
-        let public_input = AccountablePublicInput::new(apk, bitmask);
+        assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
@@ -87,26 +83,21 @@ impl Verifier {
             SuccinctAccountableRegisterEvaluations,
         >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = apk.0.into_affine();
-        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, bitmask, self.domain.size);
+        let apk = public_input.apk.0.into_affine();
+        let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, &public_input.bitmask, self.domain.size);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
     }
 
     pub fn verify_counting(
         &self,
-        apk: &PublicKey,
-        count: usize,
+        public_input: CountingPublicInput,
         proof: &Proof<CountingEvaluations, CountingCommitments, ()>,
     ) -> bool {
-        assert!(count > 0);
-        let public_input = CountingPublicInput {
-            apk: apk.clone(),
-            count,
-        };
+        assert!(public_input.count > 0);
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
-        let count = Fr::from(count as u16);
+        let count = Fr::from(public_input.count as u16);
 
         self.validate_evaluations::<
             (),
@@ -115,7 +106,7 @@ impl Verifier {
             CountingEvaluations,
         >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = apk.0.into_affine();
+        let apk = public_input.apk.0.into_affine();
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, count, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial

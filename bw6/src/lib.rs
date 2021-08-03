@@ -184,7 +184,8 @@ mod tests {
         assert_eq!(proof.serialized_size(), (8 * 2 + 9) * 48); // 8C + 9F
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_packed(&apk, &b, &proof);
+        let public_input = AccountablePublicInput::new(&apk, &b);
+        let valid = verifier.verify_packed(public_input, &proof);
         end_timer!(verify_);
 
         assert!(valid);
@@ -233,7 +234,8 @@ mod tests {
         let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_simple(&apk, &b, &proof);
+        let public_input = AccountablePublicInput::new(&apk, &b);
+        let valid = verifier.verify_simple(public_input, &proof);
         end_timer!(verify_);
 
         assert!(valid);
@@ -282,7 +284,11 @@ mod tests {
         let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_counting(&apk, b.count_ones(), &proof);
+        let public_input = CountingPublicInput {
+            apk,
+            count: b.count_ones(),
+        };
+        let valid = verifier.verify_counting(public_input, &proof);
         end_timer!(verify_);
 
         assert!(valid);
