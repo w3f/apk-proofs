@@ -21,6 +21,7 @@ use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use ark_std::UniformRand;
 
 mod prover;
 mod verifier;
@@ -109,6 +110,15 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
     ark_bls12_377::G1Affine::new(H_X, H_Y, false)
 }
 
+// TODO: switch to better hash to curve when available
+fn hash_to_bls_g2(message: &[u8]) -> ark_bls12_377::G2Projective {
+    use blake2::Digest;
+    use ark_std::{UniformRand, rand::SeedableRng};
+
+    let seed = blake2::Blake2s::digest(message);
+    let rng = &mut rand::rngs::StdRng::from_seed(seed.into());
+    ark_bls12_377::G2Projective::rand(rng)
+}
 
 #[cfg(test)]
 mod tests {
