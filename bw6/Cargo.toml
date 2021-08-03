@@ -27,5 +27,8 @@ criterion = "0.3"
 name = "bench"
 harness = false
 
+[[example]]
+name = "recursive"
+
 [features]
 print-trace = [ "ark-std/print-trace" ]
