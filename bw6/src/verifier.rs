@@ -4,7 +4,7 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, Bitmask, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
@@ -38,7 +38,7 @@ impl Verifier {
     pub fn verify_simple(
         &self,
         public_input: AccountablePublicInput,
-        proof: &Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>,
+        proof: &SimpleProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
@@ -70,7 +70,7 @@ impl Verifier {
     pub fn verify_packed(
         &self,
         public_input: AccountablePublicInput,
-        proof: &Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>,
+        proof: &PackedProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);
@@ -92,7 +92,7 @@ impl Verifier {
     pub fn verify_counting(
         &self,
         public_input: CountingPublicInput,
-        proof: &Proof<CountingEvaluations, CountingCommitments, ()>,
+        proof: &CountingProof,
     ) -> bool {
         assert!(public_input.count > 0);
         let (challenges, mut fsrng) = self.restore_challenges(&public_input, &proof);

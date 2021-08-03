@@ -17,6 +17,10 @@ use crate::piop::{RegisterCommitments, RegisterEvaluations};
 pub use self::prover::*;
 pub use self::verifier::*;
 use crate::bls::PublicKey;
+use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
+use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
+use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
+use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 
 mod prover;
 mod verifier;
@@ -93,6 +97,10 @@ pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCom
     w_at_zeta_proof: ark_bw6_761::G1Affine,
     r_at_zeta_omega_proof: ark_bw6_761::G1Affine,
 }
+
+type SimpleProof = Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>;
+type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>;
+type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
 
 
 const H_X: Fr = field_new!(Fr, "0");

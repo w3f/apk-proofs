@@ -4,7 +4,7 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
@@ -100,15 +100,15 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: Bitmask) -> Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()> {
+    pub fn prove_simple(&self, bitmask: Bitmask) -> SimpleProof {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments> {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> PackedProof {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_counting(&self, bitmask: Bitmask) -> Proof<CountingEvaluations, CountingCommitments, ()> {
+    pub fn prove_counting(&self, bitmask: Bitmask) -> CountingProof {
         self.prove::<CountingScheme>(bitmask)
     }
 
