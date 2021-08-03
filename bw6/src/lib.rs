@@ -54,8 +54,8 @@ pub trait PublicInput : CanonicalSerialize + CanonicalDeserialize {
 // Used in 'basic' and 'packed' schemes
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct AccountablePublicInput {
-    apk: PublicKey,
-    bitmask: Bitmask,
+    pub apk: PublicKey,
+    pub bitmask: Bitmask,
 }
 
 impl PublicInput for AccountablePublicInput {
@@ -70,8 +70,8 @@ impl PublicInput for AccountablePublicInput {
 // Used in 'counting' scheme
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct CountingPublicInput {
-    apk: PublicKey,
-    count: usize,
+    pub apk: PublicKey,
+    pub count: usize,
 }
 
 impl PublicInput for CountingPublicInput {
