@@ -20,6 +20,10 @@ pub struct SignerSetCommitment {
 }
 
 impl SignerSet {
+    pub fn new(public_keys: &[PublicKey]) -> Self {
+        Self(public_keys.to_vec())
+    }
+
     pub fn size(&self) -> usize {
         self.0.len()
     }
