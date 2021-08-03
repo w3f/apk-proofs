@@ -27,8 +27,8 @@ struct Params {
 }
 
 
-struct Session<'a> {
-    pks: &'a [PublicKey],
+struct Session {
+    pks: Vec<PublicKey>,
     pks_x_poly: DensePolynomial<Fr>,
     pks_y_poly: DensePolynomial<Fr>,
     pks_x_poly_evals_x4: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -36,8 +36,8 @@ struct Session<'a> {
 }
 
 
-impl<'a> Session<'a> {
-    pub fn new(pks: &'a[PublicKey], domains: &Domains) -> Self {
+impl Session {
+    pub fn new(pks: Vec<PublicKey>, domains: &Domains) -> Self {
         let (pks_x, pks_y): (Vec<Fr>, Vec<Fr>) = pks.iter()
             .map(|p| p.0.into_affine())
             .map(|p| (p.x, p.y))
@@ -65,19 +65,19 @@ impl<'a> Session<'a> {
 }
 
 
-pub struct Prover<'a> {
+pub struct Prover {
     params: Params,
     domains: Domains,
-    session: Session<'a>,
+    session: Session,
     preprocessed_transcript: Transcript,
 }
 
 
-impl<'a> Prover<'a> {
+impl Prover {
     pub fn new(
         setup: &Setup,
         signer_set_comm: &SignerSetCommitment,
-        pks: &'a [PublicKey],
+        pks: Vec<PublicKey>,
         mut empty_transcript: Transcript,
     ) -> Self {
         let params = Params {
