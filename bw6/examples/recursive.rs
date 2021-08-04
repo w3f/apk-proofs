@@ -13,11 +13,11 @@ use merlin::Transcript;
 
 
 
-// These example sketches the primary intended use case of the crate functionality:
+// This example sketches the primary intended use case of the crate functionality:
 // building communication-efficient light clients for blockchains.
 
 // Here we model a blockchain as a set of validators who are responsible for signing for the chain events.
-// The validator set changes in periods of time called 'epochs'. We assume that within an epoch,
+// The validator set changes in periods of time called 'epochs'. Common assumptions is that within an epoch,
 // only a fraction of validators in the set is malicious/unresponsive.
 
 // Light client is a resource-constrained blockchain client (think a mobile app or better an Ethereum smart contract),
@@ -43,21 +43,22 @@ use merlin::Transcript;
 // Light client's state is initialized with a commitment 'C0' to the ('genesis') validator set of the epoch #0
 // (and some technical stuff, like public parameters).
 
-// When an epoch (tautologically the validator set) changes, a helper provides:
+// When an epoch (tautologically, a validator set) changes, a helper provides:
 // 1. the commitment 'C1' to the new validator set,
 // 2. an aggregate signature 'asig0' of a subset of validators of the previous epoch on the new commitment 'C1',
 // 3. an aggregate public key 'apk0' of this subset of validators,
 // 4. a bitmask 'b0' identifying this subset in the whole set of the validators of the previous epoch, and
-// 5. a proof 'p', that attests that the key 'apk0' is indeed the aggregate public key of a subset identified by 'b0'
-//                 of the set of the validators of the previous epoch identified by the commitment 'C0'.
-// All together this is ('C1', 'asig0', 'apk0', 'b0', 'p0')
+// 5. a proof 'p0', that attests that the key 'apk0' is indeed the aggregate public key of a subset identified by 'b0'
+//                  of the set of the validators, identified by the commitment 'C0', of the previous epoch.
+// All together this is ('C1', 'asig0', 'apk0', 'b0', 'p0').
 
-// The light client
-// 1. Makes sure that the key 'apk0' is correct by verifying the proof 'p0':
+// The light client:
+// 1. makes sure that the key 'apk0' is correct by verifying the proof 'p0':
 //    apk_verify('apk0', 'b0', 'C0'; 'p0') == true
-// 2. Verifies the aggregate signature 'asig0' agains the key 'apk0':
+// 2. verifies the aggregate signature 'asig0' agains the key 'apk0':
 //    bls_verify('asig0', 'apk0', 'C1') == true
-// 3. If both checks passed and the bitmask contains enough (say, >2/3 of) signers, updates its state to the new commitment 'C1'.
+// 3. If both checks passed and the bitmask contains enough (say, >2/3 of) signers,
+//    updates its state to the new commitment 'C1'.
 
 
 
