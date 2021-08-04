@@ -16,7 +16,7 @@ use merlin::Transcript;
 // These example sketches the primary intended use case of the crate functionality:
 // building communication-efficient light clients for blockchains.
 
-// Here we model a blockchain as a set of validators who are responsible to sign for the chain events.
+// Here we model a blockchain as a set of validators who are responsible for signing for the chain events.
 // The validator set changes in periods of time called 'epochs'. We assume that within an epoch,
 // only a fraction of validators in the set is malicious/unresponsive.
 
@@ -25,10 +25,39 @@ use merlin::Transcript;
 // Instead it relies on a helper node that provides cryptographic proofs of the events requested by the client
 // and doesn't need to be trusted.
 
-// An example of such a proof could be a collection of signatures from the relevant validator set, but it would require
-// the client to know all the validators' public keys, that is inefficient. Knowing the aggregate public key
-// of the validator set doesn't help, as some of the individual signatures may be missing
-// (due to unresponsive/malicious/deluded validators)...
+// An example of such a proof could be a collection of signatures on the event from the relevant validator set,
+// but it would require the client to know all the validators' public keys, that is inefficient.
+// Neither knowing the aggregate public key of the validator set helps, as some of the individual signatures may be missing
+// (due to unresponsive/malicious/deluded validators).
+
+// The crate suggests succinct proofs of the public key being an aggregate public key of a subset of the validators set.
+// The whole validator set is identified by a short commitment to it, and the subset is identified by the bitmask.
+// This effectively gives an accountable subset signature with the commitment being a public key.
+
+// The fundamental type of event a light client is interested in is the validator set change.
+// Given it knows the (short commitment to) recent validator set, it can process signatures (proofs)
+// of the other events (like a block finality) in the same way.
+
+
+
+// Light client's state is initialized with a commitment 'C0' to the ('genesis') validator set of the epoch #0
+// (and some technical stuff, like public parameters).
+
+// When an epoch (tautologically the validator set) changes, a helper provides:
+// 1. the commitment 'C1' to the new validator set,
+// 2. an aggregate signature 'asig0' of a subset of validators of the previous epoch on the new commitment 'C1',
+// 3. an aggregate public key 'apk0' of this subset of validators,
+// 4. a bitmask 'b0' identifying this subset in the whole set of the validators of the previous epoch, and
+// 5. a proof 'p', that attests that the key 'apk0' is indeed the aggregate public key of a subset identified by 'b0'
+//                 of the set of the validators of the previous epoch identified by the commitment 'C0'.
+// All together this is ('C1', 'asig0', 'apk0', 'b0', 'p0')
+
+// The light client
+// 1. Makes sure that the key 'apk0' is correct by verifying the proof 'p0':
+//    apk_verify('apk0', 'b0', 'C0'; 'p0') == true
+// 2. Verifies the aggregate signature 'asig0' agains the key 'apk0':
+//    bls_verify('asig0', 'apk0', 'C1') == true
+// 3. If both checks passed and the bitmask contains enough (say, >2/3 of) signers, updates its state to the new commitment 'C1'.
 
 
 
