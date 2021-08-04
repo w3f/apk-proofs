@@ -1,17 +1,35 @@
 use apk_proofs::{SignerSet, Setup, SignerSetCommitment, Prover, Verifier, Bitmask, SimpleProof, AccountablePublicInput, hash_to_curve};
-use ark_std::test_rng;
-
-
-use merlin::Transcript;
 use apk_proofs::bls::{PublicKey, SecretKey, Signature};
-use rand::Rng;
-use std::collections::HashSet;
-
+use apk_proofs::kzg::{VerifierKey, ProverKey};
 
 use ark_serialize::CanonicalSerialize;
 use ark_bls12_377::G2Projective;
 use ark_bw6_761::BW6_761;
-use apk_proofs::kzg::{VerifierKey, ProverKey};
+use ark_std::test_rng;
+
+use rand::Rng;
+use std::collections::HashSet;
+use merlin::Transcript;
+
+
+
+// These example sketches the primary intended use case of the crate functionality:
+// building communication-efficient light clients for blockchains.
+
+// Here we model a blockchain as a set of validators who are responsible to sign for the chain events.
+// The validator set changes in periods of time called 'epochs'. We assume that within an epoch,
+// only a fraction of validators in the set is malicious/unresponsive.
+
+// Light client is a resource-constrained blockchain client (think a mobile app or better an Ethereum smart contract),
+// that is interested in some of the chain events, but is not able to follow the chain itself.
+// Instead it relies on a helper node that provides cryptographic proofs of the events requested by the client
+// and doesn't need to be trusted.
+
+// An example of such a proof could be a collection of signatures from the relevant validator set, but it would require
+// the client to know all the validators' public keys, that is inefficient. Knowing the aggregate public key
+// of the validator set doesn't help, as some of the individual signatures may be missing
+// (due to unresponsive/malicious/deluded validators)...
+
 
 
 #[derive(Clone)]
