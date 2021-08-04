@@ -10,13 +10,10 @@ use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
-use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
-use crate::piop::basic::{BasicRegisterBuilder, AffineAdditionEvaluationsWithoutBitmask};
-use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
 
 

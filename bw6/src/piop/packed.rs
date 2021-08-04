@@ -5,7 +5,7 @@ use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_bls12_377::G1Affine;
 use crate::{Bitmask, utils, AccountablePublicInput};
 use ark_bw6_761::Fr;
-use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsPolynomials, PartialSumsAndBitmaskPolynomials};
+use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials};
 
 pub struct PackedRegisterBuilder {
     bitmask: Bitmask,

@@ -1,24 +1,17 @@
-use apk_proofs::{SignerSet, Setup, SignerSetCommitment, Prover, Verifier, Bitmask, Proof, SimpleProof, AccountablePublicInput, hash_to_curve};
+use apk_proofs::{SignerSet, Setup, SignerSetCommitment, Prover, Verifier, Bitmask, SimpleProof, AccountablePublicInput, hash_to_curve};
 use ark_std::test_rng;
-use ark_std::convert::TryInto;
 
 
 use merlin::Transcript;
 use apk_proofs::bls::{PublicKey, SecretKey, Signature};
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use std::collections::HashSet;
 
-use rand::seq::IteratorRandom;
-
-use ark_std::UniformRand;
-use blake2::{Blake2b, Digest, Blake2s};
 
 use ark_serialize::CanonicalSerialize;
-use rand::prelude::SliceRandom;
 use ark_bls12_377::G2Projective;
-use std::iter::FromIterator;
 use ark_bw6_761::BW6_761;
-use apk_proofs::kzg::{VerifierKey, PreparedVerifierKey, ProverKey};
+use apk_proofs::kzg::{VerifierKey, ProverKey};
 
 
 #[derive(Clone)]

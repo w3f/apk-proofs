@@ -504,7 +504,6 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use ark_poly::Polynomial;
-    use ark_bls12_377::G1Projective;
     use ark_ec::{ProjectiveCurve, AffineCurve};
     use crate::tests::{random_bits, random_bitmask, random_pks};
     use crate::utils;
