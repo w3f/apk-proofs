@@ -1,7 +1,7 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::PairingEngine;
+use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::field_new;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
@@ -17,6 +17,10 @@ use crate::piop::{RegisterCommitments, RegisterEvaluations};
 pub use self::prover::*;
 pub use self::verifier::*;
 use crate::bls::PublicKey;
+use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
+use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
+use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
+use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 
 mod prover;
 mod verifier;
@@ -28,7 +32,7 @@ pub mod bls;
 mod transcript;
 
 mod signer_set;
-mod kzg;
+pub mod kzg;
 mod fsrng;
 mod domains;
 mod piop;
@@ -49,8 +53,8 @@ pub trait PublicInput : CanonicalSerialize + CanonicalDeserialize {
 // Used in 'basic' and 'packed' schemes
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct AccountablePublicInput {
-    apk: PublicKey,
-    bitmask: Bitmask,
+    pub apk: PublicKey,
+    pub bitmask: Bitmask,
 }
 
 impl PublicInput for AccountablePublicInput {
@@ -65,8 +69,8 @@ impl PublicInput for AccountablePublicInput {
 // Used in 'counting' scheme
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct CountingPublicInput {
-    apk: PublicKey,
-    count: usize,
+    pub apk: PublicKey,
+    pub count: usize,
 }
 
 impl PublicInput for CountingPublicInput {
@@ -94,6 +98,10 @@ pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCom
     r_at_zeta_omega_proof: ark_bw6_761::G1Affine,
 }
 
+pub type SimpleProof = Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>;
+pub type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>;
+pub type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
+
 
 const H_X: Fr = field_new!(Fr, "0");
 const H_Y: Fr = field_new!(Fr, "1");
@@ -101,6 +109,15 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
     ark_bls12_377::G1Affine::new(H_X, H_Y, false)
 }
 
+// TODO: switch to better hash to curve when available
+pub fn hash_to_curve<G: ProjectiveCurve>(message: &[u8]) -> G {
+    use blake2::Digest;
+    use ark_std::rand::SeedableRng;
+
+    let seed = blake2::Blake2s::digest(message);
+    let rng = &mut rand::rngs::StdRng::from_seed(seed.into());
+    G::rand(rng)
+}
 
 #[cfg(test)]
 mod tests {
@@ -141,8 +158,15 @@ mod tests {
         assert!(!h.is_in_correct_subgroup_assuming_on_curve());
     }
 
-    #[test]
-    fn test_packed_accountable_scheme() {
+    fn _test_prove_verify<P, V, PI, E, C, AC>(prove: P, verify: V, proof_size: usize)
+        where
+            P: Fn(Prover, Bitmask) -> (Proof<E, C, AC>, PI),
+            V: Fn(Verifier, Proof<E, C, AC>, PI) -> bool,
+            PI: PublicInput,
+            E: RegisterEvaluations,
+            C: RegisterCommitments,
+            AC: RegisterCommitments
+    {
         let rng = &mut test_rng();
         let log_domain_size = 8;
 
@@ -171,120 +195,49 @@ mod tests {
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
         let b = Bitmask::from_bits(&bits);
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
 
         let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_packed(b.clone());
+        let (proof, public_input) = prove(prover, b.clone());
         end_timer!(prove_);
 
         let mut serialized_proof = vec![0; proof.serialized_size()];
         proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
+        let proof = Proof::<E, C, AC>::deserialize(&serialized_proof[..]).unwrap();
 
-        assert_eq!(proof.serialized_size(), (8 * 2 + 9) * 48); // 8C + 9F
+        assert_eq!(proof.serialized_size(), proof_size);
 
         let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_packed(&apk, &b, &proof);
+        let valid = verify(verifier, proof, public_input);
         end_timer!(verify_);
 
         assert!(valid);
     }
 
     #[test]
-    fn test_linear_accountable_scheme() {
-        let rng = &mut test_rng();
-        let log_domain_size = 8;
-
-        let t_setup = start_timer!(|| "setup");
-        let setup = Setup::generate(log_domain_size, rng);
-        end_timer!(t_setup);
-
-        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
-        let keyset_size = keyset_size.try_into().unwrap();
-        let signer_set = SignerSet::random(keyset_size, rng);
-
-        let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
-        end_timer!(pks_commitment_);
-
-        let t_prover_new = start_timer!(|| "prover precomputation");
-        let prover = Prover::new(
-            &setup,
-            &pks_comm,
-            signer_set.get_all(),
-            Transcript::new(b"apk_proof")
+    fn test_simple_scheme() {
+        _test_prove_verify(
+            |prover, bitmask| prover.prove_simple(bitmask),
+            |verifier, proof, public_input| verifier.verify_simple(&public_input, &proof),
+            (5 * 2 + 6) * 48 // 5C + 6F
         );
-        end_timer!(t_prover_new);
+    }
 
-        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
-        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
-        let b = Bitmask::from_bits(&bits);
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
-
-        let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_simple(b.clone());
-        end_timer!(prove_);
-
-        assert_eq!(proof.serialized_size(), (5 * 2 + 6) * 48); // 5C + 6F
-
-        let mut serialized_proof = vec![0; proof.serialized_size()];
-        proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
-
-        let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_simple(&apk, &b, &proof);
-        end_timer!(verify_);
-
-        assert!(valid);
+    #[test]
+    fn test_packed_scheme() {
+        _test_prove_verify(
+            |prover, bitmask| prover.prove_packed(bitmask),
+            |verifier, proof, public_input| verifier.verify_packed(&public_input, &proof),
+            (8 * 2 + 9) * 48 // 8C + 9F
+        );
     }
 
     #[test]
     fn test_counting_scheme() {
-        let rng = &mut test_rng();
-        let log_domain_size = 8;
-
-        let t_setup = start_timer!(|| "setup");
-        let setup = Setup::generate(log_domain_size, rng);
-        end_timer!(t_setup);
-
-        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
-        let keyset_size = keyset_size.try_into().unwrap();
-        let signer_set = SignerSet::random(keyset_size, rng);
-
-        let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
-        end_timer!(pks_commitment_);
-
-        let t_prover_new = start_timer!(|| "prover precomputation");
-        let prover = Prover::new(
-            &setup,
-            &pks_comm,
-            signer_set.get_all(),
-            Transcript::new(b"apk_proof")
+        _test_prove_verify(
+            |prover, bitmask| prover.prove_counting(bitmask),
+            |verifier, proof, public_input| verifier.verify_counting(&public_input, &proof),
+            (7 * 2 + 8) * 48 // 7C + 8F
         );
-        end_timer!(t_prover_new);
-
-        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
-
-        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
-        let b = Bitmask::from_bits(&bits);
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&b));
-
-        let prove_ = start_timer!(|| "BW6 prove");
-        let proof = prover.prove_counting(b.clone());
-        end_timer!(prove_);
-
-        assert_eq!(proof.serialized_size(), (7 * 2 + 8) * 48); // 7C + 8F
-
-        let mut serialized_proof = vec![0; proof.serialized_size()];
-        proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::deserialize(&serialized_proof[..]).unwrap();
-
-        let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verifier.verify_counting(&apk, b.count_ones(), &proof);
-        end_timer!(verify_);
-
-        assert!(valid);
     }
 }

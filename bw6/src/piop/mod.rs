@@ -3,10 +3,8 @@ use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{Bitmask, utils, PublicInput, AccountablePublicInput};
+use crate::{Bitmask, utils, PublicInput};
 use crate::domains::Domains;
-use crate::utils::LagrangeEvaluations;
-use crate::bls::PublicKey;
 
 
 pub mod affine_addition;

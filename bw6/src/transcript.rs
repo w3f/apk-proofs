@@ -1,10 +1,8 @@
 use merlin::Transcript;
 use ark_serialize::CanonicalSerialize;
-use ark_ff::{Field, ToBytes};
-use ark_ec::ProjectiveCurve;
+use ark_ff::Field;
 use crate::signer_set::SignerSetCommitment;
-use crate::bls::PublicKey;
-use crate::{Bitmask, PublicInput};
+use crate::PublicInput;
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{Fr, BW6_761, G1Affine};

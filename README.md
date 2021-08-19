@@ -7,3 +7,5 @@ and requires the verifier to know the individual public keys.
 
 This repo contains PoC implementations of succinct proofs of correctness of the aggregate public key,
 given the verifier knows the commitment to the list of public keys of all the eligible signers.
+
+See [a code example](bw6/examples/recursive.rs) for a sketch of a blockchain light client design exploiting such proofs.

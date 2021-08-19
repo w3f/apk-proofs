@@ -380,13 +380,12 @@ impl BitmaskPackingRegisters {
 mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
-    use ark_std::rand::{Rng, rngs::StdRng};
+    use ark_std::rand::rngs::StdRng;
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
     use ark_ec::ProjectiveCurve;
     use crate::tests::random_bits;
     use crate::domains::Domains;
-    use crate::piop::affine_addition::AffineAdditionRegisters;
 
     fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
         (0..n)

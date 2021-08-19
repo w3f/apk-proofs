@@ -5,6 +5,7 @@ use ark_std::convert::TryInto;
 use rand::Rng;
 
 
+#[derive(Clone)]
 pub struct Setup {
     pub domain_size: usize,
     pub kzg_params: kzg::Params<BW6_761>,

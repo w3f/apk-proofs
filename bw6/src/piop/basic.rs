@@ -51,7 +51,7 @@ impl ProverProtocol for BasicRegisterBuilder {
         )
     }
 
-    fn get_register_polynomials_to_commit2(&mut self, verifier_challenge: Fr) -> () {
+    fn get_register_polynomials_to_commit2(&mut self, _verifier_challenge: Fr) -> () {
         ()
     }
 

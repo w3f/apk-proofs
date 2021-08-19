@@ -20,6 +20,10 @@ pub struct SignerSetCommitment {
 }
 
 impl SignerSet {
+    pub fn new(public_keys: &[PublicKey]) -> Self {
+        Self(public_keys.to_vec())
+    }
+
     pub fn size(&self) -> usize {
         self.0.len()
     }
@@ -57,8 +61,8 @@ impl SignerSet {
         )
     }
 
-    pub fn get_all(&self) -> &[PublicKey] {
-        return self.0.as_slice();
+    pub fn get_all(self) -> Vec<PublicKey> {
+        self.0
     }
 
     pub fn get_by_mask(&self, b: &Bitmask) -> Vec<&PublicKey> {

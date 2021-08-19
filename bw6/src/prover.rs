@@ -4,19 +4,16 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput};
 use crate::transcript::ApkTranscript;
 use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
-use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
-use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
-use crate::piop::basic::{BasicRegisterBuilder, AffineAdditionEvaluationsWithoutBitmask};
-use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
 
 
@@ -27,8 +24,8 @@ struct Params {
 }
 
 
-struct Session<'a> {
-    pks: &'a [PublicKey],
+struct Session {
+    pks: Vec<PublicKey>,
     pks_x_poly: DensePolynomial<Fr>,
     pks_y_poly: DensePolynomial<Fr>,
     pks_x_poly_evals_x4: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
@@ -36,8 +33,8 @@ struct Session<'a> {
 }
 
 
-impl<'a> Session<'a> {
-    pub fn new(pks: &'a[PublicKey], domains: &Domains) -> Self {
+impl Session {
+    pub fn new(pks: Vec<PublicKey>, domains: &Domains) -> Self {
         let (pks_x, pks_y): (Vec<Fr>, Vec<Fr>) = pks.iter()
             .map(|p| p.0.into_affine())
             .map(|p| (p.x, p.y))
@@ -65,19 +62,19 @@ impl<'a> Session<'a> {
 }
 
 
-pub struct Prover<'a> {
+pub struct Prover {
     params: Params,
     domains: Domains,
-    session: Session<'a>,
+    session: Session,
     preprocessed_transcript: Transcript,
 }
 
 
-impl<'a> Prover<'a> {
+impl Prover {
     pub fn new(
         setup: &Setup,
         signer_set_comm: &SignerSetCommitment,
-        pks: &'a [PublicKey],
+        pks: Vec<PublicKey>,
         mut empty_transcript: Transcript,
     ) -> Self {
         let params = Params {
@@ -100,20 +97,20 @@ impl<'a> Prover<'a> {
         }
     }
 
-    pub fn prove_simple(&self, bitmask: Bitmask) -> Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()> {
+    pub fn prove_simple(&self, bitmask: Bitmask) -> (SimpleProof, AccountablePublicInput) {
         self.prove::<BasicRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_packed(&self, bitmask: Bitmask) -> Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments> {
+    pub fn prove_packed(&self, bitmask: Bitmask) -> (PackedProof, AccountablePublicInput) {
         self.prove::<PackedRegisterBuilder>(bitmask)
     }
 
-    pub fn prove_counting(&self, bitmask: Bitmask) -> Proof<CountingEvaluations, CountingCommitments, ()> {
+    pub fn prove_counting(&self, bitmask: Bitmask) -> (CountingProof, CountingPublicInput) {
         self.prove::<CountingScheme>(bitmask)
     }
 
     #[allow(non_snake_case)]
-    fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>
+    fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> (Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>, P::PI)
     {
         let m = self.session.pks.len();
         let n = self.params.domain_size;
@@ -124,7 +121,8 @@ impl<'a> Prover<'a> {
         let apk = self.session.compute_apk(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        transcript.append_public_input(&P::PI::new(&apk.into(), &bitmask));
+        let public_input = P::PI::new(&apk.into(), &bitmask);
+        transcript.append_public_input(&public_input);
 
         // TODO: move to Session
         let pks = self.session.pks.iter()
@@ -183,7 +181,7 @@ impl<'a> Prover<'a> {
         let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
 
         // Finally, compose the proof.
-        Proof {
+        let proof = Proof {
             register_commitments: partial_sums_commitments,
             additional_commitments: acc_register_commitments,
             // phi <-
@@ -195,7 +193,9 @@ impl<'a> Prover<'a> {
             // <- nu
             w_at_zeta_proof,
             r_at_zeta_omega_proof,
-        }
+        };
+
+        (proof, public_input)
     }
 }
 
