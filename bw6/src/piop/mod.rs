@@ -4,8 +4,7 @@ use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::{Bitmask, utils, PublicInput, Keyset};
-use crate::domains::Domains;
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::Radix2EvaluationDomain;
 
 
 pub mod affine_addition;

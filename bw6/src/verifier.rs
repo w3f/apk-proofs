@@ -4,7 +4,7 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
+use crate::{endo, Proof, utils, KZG_BW6, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
 use crate::transcript::ApkTranscript;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::fsrng::fiat_shamir_rng;

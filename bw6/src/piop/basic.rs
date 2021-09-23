@@ -1,7 +1,6 @@
 use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
-use crate::domains::Domains;
 use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
 

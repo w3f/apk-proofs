@@ -1,6 +1,5 @@
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials, AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
 use crate::piop::{ProverProtocol, RegisterPolynomials, RegisterEvaluations, RegisterCommitments, VerifierProtocol};
-use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use crate::{Bitmask, utils, CountingPublicInput, Keyset};
 use ark_bw6_761::{Fr, G1Projective};
