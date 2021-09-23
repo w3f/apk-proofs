@@ -27,13 +27,13 @@ impl RegisterCommitments for PartialSumsCommitments {
     }
 }
 
-pub struct PartialSumsPolynomials(pub DensePolynomial<Fr>, pub DensePolynomial<Fr>);
+pub type PartialSumsPolynomials = [DensePolynomial<Fr>; 2];
 
 impl RegisterPolynomials for PartialSumsPolynomials {
     type C = PartialSumsCommitments;
 
     fn commit<F: Fn(&DensePolynomial<Fr>) -> G1Affine>(&self, f: F) -> PartialSumsCommitments {
-        PartialSumsCommitments(f(&self.0), f(&self.1))
+        PartialSumsCommitments(f(&self[0]), f(&self[1]))
     }
 }
 
@@ -71,27 +71,24 @@ impl RegisterPolynomials for PartialSumsAndBitmaskPolynomials {
 
 #[derive(Clone)] //TODO: remove
 pub struct AffineAdditionPolynomials {
-    pub keyset: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+    pub keyset: [DensePolynomial<Fr>; 2],
     pub bitmask: DensePolynomial<Fr>,
-    pub partial_sums: (DensePolynomial<Fr>, DensePolynomial<Fr>),
+    pub partial_sums: [DensePolynomial<Fr>; 2],
 }
 
 impl AffineAdditionPolynomials {
     pub fn to_vec(self) -> Vec<DensePolynomial<Fr>> {
-        vec![
-            self.keyset.0,
-            self.keyset.1,
-            self.bitmask,
-            self.partial_sums.0,
-            self.partial_sums.1,
-        ]
+        IntoIterator::into_iter(self.keyset)
+            .chain(std::iter::once(self.bitmask))
+            .chain(self.partial_sums)
+            .collect()
     }
 
     fn evaluate(&self, point: Fr) -> AffineAdditionEvaluations {
         AffineAdditionEvaluations {
-            keyset: (self.keyset.0.evaluate(&point), self.keyset.1.evaluate(&point)),
+            keyset: (self.keyset[0].evaluate(&point), self.keyset[1].evaluate(&point)),
             bitmask: self.bitmask.evaluate(&point),
-            partial_sums: (self.partial_sums.0.evaluate(&point), self.partial_sums.1.evaluate(&point)),
+            partial_sums: (self.partial_sums[0].evaluate(&point), self.partial_sums[1].evaluate(&point)),
         }
     }
 }
@@ -226,29 +223,23 @@ impl AffineAdditionRegisters {
         Self::new_unchecked(
             domains,
             bitmask,
-            pks,
-            (acc_x, acc_y),
+            [pks.0, pks.1],
+            [acc_x, acc_y],
         )
     }
 
     fn new_unchecked(domains: Domains,
                      bitmask: Vec<Fr>,
-                     pks: (Vec<Fr>, Vec<Fr>),
-                     apk_acc: (Vec<Fr>, Vec<Fr>),
+                     pks: [Vec<Fr>; 2],
+                     apk_acc: [Vec<Fr>; 2],
     ) -> Self {
         let bitmask_polynomial = domains.interpolate(bitmask);
-        let keyset_polynomial = (
-            domains.interpolate(pks.0),
-            domains.interpolate(pks.1),
-        );
-        let partial_sums_polynomial = (
-            domains.interpolate(apk_acc.0),
-            domains.interpolate(apk_acc.1),
-        );
+        let keyset_polynomial = pks.map(|z| domains.interpolate(z));
+        let partial_sums_polynomial = apk_acc.map(|z| domains.interpolate(z));
 
 
-        let keyset = [domains.amplify_polynomial(&keyset_polynomial.0), domains.amplify_polynomial(&keyset_polynomial.1)];
-        let partial_sums = [domains.amplify_polynomial(&partial_sums_polynomial.0), domains.amplify_polynomial(&partial_sums_polynomial.1)];
+        let keyset = keyset_polynomial.clone().map(|z| domains.amplify_polynomial(&z));
+        let partial_sums = partial_sums_polynomial.clone().map(|z| domains.amplify_polynomial(&z));
 
         Self {
             domains: domains.clone(),
@@ -275,7 +266,7 @@ impl AffineAdditionRegisters {
         let b_zeta = evaluations.bitmask;
         let (acc_x_zeta, acc_y_zeta) = (evaluations.partial_sums.0, evaluations.partial_sums.1);
         let (pks_x_zeta, pks_y_zeta) = (evaluations.keyset.0, evaluations.keyset.1);
-        let (acc_x_poly, acc_y_poly) = &self.polynomials.partial_sums;
+        let [acc_x_poly, acc_y_poly] = &self.polynomials.partial_sums;
 
         let mut a1_lin = DensePolynomial::<Fr>::zero();
         a1_lin += (b_zeta * (acc_x_zeta - pks_x_zeta) * (acc_x_zeta - pks_x_zeta), acc_x_poly);
@@ -316,10 +307,7 @@ impl AffineAdditionRegisters {
     pub fn get_partial_sums_and_bitmask_polynomials(&self) -> PartialSumsAndBitmaskPolynomials {
         let polys = self.get_register_polynomials();
         PartialSumsAndBitmaskPolynomials {
-            partial_sums: PartialSumsPolynomials(
-                polys.partial_sums.0,
-                polys.partial_sums.1,
-            ),
+            partial_sums: polys.partial_sums,
             bitmask: polys.bitmask,
         }
     }
@@ -491,8 +479,8 @@ mod tests {
     use crate::tests::{random_bits, random_bitmask, random_pks};
     use crate::utils;
 
-    fn dummy_registers(n: usize) -> (Vec<Fr>, Vec<Fr>) {
-        (vec![Fr::zero(); n], vec![Fr::zero(); n])
+    fn dummy_registers(n: usize) -> [Vec<Fr>; 2] {
+        [vec![Fr::zero(); n], vec![Fr::zero(); n]]
     }
 
     #[test]
@@ -587,7 +575,7 @@ mod tests {
         let zeta = Fr::rand(rng);
         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
         let acc_polys = registers.get_register_polynomials().partial_sums;
-        let (x1, y1) = (acc_polys.0.evaluate(&zeta), acc_polys.1.evaluate(&zeta));
+        let (x1, y1) = (acc_polys[0].evaluate(&zeta), acc_polys[1].evaluate(&zeta));
         assert_eq!(
             Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
             (constraint_polys.0.evaluate(&zeta), constraint_polys.1.evaluate(&zeta))
