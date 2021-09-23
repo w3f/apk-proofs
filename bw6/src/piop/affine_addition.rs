@@ -180,9 +180,6 @@ impl AffineAdditionRegisters {
         assert_eq!(bitmask.len(), m);
         assert!(m + 1 <= domain_size);  // keyset_size + 1 <= domain_size (accounts for partial sums acc initial value)
 
-        let mut bitmask = bitmask.to_vec();
-        bitmask.resize(domain_size - 1, false);
-
         let h = point_in_g1_complement();
         let apk_acc = bitmask.iter().zip(keyset.iter())
             .scan(h, |acc, (b, pk)| {
@@ -191,10 +188,16 @@ impl AffineAdditionRegisters {
                 }
                 Some(*acc)
             });
-        let apk_acc = iter::once(h)
+        let mut apk_acc: Vec<_> = iter::once(h)
             .chain(apk_acc)
+            .collect();
+        apk_acc.resize(domain_size, apk_acc.last().cloned().unwrap());
+        let apk_acc = apk_acc.iter()
             .map(|p| (p.x, p.y))
             .unzip();
+
+        let mut bitmask = bitmask.to_vec();
+        bitmask.resize(domain_size - 1, false);
 
         let bitmask = bitmask.iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
@@ -203,7 +206,6 @@ impl AffineAdditionRegisters {
 
         let pks = keyset.iter()
             .map(|p| (p.x, p.y))
-            .chain(iter::once((Fr::zero(), Fr::zero())))
             .unzip();
 
         let domains = Domains::new(domain_size);
