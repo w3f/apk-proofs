@@ -171,9 +171,6 @@ pub struct AffineAdditionRegisters {
     // aggregate public key rolling sum coordinates
     apk_acc_x: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    // TODO: not really registers
-    apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 
     pub polynomials: AffineAdditionPolynomials,
 }
@@ -253,10 +250,6 @@ impl AffineAdditionRegisters {
 
         let apk_acc_x = domains.amplify_polynomial(&partial_sums_polynomial.0);
         let apk_acc_y = domains.amplify_polynomial(&partial_sums_polynomial.1);
-        let mut apk_acc_x_shifted = apk_acc_x.clone();
-        let mut apk_acc_y_shifted = apk_acc_y.clone();
-        apk_acc_x_shifted.evals.rotate_left(4);
-        apk_acc_y_shifted.evals.rotate_left(4);
 
         Self {
             domains: domains.clone(),
@@ -265,8 +258,6 @@ impl AffineAdditionRegisters {
             pks_y: domains.amplify_polynomial(&keyset_polynomial.1),
             apk_acc_x,
             apk_acc_y,
-            apk_acc_x_shifted,
-            apk_acc_y_shifted,
             polynomials: AffineAdditionPolynomials {
                 bitmask: bitmask_polynomial,
                 keyset: keyset_polynomial,
@@ -361,8 +352,12 @@ impl Constraints {
         let y1 = &registers.apk_acc_y;
         let x2 = &registers.pks_x;
         let y2 = &registers.pks_y;
-        let x3 = &registers.apk_acc_x_shifted;
-        let y3 = &registers.apk_acc_y_shifted;
+        let mut apk_acc_x_shifted = registers.apk_acc_x.clone();
+        let mut apk_acc_y_shifted = registers.apk_acc_y.clone();
+        apk_acc_x_shifted.evals.rotate_left(4);
+        apk_acc_y_shifted.evals.rotate_left(4);
+        let x3 = &apk_acc_x_shifted;
+        let y3 = &apk_acc_y_shifted;
 
         let c1 =
             &(
