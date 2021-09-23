@@ -1,5 +1,5 @@
-use ark_bw6_761::{BW6_761, Fr};
-use ark_poly::Polynomial;
+use ark_bw6_761::BW6_761;
+use ark_poly::{Polynomial, EvaluationDomain};
 use merlin::Transcript;
 
 use crate::{KZG_BW6, Proof, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment};
@@ -13,39 +13,31 @@ use crate::piop::counting::CountingScheme;
 use crate::keyset::Keyset;
 
 
-struct Params {
-    domain_size: usize,
-    kzg_pk: ProverKey<BW6_761>,
-}
 
 
 pub struct Prover {
-    params: Params,
     keyset: Keyset,
+    kzg_pk: ProverKey<BW6_761>,
     preprocessed_transcript: Transcript,
 }
 
 
 impl Prover {
+
     pub fn new(
         setup: &Setup,
         mut keyset: Keyset,
         keyset_comm: &KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
-        let params = Params {
-            domain_size: setup.domain_size,
-            kzg_pk: setup.kzg_params.get_pk(),
-        };
-
         empty_transcript.set_protocol_params(&keyset.domain, &setup.kzg_params.get_vk());
         empty_transcript.set_keyset_commitment(&keyset_comm);
 
         keyset.amplify();
 
         Self {
-            params,
             keyset,
+            kzg_pk: setup.kzg_params.get_pk(),
             preprocessed_transcript: empty_transcript,
         }
     }
@@ -66,7 +58,7 @@ impl Prover {
     fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> (Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>, P::PI)
     {
         let m = self.keyset.size();
-        let n = self.params.domain_size;
+        let n = self.keyset.domain.size();
 
         assert_eq!(bitmask.size(), m);
         assert!(bitmask.count_ones() > 0);
@@ -81,7 +73,7 @@ impl Prover {
         let mut protocol = P::init(bitmask, self.keyset.clone());
         let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
-            |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
+            |p| KZG_BW6::commit(&self.kzg_pk, &p)
         );
 
         transcript.append_register_commitments(&partial_sums_commitments);
@@ -92,7 +84,7 @@ impl Prover {
         // let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
-            |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
+            |p| KZG_BW6::commit(&self.kzg_pk, &p)
         );
         transcript.append_2nd_round_register_commitments(&acc_register_commitments);
 
@@ -100,9 +92,7 @@ impl Prover {
         // compute and commit to the quotient polynomial.
         let phi = transcript.get_constraints_aggregation_challenge();
         let q_poly = protocol.compute_quotient_polynomial(phi, self.keyset.domain);
-        assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
-        assert_eq!(q_poly.degree(), 3 * n - 3);
-        let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
+        let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
         transcript.append_quotient_commitment(&q_comm);
 
         // 4. Receive the evaluation point,
@@ -125,8 +115,8 @@ impl Prover {
         let mut register_polynomials = protocol.get_register_polynomials_to_open();
         register_polynomials.push(q_poly);
         let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
-        let w_at_zeta_proof = KZG_BW6::open(&self.params.kzg_pk, &w_poly, zeta);
-        let r_at_zeta_omega_proof = KZG_BW6::open(&self.params.kzg_pk, &r_poly, zeta_omega);
+        let w_at_zeta_proof = KZG_BW6::open(&self.kzg_pk, &w_poly, zeta);
+        let r_at_zeta_omega_proof = KZG_BW6::open(&self.kzg_pk, &r_poly, zeta_omega);
 
         // Finally, compose the proof.
         let proof = Proof {
@@ -153,6 +143,7 @@ mod tests {
     use ark_std::{test_rng, UniformRand};
     use ark_poly::{EvaluationDomain, GeneralEvaluationDomain, Evaluations};
     use ark_ff::One;
+    use ark_bw6_761::Fr;
 
 
     #[test]
