@@ -238,7 +238,6 @@ impl AffineAdditionRegisters {
             bitmask,
             pks,
             (acc_x, acc_y),
-            (apk_acc_x_shifted, apk_acc_y_shifted),
         )
     }
 
@@ -246,7 +245,6 @@ impl AffineAdditionRegisters {
                      bitmask: Vec<Fr>,
                      pks: (Vec<Fr>, Vec<Fr>),
                      apk_acc: (Vec<Fr>, Vec<Fr>),
-                     apk_acc_shifted: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
         // TODO: lol this is really ugly
         let apk_plus_h = GroupAffine::new(*apk_acc.0.last().unwrap(), *apk_acc.1.last().unwrap(), false);
@@ -261,15 +259,22 @@ impl AffineAdditionRegisters {
             domains.interpolate(apk_acc.1),
         );
 
+        let apk_acc_x = domains.amplify_polynomial(&partial_sums_polynomial.0);
+        let apk_acc_y = domains.amplify_polynomial(&partial_sums_polynomial.1);
+        let mut apk_acc_x_shifted = apk_acc_x.clone();
+        let mut apk_acc_y_shifted = apk_acc_y.clone();
+        apk_acc_x_shifted.evals.rotate_left(4);
+        apk_acc_y_shifted.evals.rotate_left(4);
+
         Self {
             domains: domains.clone(),
             bitmask: domains.amplify_polynomial(&bitmask_polynomial),
             pks_x: domains.amplify_polynomial(&keyset_polynomial.0),
             pks_y: domains.amplify_polynomial(&keyset_polynomial.1),
-            apk_acc_x: domains.amplify_polynomial(&partial_sums_polynomial.0),
-            apk_acc_y: domains.amplify_polynomial(&partial_sums_polynomial.1),
-            apk_acc_x_shifted: domains.amplify(apk_acc_shifted.0),
-            apk_acc_y_shifted: domains.amplify(apk_acc_shifted.1),
+            apk_acc_x,
+            apk_acc_y,
+            apk_acc_x_shifted,
+            apk_acc_y_shifted,
             apk_plus_h,
             polynomials: AffineAdditionPolynomials {
                 bitmask: bitmask_polynomial,
@@ -543,7 +548,6 @@ mod tests {
             bad_bitmask,
             dummy_registers(n),
             dummy_registers(n),
-            dummy_registers(n)
         );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
