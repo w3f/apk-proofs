@@ -174,7 +174,7 @@ pub struct AffineAdditionRegisters {
     // TODO: not really registers
     apk_acc_x_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     apk_acc_y_shifted: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    apk_plus_h: ark_bls12_377::G1Affine,
+
     pub polynomials: AffineAdditionPolynomials,
 }
 
@@ -246,9 +246,6 @@ impl AffineAdditionRegisters {
                      pks: (Vec<Fr>, Vec<Fr>),
                      apk_acc: (Vec<Fr>, Vec<Fr>),
     ) -> Self {
-        // TODO: lol this is really ugly
-        let apk_plus_h = GroupAffine::new(*apk_acc.0.last().unwrap(), *apk_acc.1.last().unwrap(), false);
-
         let bitmask_polynomial = domains.interpolate(bitmask);
         let keyset_polynomial = (
             domains.interpolate(pks.0),
@@ -275,7 +272,6 @@ impl AffineAdditionRegisters {
             apk_acc_y,
             apk_acc_x_shifted,
             apk_acc_y_shifted,
-            apk_plus_h,
             polynomials: AffineAdditionPolynomials {
                 bitmask: bitmask_polynomial,
                 keyset: keyset_polynomial,
@@ -461,17 +457,21 @@ impl Constraints {
     // TODO: better name
     pub fn compute_public_inputs_constraint_polynomials(registers: &AffineAdditionRegisters) ->
     (DensePolynomial<Fr>, DensePolynomial<Fr>) {
-        let h = point_in_g1_complement();
+        let h_x = registers.apk_acc_x[0];
+        let h_y = registers.apk_acc_y[0];
+        let m = 4 * (registers.domains.size - 1);
+        let apk_plus_h_x = registers.apk_acc_x[m];
+        let apk_plus_h_y = registers.apk_acc_y[m];
         let x1 = &registers.apk_acc_x;
         let y1 = &registers.apk_acc_y;
 
-        let acc_minus_h_x = x1 - &registers.domains.constant_4x(h.x);
-        let acc_minus_h_y = y1 - &registers.domains.constant_4x(h.y);
+        let acc_minus_h_x = x1 - &registers.domains.constant_4x(h_x);
+        let acc_minus_h_y = y1 - &registers.domains.constant_4x(h_y);
 
         let acc_minus_h_plus_apk_x =
-            x1 - &registers.domains.constant_4x(registers.apk_plus_h.x);
+            x1 - &registers.domains.constant_4x(apk_plus_h_x);
         let acc_minus_h_plus_apk_y =
-            y1 - &registers.domains.constant_4x(registers.apk_plus_h.y);
+            y1 - &registers.domains.constant_4x(apk_plus_h_y);
 
         let a4 = &(&acc_minus_h_x * &registers.domains.l_first_evals_over_4x)
             + &(&acc_minus_h_plus_apk_x * &registers.domains.l_last_evals_over_4x);
