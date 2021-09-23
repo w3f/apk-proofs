@@ -36,9 +36,9 @@ impl ProverProtocol for BasicRegisterBuilder {
     type E = AffineAdditionEvaluationsWithoutBitmask;
     type PI = AccountablePublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
         BasicRegisterBuilder {
-            registers:  AffineAdditionRegisters::new(keyset, &bitmask.to_bits(), domains.size),
+            registers:  AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             register_evaluations: None,
         }
     }

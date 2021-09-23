@@ -9,7 +9,7 @@ use crate::piop::bit_counting::{BitCountingRegisters, BitCountingEvaluation};
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use crate::utils::LagrangeEvaluations;
-use ark_poly::Polynomial;
+use ark_poly::{Polynomial, EvaluationDomain};
 use ark_ec::AffineCurve;
 
 
@@ -72,10 +72,10 @@ impl ProverProtocol for CountingScheme {
     type E = CountingEvaluations;
     type PI = CountingPublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
-        let n = domains.size;
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
+        let n = keyset.domain.size();
         CountingScheme {
-            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits(), domains.size),
+            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             bit_counting_registers: BitCountingRegisters::new(n, &bitmask),
             register_evaluations: None,
         }
@@ -182,7 +182,6 @@ mod tests {
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let mut scheme = CountingScheme::init(
-            Domains::new(n),
             Bitmask::from_bits(&random_bits(m, 0.5, rng)),
             keyset,
         );

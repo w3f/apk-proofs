@@ -5,7 +5,6 @@ use merlin::Transcript;
 use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment};
 use crate::transcript::ApkTranscript;
 use crate::kzg::ProverKey;
-use crate::domains::Domains;
 use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
@@ -22,7 +21,6 @@ struct Params {
 
 pub struct Prover {
     params: Params,
-    domains: Domains,
     keyset: Keyset,
     preprocessed_transcript: Transcript,
 }
@@ -39,16 +37,14 @@ impl Prover {
             domain_size: setup.domain_size,
             kzg_pk: setup.kzg_params.get_pk(),
         };
-        keyset.amplify();
 
-        let domains = Domains::new(params.domain_size);
-
-        empty_transcript.set_protocol_params(&domains.domain, &setup.kzg_params.get_vk());
+        empty_transcript.set_protocol_params(&keyset.domain, &setup.kzg_params.get_vk());
         empty_transcript.set_keyset_commitment(&keyset_comm);
+
+        keyset.amplify();
 
         Self {
             params,
-            domains,
             keyset,
             preprocessed_transcript: empty_transcript,
         }
@@ -82,7 +78,7 @@ impl Prover {
         transcript.append_public_input(&public_input);
 
         // 1. Compute and commit to the basic registers.
-        let mut protocol = P::init(self.domains.clone(), bitmask, self.keyset.clone());
+        let mut protocol = P::init(bitmask, self.keyset.clone());
         let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)
@@ -103,7 +99,7 @@ impl Prover {
         // 3. Receive constraint aggregation challenge,
         // compute and commit to the quotient polynomial.
         let phi = transcript.get_constraints_aggregation_challenge();
-        let q_poly = protocol.compute_quotient_polynomial(phi, &self.domains);
+        let q_poly = protocol.compute_quotient_polynomial(phi, self.keyset.domain);
         assert_eq!(self.params.kzg_pk.max_degree(), q_poly.degree()); //TODO: check at the prover creation
         assert_eq!(q_poly.degree(), 3 * n - 3);
         let q_comm = KZG_BW6::commit(&self.params.kzg_pk, &q_poly);
@@ -116,7 +112,7 @@ impl Prover {
         let zeta = transcript.get_evaluation_point();
         let register_evaluations = protocol.evaluate_register_polynomials(zeta);
         let q_zeta = q_poly.evaluate(&zeta);
-        let zeta_omega = zeta * self.domains.omega;
+        let zeta_omega = zeta * self.keyset.domain.group_gen;
         let r_poly = protocol.compute_linearization_polynomial(phi, zeta);
         let r_zeta_omega = r_poly.evaluate(&zeta_omega);
         transcript.append_evaluations(&register_evaluations, &q_zeta, &r_zeta_omega);

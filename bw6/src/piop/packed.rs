@@ -19,10 +19,10 @@ impl ProverProtocol for PackedRegisterBuilder {
     type E = SuccinctAccountableRegisterEvaluations;
     type PI = AccountablePublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
         PackedRegisterBuilder {
             bitmask: bitmask.clone(),
-            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits(), domains.size),
+            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             bitmask_packing_registers: None,
             register_evaluations: None,
         }

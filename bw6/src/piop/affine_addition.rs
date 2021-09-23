@@ -1,7 +1,7 @@
 use ark_poly::univariate::DensePolynomial;
 use ark_bw6_761::{Fr, G1Affine};
 use crate::piop::{VerifierProtocol, RegisterPolynomials, RegisterCommitments, RegisterEvaluations};
-use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
+use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial, EvaluationDomain};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
 use crate::utils::LagrangeEvaluations;
@@ -173,11 +173,9 @@ pub struct AffineAdditionRegisters {
 impl AffineAdditionRegisters {
     pub fn new(keyset: Keyset,
                bitmask: &[bool],
-               domain_size: usize,
     ) -> Self {
-        let m = keyset.size();
-        assert_eq!(bitmask.len(), m);
-        assert!(m + 1 <= domain_size);  // keyset_size + 1 <= domain_size (accounts for partial sums acc initial value)
+        assert_eq!(bitmask.len(), keyset.size());
+        let domain_size = keyset.domain.size();
 
         let h = point_in_g1_complement();
         let apk_acc = bitmask.iter().zip(keyset.pks.iter())
@@ -203,20 +201,19 @@ impl AffineAdditionRegisters {
             .chain(iter::once(Fr::zero())) //TODO: pad with Fr::one()
             .collect();
 
-        let domains = Domains::new(domain_size);
         Self::new_unchecked(
-            domains,
             bitmask,
             keyset,
             [apk_acc.0, apk_acc.1],
         )
     }
 
-    fn new_unchecked(domains: Domains,
-                     bitmask: Vec<Fr>,
+    fn new_unchecked(bitmask: Vec<Fr>,
                      keyset: Keyset,
                      apk_acc: [Vec<Fr>; 2],
     ) -> Self {
+        let domains = Domains::new(keyset.domain.size());
+
         let bitmask_polynomial = domains.interpolate(bitmask);
         let partial_sums_polynomial = apk_acc.map(|z| domains.interpolate(z));
         let partial_sums = partial_sums_polynomial.clone().map(|z| domains.amplify_polynomial(&z));
@@ -476,7 +473,6 @@ mod tests {
         let registers = AffineAdditionRegisters::new(
             keyset.clone(),
             &good_bitmask,
-            n,
         );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
@@ -493,7 +489,6 @@ mod tests {
         bad_bitmask[0] = Fr::rand(rng);
 
         let registers = AffineAdditionRegisters::new_unchecked(
-            domains.clone(),
             bad_bitmask,
             keyset,
             dummy_registers(n),
@@ -516,7 +511,6 @@ mod tests {
         let registers = AffineAdditionRegisters::new(
             keyset,
             &random_bits(m, 0.5, rng),
-            n,
         );
         let constraint_polys =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
@@ -542,7 +536,6 @@ mod tests {
         let registers = AffineAdditionRegisters::new(
             keyset.clone(),
             &bits,
-            n,
         );
         let constraint_polys =
             Constraints::compute_public_inputs_constraint_polynomials(&registers);
