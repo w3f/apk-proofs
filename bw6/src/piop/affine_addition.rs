@@ -11,11 +11,12 @@ use ark_ec::short_weierstrass_jacobian::GroupAffine;
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use std::iter;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct PartialSumsCommitments(
     pub ark_bw6_761::G1Affine,
-    pub ark_bw6_761::G1Affine
+    pub ark_bw6_761::G1Affine,
 );
 
 impl RegisterCommitments for PartialSumsCommitments {
@@ -171,60 +172,46 @@ pub struct AffineAdditionRegisters {
 }
 
 impl AffineAdditionRegisters {
-    pub fn new(domains: Domains,
-               bitmask: &Bitmask,
-               pks: Vec<ark_bls12_377::G1Affine>,
+    pub fn new(keyset: &[ark_bls12_377::G1Affine],
+               bitmask: &[bool],
+               domain_size: usize,
     ) -> Self {
-        let m = pks.len();
-        let n = domains.size;
-        assert!(m + 1 <= n);  // keyset_size + 1 <= domain_size (accounts for partial sums acc initial value)
+        let m = keyset.len();
+        assert_eq!(bitmask.len(), m);
+        assert!(m + 1 <= domain_size);  // keyset_size + 1 <= domain_size (accounts for partial sums acc initial value)
 
-        assert_eq!(bitmask.size(), m);
+        let mut bitmask = bitmask.to_vec();
+        bitmask.resize(domain_size - 1, false);
+
         let h = point_in_g1_complement();
-        let mut acc = vec![h; m + 1];
-        for (i, (b, p)) in bitmask.to_bits().iter().zip(pks.clone()).enumerate() {
-            acc[i + 1] = if *b {
-                acc[i] + p
-            } else {
-                acc[i]
-            }
-        }
-
-        let (mut acc_x, mut acc_y): (Vec<Fr>, Vec<Fr>) = acc.iter()
+        let apk_acc = bitmask.iter().zip(keyset.iter())
+            .scan(h, |acc, (b, pk)| {
+                if *b {
+                    *acc += pk;
+                }
+                Some(*acc)
+            });
+        let apk_acc = iter::once(h)
+            .chain(apk_acc)
             .map(|p| (p.x, p.y))
             .unzip();
 
-        assert_eq!(acc_x.len(), m + 1);
-        assert_eq!(acc_y.len(), m + 1);
-        assert_eq!(GroupAffine::new(acc_x[0], acc_y[0], false), h);
-        // assert_eq!(GroupAffine::new(acc_x[m], acc_y[m], false), apk.into_affine() + h);
-
-        let mut b = bitmask.to_bits().iter()
+        let bitmask = bitmask.iter()
             .map(|b| if *b { Fr::one() } else { Fr::zero() })
-            .collect::<Vec<_>>();
+            .chain(iter::once(Fr::zero())) //TODO: pad with Fr::one()
+            .collect();
 
-        // Extend the computation to the whole domain
-        b.resize_with(n, || Fr::zero());
-        // So we don't care about pks, but
-        let apk_plus_h_x = acc_x[m];
-        let apk_plus_h_y = acc_y[m];
-        acc_x.resize_with(n, || apk_plus_h_x);
-        acc_y.resize_with(n, || apk_plus_h_y);
-
-
-
-        let mut bitmask = bitmask.to_bits_as_field_elements();
-        bitmask.resize(domains.size, Fr::zero());
-
-        let pks = pks.iter()
+        let pks = keyset.iter()
             .map(|p| (p.x, p.y))
+            .chain(iter::once((Fr::zero(), Fr::zero())))
             .unzip();
 
+        let domains = Domains::new(domain_size);
         Self::new_unchecked(
             domains,
             bitmask,
             [pks.0, pks.1],
-            [acc_x, acc_y],
+            [apk_acc.0, apk_acc.1],
         )
     }
 
@@ -490,11 +477,11 @@ mod tests {
         let m = n - 1;
         let domains = Domains::new(n);
 
-        let good_bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
+        let good_bitmask = random_bits(m, 0.5, rng);
         let registers = AffineAdditionRegisters::new(
-            domains.clone(),
+            &random_pks(m, rng),
             &good_bitmask,
-            random_pks(m, rng),
+            n,
         );
         let constraint_poly =
             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
@@ -528,11 +515,10 @@ mod tests {
         let m = n - 1;
         let domains = Domains::new(n);
 
-        let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
         let registers = AffineAdditionRegisters::new(
-            domains.clone(),
-            &bitmask,
-            random_pks(m, rng),
+            &random_pks(m, rng),
+            &random_bits(m, 0.5, rng),
+            n,
         );
         let constraint_polys =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
@@ -552,12 +538,11 @@ mod tests {
         let domains = Domains::new(n);
 
         let bits = random_bits(m, 0.5, rng);
-        let bitmask = Bitmask::from_bits(&bits);
         let pks = random_pks(m, rng);
         let registers = AffineAdditionRegisters::new(
-            domains.clone(),
-            &bitmask,
-            pks.clone(),
+            &pks,
+            &bits,
+            n,
         );
         let constraint_polys =
             Constraints::compute_public_inputs_constraint_polynomials(&registers);

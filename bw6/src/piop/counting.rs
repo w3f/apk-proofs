@@ -75,7 +75,7 @@ impl ProverProtocol for CountingScheme {
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
         let n = domains.size;
         CountingScheme {
-            affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
+            affine_addition_registers: AffineAdditionRegisters::new(&pks, &bitmask.to_bits(), domains.size),
             bit_counting_registers: BitCountingRegisters::new(n, &bitmask),
             register_evaluations: None,
         }

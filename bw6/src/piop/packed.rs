@@ -23,7 +23,7 @@ impl ProverProtocol for PackedRegisterBuilder {
     fn init(domains: Domains, bitmask: Bitmask, pks: Vec<G1Affine>) -> Self {
         PackedRegisterBuilder {
             bitmask: bitmask.clone(),
-            affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
+            affine_addition_registers: AffineAdditionRegisters::new(&pks, &bitmask.to_bits(), domains.size),
             bitmask_packing_registers: None,
             register_evaluations: None,
         }
