@@ -228,11 +228,6 @@ impl AffineAdditionRegisters {
             .map(|p| (p.x, p.y))
             .unzip();
 
-        let mut apk_acc_x_shifted = acc_x.clone();
-        let mut apk_acc_y_shifted = acc_y.clone();
-        apk_acc_x_shifted.rotate_left(1);
-        apk_acc_y_shifted.rotate_left(1);
-
         Self::new_unchecked(
             domains,
             bitmask,
