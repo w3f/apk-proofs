@@ -3,7 +3,7 @@ use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{Bitmask, utils, PublicInput};
+use crate::{Bitmask, utils, PublicInput, Keyset};
 use crate::domains::Domains;
 
 
@@ -98,7 +98,7 @@ pub trait ProverProtocol {
     type E: RegisterEvaluations;
     type PI: PublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
+    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self;
 
     // These 2 methods together return register polynomials the prover should commit to.
     // The 2nd one is used only in the "packed" scheme as it requires an additional challenge

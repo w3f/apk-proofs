@@ -4,9 +4,8 @@ use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput};
+use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment};
 use crate::transcript::ApkTranscript;
-use crate::signer_set::SignerSetCommitment;
 use crate::kzg::ProverKey;
 use crate::bls::PublicKey;
 use crate::domains::Domains;
@@ -15,6 +14,7 @@ use crate::piop::RegisterPolynomials;
 use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
+use crate::keyset::Keyset;
 
 
 struct Params {
@@ -24,48 +24,10 @@ struct Params {
 }
 
 
-struct Session {
-    pks: Vec<PublicKey>,
-    pks_x_poly: DensePolynomial<Fr>,
-    pks_y_poly: DensePolynomial<Fr>,
-    pks_x_poly_evals_x4: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-    pks_y_poly_evals_x4: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
-}
-
-
-impl Session {
-    pub fn new(pks: Vec<PublicKey>, domains: &Domains) -> Self {
-        let (pks_x, pks_y): (Vec<Fr>, Vec<Fr>) = pks.iter()
-            .map(|p| p.0.into_affine())
-            .map(|p| (p.x, p.y))
-            .unzip();
-        let pks_x_poly = domains.interpolate(pks_x);
-        let pks_y_poly = domains.interpolate(pks_y);
-        let pks_x_poly_evals_x4 = domains.amplify_polynomial(&pks_x_poly);
-        let pks_y_poly_evals_x4 = domains.amplify_polynomial(&pks_y_poly);
-        Self {
-            pks,
-            pks_x_poly,
-            pks_y_poly,
-            pks_x_poly_evals_x4,
-            pks_y_poly_evals_x4,
-        }
-    }
-
-    fn compute_apk(&self, bitmask: &[bool]) -> ark_bls12_377::G1Projective {
-        bitmask.iter()
-            .zip(self.pks.iter())
-            .filter(|(b, _p)| **b)
-            .map(|(_b, p)| p.0)
-            .sum::<ark_bls12_377::G1Projective>()
-    }
-}
-
-
 pub struct Prover {
     params: Params,
     domains: Domains,
-    session: Session,
+    keyset: Keyset,
     preprocessed_transcript: Transcript,
 }
 
@@ -73,8 +35,8 @@ pub struct Prover {
 impl Prover {
     pub fn new(
         setup: &Setup,
-        signer_set_comm: &SignerSetCommitment,
-        pks: Vec<PublicKey>,
+        mut keyset: Keyset,
+        keyset_comm: &KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
         let params = Params {
@@ -82,17 +44,17 @@ impl Prover {
             kzg_pk: setup.kzg_params.get_pk(),
             h: point_in_g1_complement(),
         };
+        keyset.amplify();
 
         let domains = Domains::new(params.domain_size);
-        let session = Session::new(pks, &domains);
 
         empty_transcript.set_protocol_params(&domains.domain, &setup.kzg_params.get_vk());
-        empty_transcript.set_keyset_commitment(&signer_set_comm);
+        empty_transcript.set_keyset_commitment(&keyset_comm);
 
         Self {
             params,
             domains,
-            session,
+            keyset,
             preprocessed_transcript: empty_transcript,
         }
     }
@@ -112,25 +74,20 @@ impl Prover {
     #[allow(non_snake_case)]
     fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> (Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>, P::PI)
     {
-        let m = self.session.pks.len();
+        let m = self.keyset.size();
         let n = self.params.domain_size;
 
         assert_eq!(bitmask.size(), m);
         assert!(bitmask.count_ones() > 0);
 
-        let apk = self.session.compute_apk(&bitmask.to_bits());
+        let apk = self.keyset.aggregate(&bitmask.to_bits());
 
         let mut transcript = self.preprocessed_transcript.clone();
-        let public_input = P::PI::new(&apk.into(), &bitmask);
+        let public_input = P::PI::new(&apk, &bitmask);
         transcript.append_public_input(&public_input);
 
-        // TODO: move to Session
-        let pks = self.session.pks.iter()
-            .map(|p| p.0.into_affine())
-            .collect();
-
         // 1. Compute and commit to the basic registers.
-        let mut protocol = P::init(self.domains.clone(), bitmask, pks);
+        let mut protocol = P::init(self.domains.clone(), bitmask, self.keyset.clone());
         let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KZG_BW6::commit(&self.params.kzg_pk, &p)

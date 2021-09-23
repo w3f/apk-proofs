@@ -1,8 +1,7 @@
 use merlin::Transcript;
 use ark_serialize::CanonicalSerialize;
 use ark_ff::Field;
-use crate::signer_set::SignerSetCommitment;
-use crate::PublicInput;
+use crate::{PublicInput, KeysetCommitment};
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{Fr, BW6_761, G1Affine};
@@ -16,7 +15,7 @@ pub(crate) trait ApkTranscript {
         self._append_serializable(b"vk", kzg_vk);
     }
 
-    fn set_keyset_commitment(&mut self, keyset_commitment: &SignerSetCommitment) {
+    fn set_keyset_commitment(&mut self, keyset_commitment: &KeysetCommitment) {
         self._append_serializable(b"keyset_commitment", keyset_commitment);
     }
 

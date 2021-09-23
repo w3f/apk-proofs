@@ -5,7 +5,7 @@ use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
 use crate::utils::LagrangeEvaluations;
-use crate::{Bitmask, point_in_g1_complement};
+use crate::{Bitmask, point_in_g1_complement, Keyset};
 use crate::domains::Domains;
 use ark_ec::short_weierstrass_jacobian::GroupAffine;
 
@@ -172,16 +172,16 @@ pub struct AffineAdditionRegisters {
 }
 
 impl AffineAdditionRegisters {
-    pub fn new(keyset: &[ark_bls12_377::G1Affine],
+    pub fn new(keyset: Keyset,
                bitmask: &[bool],
                domain_size: usize,
     ) -> Self {
-        let m = keyset.len();
+        let m = keyset.size();
         assert_eq!(bitmask.len(), m);
         assert!(m + 1 <= domain_size);  // keyset_size + 1 <= domain_size (accounts for partial sums acc initial value)
 
         let h = point_in_g1_complement();
-        let apk_acc = bitmask.iter().zip(keyset.iter())
+        let apk_acc = bitmask.iter().zip(keyset.pks.iter())
             .scan(h, |acc, (b, pk)| {
                 if *b {
                     *acc += pk;
@@ -204,40 +204,32 @@ impl AffineAdditionRegisters {
             .chain(iter::once(Fr::zero())) //TODO: pad with Fr::one()
             .collect();
 
-        let pks = keyset.iter()
-            .map(|p| (p.x, p.y))
-            .unzip();
-
         let domains = Domains::new(domain_size);
         Self::new_unchecked(
             domains,
             bitmask,
-            [pks.0, pks.1],
+            keyset,
             [apk_acc.0, apk_acc.1],
         )
     }
 
     fn new_unchecked(domains: Domains,
                      bitmask: Vec<Fr>,
-                     pks: [Vec<Fr>; 2],
+                     keyset: Keyset,
                      apk_acc: [Vec<Fr>; 2],
     ) -> Self {
         let bitmask_polynomial = domains.interpolate(bitmask);
-        let keyset_polynomial = pks.map(|z| domains.interpolate(z));
         let partial_sums_polynomial = apk_acc.map(|z| domains.interpolate(z));
-
-
-        let keyset = keyset_polynomial.clone().map(|z| domains.amplify_polynomial(&z));
         let partial_sums = partial_sums_polynomial.clone().map(|z| domains.amplify_polynomial(&z));
 
         Self {
             domains: domains.clone(),
             bitmask: domains.amplify_polynomial(&bitmask_polynomial),
-            keyset,
+            keyset: keyset.pks_evals_x4.unwrap(),
             partial_sums,
             polynomials: AffineAdditionPolynomials {
                 bitmask: bitmask_polynomial,
-                keyset: keyset_polynomial,
+                keyset: keyset.pks_polys,
                 partial_sums: partial_sums_polynomial,
             },
         }
@@ -459,116 +451,116 @@ fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(px)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ark_std::{test_rng, UniformRand};
-    use ark_poly::Polynomial;
-    use ark_ec::{ProjectiveCurve, AffineCurve};
-    use crate::tests::{random_bits, random_bitmask, random_pks};
-    use crate::utils;
-
-    fn dummy_registers(n: usize) -> [Vec<Fr>; 2] {
-        [vec![Fr::zero(); n], vec![Fr::zero(); n]]
-    }
-
-    #[test]
-    fn test_bitmask_booleanity_constraint() {
-        let rng = &mut test_rng();
-        let n = 64;
-        let m = n - 1;
-        let domains = Domains::new(n);
-
-        let good_bitmask = random_bits(m, 0.5, rng);
-        let registers = AffineAdditionRegisters::new(
-            &random_pks(m, rng),
-            &good_bitmask,
-            n,
-        );
-        let constraint_poly =
-            Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
-        assert_eq!(constraint_poly.degree(), 2 * (n - 1));
-        assert!(domains.is_zero(&constraint_poly));
-        let zeta = Fr::rand(rng);
-        let bitmask_at_zeta = registers.get_register_polynomials().bitmask.evaluate(&zeta);
-        assert_eq!(
-            Constraints::evaluate_bitmask_booleanity_constraint(bitmask_at_zeta),
-            constraint_poly.evaluate(&zeta)
-        );
-
-        let mut bad_bitmask = random_bitmask(m, rng);
-        bad_bitmask[0] = Fr::rand(rng);
-        let registers = AffineAdditionRegisters::new_unchecked(
-            domains.clone(),
-            bad_bitmask,
-            dummy_registers(n),
-            dummy_registers(n),
-        );
-        let constraint_poly =
-            Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
-        assert_eq!(constraint_poly.degree(), 2 * (n - 1));
-        assert!(!domains.is_zero(&constraint_poly));
-    }
-
-    #[test]
-    fn test_conditional_affine_addition_constraints() {
-        let rng = &mut test_rng();
-        let n = 64;
-        let m = n - 1;
-        let domains = Domains::new(n);
-
-        let registers = AffineAdditionRegisters::new(
-            &random_pks(m, rng),
-            &random_bits(m, 0.5, rng),
-            n,
-        );
-        let constraint_polys =
-            Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
-        assert_eq!(constraint_polys.0.degree(), 4 * n - 3);
-        assert_eq!(constraint_polys.1.degree(), 3 * n - 2);
-        assert!(domains.is_zero(&constraint_polys.0));
-        assert!(domains.is_zero(&constraint_polys.1));
-        // TODO: eval test
-        // TODO: negative test?
-    }
-
-    #[test]
-    fn test_public_inputs_constraints() {
-        let rng = &mut test_rng();
-        let n = 64;
-        let m = n - 1;
-        let domains = Domains::new(n);
-
-        let bits = random_bits(m, 0.5, rng);
-        let pks = random_pks(m, rng);
-        let registers = AffineAdditionRegisters::new(
-            &pks,
-            &bits,
-            n,
-        );
-        let constraint_polys =
-            Constraints::compute_public_inputs_constraint_polynomials(&registers);
-        assert_eq!(constraint_polys.0.degree(), 2 * n - 2);
-        assert_eq!(constraint_polys.1.degree(), 2 * n - 2);
-        assert!(domains.is_zero(&constraint_polys.0));
-        assert!(domains.is_zero(&constraint_polys.1));
-
-        //TODO: reuse smth else
-        let apk = bits.iter()
-            .zip(pks)
-            .filter(|(&b, _p)| b)
-            .map(|(_b, p)| p.into_projective())
-            .sum::<ark_bls12_377::G1Projective>().into_affine();
-        let zeta = Fr::rand(rng);
-        let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
-        let acc_polys = registers.get_register_polynomials().partial_sums;
-        let (x1, y1) = (acc_polys[0].evaluate(&zeta), acc_polys[1].evaluate(&zeta));
-        assert_eq!(
-            Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
-            (constraint_polys.0.evaluate(&zeta), constraint_polys.1.evaluate(&zeta))
-        );
-
-        // TODO: negative test?
-    }
-}
-
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use ark_std::{test_rng, UniformRand};
+//     use ark_poly::Polynomial;
+//     use ark_ec::{ProjectiveCurve, AffineCurve};
+//     use crate::tests::{random_bits, random_bitmask, random_pks};
+//     use crate::utils;
+//
+//     fn dummy_registers(n: usize) -> [Vec<Fr>; 2] {
+//         [vec![Fr::zero(); n], vec![Fr::zero(); n]]
+//     }
+//
+//     #[test]
+//     fn test_bitmask_booleanity_constraint() {
+//         let rng = &mut test_rng();
+//         let n = 64;
+//         let m = n - 1;
+//         let domains = Domains::new(n);
+//
+//         let good_bitmask = random_bits(m, 0.5, rng);
+//         let registers = AffineAdditionRegisters::new(
+//             &random_pks(m, rng),
+//             &good_bitmask,
+//             n,
+//         );
+//         let constraint_poly =
+//             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
+//         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
+//         assert!(domains.is_zero(&constraint_poly));
+//         let zeta = Fr::rand(rng);
+//         let bitmask_at_zeta = registers.get_register_polynomials().bitmask.evaluate(&zeta);
+//         assert_eq!(
+//             Constraints::evaluate_bitmask_booleanity_constraint(bitmask_at_zeta),
+//             constraint_poly.evaluate(&zeta)
+//         );
+//
+//         let mut bad_bitmask = random_bitmask(m, rng);
+//         bad_bitmask[0] = Fr::rand(rng);
+//         let registers = AffineAdditionRegisters::new_unchecked(
+//             domains.clone(),
+//             bad_bitmask,
+//             dummy_registers(n),
+//             dummy_registers(n),
+//         );
+//         let constraint_poly =
+//             Constraints::compute_bitmask_booleanity_constraint_polynomial(&registers);
+//         assert_eq!(constraint_poly.degree(), 2 * (n - 1));
+//         assert!(!domains.is_zero(&constraint_poly));
+//     }
+//
+//     #[test]
+//     fn test_conditional_affine_addition_constraints() {
+//         let rng = &mut test_rng();
+//         let n = 64;
+//         let m = n - 1;
+//         let domains = Domains::new(n);
+//
+//         let registers = AffineAdditionRegisters::new(
+//             &random_pks(m, rng),
+//             &random_bits(m, 0.5, rng),
+//             n,
+//         );
+//         let constraint_polys =
+//             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
+//         assert_eq!(constraint_polys.0.degree(), 4 * n - 3);
+//         assert_eq!(constraint_polys.1.degree(), 3 * n - 2);
+//         assert!(domains.is_zero(&constraint_polys.0));
+//         assert!(domains.is_zero(&constraint_polys.1));
+//         // TODO: eval test
+//         // TODO: negative test?
+//     }
+//
+//     #[test]
+//     fn test_public_inputs_constraints() {
+//         let rng = &mut test_rng();
+//         let n = 64;
+//         let m = n - 1;
+//         let domains = Domains::new(n);
+//
+//         let bits = random_bits(m, 0.5, rng);
+//         let pks = random_pks(m, rng);
+//         let registers = AffineAdditionRegisters::new(
+//             &pks,
+//             &bits,
+//             n,
+//         );
+//         let constraint_polys =
+//             Constraints::compute_public_inputs_constraint_polynomials(&registers);
+//         assert_eq!(constraint_polys.0.degree(), 2 * n - 2);
+//         assert_eq!(constraint_polys.1.degree(), 2 * n - 2);
+//         assert!(domains.is_zero(&constraint_polys.0));
+//         assert!(domains.is_zero(&constraint_polys.1));
+//
+//         //TODO: reuse smth else
+//         let apk = bits.iter()
+//             .zip(pks)
+//             .filter(|(&b, _p)| b)
+//             .map(|(_b, p)| p.into_projective())
+//             .sum::<ark_bls12_377::G1Projective>().into_affine();
+//         let zeta = Fr::rand(rng);
+//         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
+//         let acc_polys = registers.get_register_polynomials().partial_sums;
+//         let (x1, y1) = (acc_polys[0].evaluate(&zeta), acc_polys[1].evaluate(&zeta));
+//         assert_eq!(
+//             Constraints::evaluate_public_inputs_constraints(apk, &evals_at_zeta, x1, y1),
+//             (constraint_polys.0.evaluate(&zeta), constraint_polys.1.evaluate(&zeta))
+//         );
+//
+//         // TODO: negative test?
+//     }
+// }
+//

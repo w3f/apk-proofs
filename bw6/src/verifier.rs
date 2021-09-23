@@ -4,9 +4,8 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof};
+use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
 use crate::transcript::ApkTranscript;
-use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
@@ -21,7 +20,7 @@ pub struct Verifier {
     domain: Radix2EvaluationDomain<Fr>,
     kzg_pvk: PreparedVerifierKey<BW6_761>,
     h: ark_bls12_377::G1Affine,
-    pks_comm: SignerSetCommitment,
+    pks_comm: KeysetCommitment,
     preprocessed_transcript: Transcript,
 }
 
@@ -39,7 +38,7 @@ impl Verifier {
         public_input: &AccountablePublicInput,
         proof: &SimpleProof,
     ) -> bool {
-        assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
+        assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
         let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
@@ -60,7 +59,7 @@ impl Verifier {
             AffineAdditionEvaluations,
         >(proof, &evaluations_with_bitmask, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = public_input.apk.0.into_affine();
+        let apk = public_input.apk;
         let constraint_polynomial_evals = evaluations_with_bitmask.evaluate_constraint_polynomials(apk, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -71,7 +70,7 @@ impl Verifier {
         public_input: &AccountablePublicInput,
         proof: &PackedProof,
     ) -> bool {
-        assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
+        assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
         let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
@@ -82,7 +81,7 @@ impl Verifier {
             SuccinctAccountableRegisterEvaluations,
         >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = public_input.apk.0.into_affine();
+        let apk = public_input.apk;
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, &public_input.bitmask, self.domain.size);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -105,7 +104,7 @@ impl Verifier {
             CountingEvaluations,
         >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = public_input.apk.0.into_affine();
+        let apk = public_input.apk;
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, count, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -143,8 +142,8 @@ impl Verifier {
         // Aggregate the commitments to be opened in \zeta, using the challenge \nu.
         let t_multiexp = start_timer!(|| "aggregated commitment");
         let mut commitments = vec![
-            self.pks_comm.pks_x_comm,
-            self.pks_comm.pks_y_comm,
+            self.pks_comm.pks_comm.0,
+            self.pks_comm.pks_comm.1,
         ];
         commitments.extend(proof.register_commitments.as_vec());
         commitments.extend(proof.additional_commitments.as_vec());
@@ -202,7 +201,7 @@ impl Verifier {
     pub fn new(
         domain_size: usize,
         kzg_vk: VerifierKey<BW6_761>,
-        pks_comm: SignerSetCommitment,
+        pks_comm: KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
         let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
