@@ -1,13 +1,10 @@
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::ProjectiveCurve;
-use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
-use ark_poly::univariate::DensePolynomial;
+use ark_poly::Polynomial;
 use merlin::Transcript;
 
 use crate::{KZG_BW6, Proof, point_in_g1_complement, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment};
 use crate::transcript::ApkTranscript;
 use crate::kzg::ProverKey;
-use crate::bls::PublicKey;
 use crate::domains::Domains;
 use crate::piop::ProverProtocol;
 use crate::piop::RegisterPolynomials;
@@ -20,7 +17,6 @@ use crate::keyset::Keyset;
 struct Params {
     domain_size: usize,
     kzg_pk: ProverKey<BW6_761>,
-    h: ark_bls12_377::G1Affine,
 }
 
 
@@ -42,7 +38,6 @@ impl Prover {
         let params = Params {
             domain_size: setup.domain_size,
             kzg_pk: setup.kzg_params.get_pk(),
-            h: point_in_g1_complement(),
         };
         keyset.amplify();
 
@@ -160,7 +155,7 @@ impl Prover {
 mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
-    use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};
+    use ark_poly::{EvaluationDomain, GeneralEvaluationDomain, Evaluations};
     use ark_ff::One;
 
 

@@ -5,9 +5,8 @@ use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial};
 use ark_ff::{Zero, One, Field};
 use ark_ec::AffineCurve;
 use crate::utils::LagrangeEvaluations;
-use crate::{Bitmask, point_in_g1_complement, Keyset};
+use crate::{point_in_g1_complement, Keyset};
 use crate::domains::Domains;
-use ark_ec::short_weierstrass_jacobian::GroupAffine;
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};

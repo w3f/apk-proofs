@@ -19,7 +19,6 @@ use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 pub struct Verifier {
     domain: Radix2EvaluationDomain<Fr>,
     kzg_pvk: PreparedVerifierKey<BW6_761>,
-    h: ark_bls12_377::G1Affine,
     pks_comm: KeysetCommitment,
     preprocessed_transcript: Transcript,
 }
@@ -210,7 +209,7 @@ impl Verifier {
         empty_transcript.set_keyset_commitment(&pks_comm);
 
         let kzg_pvk = kzg_vk.prepare();
-        Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
+        Self { domain, kzg_pvk, pks_comm, preprocessed_transcript: empty_transcript }
     }
 }
 

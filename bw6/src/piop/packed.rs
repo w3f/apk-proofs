@@ -2,7 +2,6 @@ use crate::piop::bitmask_packing::{BitmaskPackingRegisters, SuccinctAccountableR
 use crate::piop::ProverProtocol;
 use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_bls12_377::G1Affine;
 use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
 use ark_bw6_761::Fr;
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials};

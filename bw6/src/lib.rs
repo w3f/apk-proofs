@@ -16,7 +16,6 @@ use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;
-use crate::bls::PublicKey;
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
