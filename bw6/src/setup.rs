@@ -1,16 +1,7 @@
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ff::{FftField, FftParameters};
 use crate::{kzg, KZG_BW6};
-use ark_std::convert::TryInto;
 use rand::Rng;
-
-
-// #[derive(Clone)]
-// pub struct Setup {
-//     pub domain_size: usize,
-//     pub kzg_params: kzg::Params<BW6_761>,
-// }
-
 
 pub fn generate_for_keyset<R: Rng>(keyset_size: usize, rng: &mut R) -> kzg::Params<BW6_761> {
     let required_domain_size = keyset_size + 1; // additional slot is occupied by affine addition accumulator initial value

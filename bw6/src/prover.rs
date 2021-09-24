@@ -58,11 +58,8 @@ impl Prover {
     #[allow(non_snake_case)]
     fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> (Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>, P::PI)
     {
-        let m = self.keyset.size();
-        let n = self.keyset.domain.size();
-
-        assert_eq!(bitmask.size(), m);
-        assert!(bitmask.count_ones() > 0);
+        assert_eq!(bitmask.size(), self.keyset.size());
+        assert!(bitmask.count_ones() > 0); // as EC identity doesn't have and affine representation
 
         let apk = self.keyset.aggregate(&bitmask.to_bits());
 
