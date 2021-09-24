@@ -3,7 +3,7 @@ use apk_proofs::bls::{PublicKey, SecretKey, Signature};
 use apk_proofs::kzg::{VerifierKey, ProverKey};
 
 use ark_serialize::CanonicalSerialize;
-use ark_bls12_377::{G2Projective, G1Affine};
+use ark_bls12_377::{G2Projective, G1Affine, G1Projective};
 use ark_bw6_761::BW6_761;
 use ark_std::test_rng;
 
@@ -67,7 +67,7 @@ struct Validator(SecretKey);
 struct Approval {
     comm: KeysetCommitment,
     sig: Signature,
-    pk: G1Affine,
+    pk: G1Projective,
 }
 
 impl Validator {
@@ -86,7 +86,7 @@ impl Validator {
         Approval {
             comm: new_validator_set_commitment,
             sig: self.0.sign(&message),
-            pk: self.public_key().0.into_affine(),
+            pk: self.public_key().0,
         }
     }
 }
@@ -102,9 +102,9 @@ impl ValidatorSet {
         Self(validators)
     }
 
-    fn public_keys(&self) -> Vec<G1Affine> {
+    fn public_keys(&self) -> Vec<G1Projective> {
         self.0.iter()
-            .map(|v| v.public_key().0.into_affine())
+            .map(|v| v.public_key().0)
             .collect()
     }
 

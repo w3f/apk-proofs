@@ -1,6 +1,6 @@
 use crate::{hash_to_curve, KZG_BW6};
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain, Evaluations};
-use ark_bls12_377::G1Affine;
+use ark_bls12_377::{G1Affine, G1Projective};
 use ark_bw6_761::{Fr, BW6_761};
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::ProjectiveCurve;
@@ -18,18 +18,21 @@ pub struct KeysetCommitment {
 
 #[derive(Clone)]
 pub struct Keyset {
-    pub pks: Vec<G1Affine>,
+    pub pks: Vec<G1Projective>,
     pub domain: Radix2EvaluationDomain<Fr>,
     pub pks_polys: [DensePolynomial<Fr>; 2],
     pub pks_evals_x4: Option<[Evaluations<Fr, Radix2EvaluationDomain<Fr>>; 2]>,
 }
 
 impl Keyset {
-    pub fn new(pks: Vec<G1Affine>) -> Self {
-        let domain = Radix2EvaluationDomain::<Fr>::new(pks.len() + 1).unwrap();
+    pub fn new(pks: Vec<G1Projective>) -> Self {
+        let min_domain_size = pks.len() + 1; // extra 1 accounts apk accumulator initial value
+        let domain = Radix2EvaluationDomain::<Fr>::new(min_domain_size).unwrap();
         let mut padded_pks = pks.clone();
-        padded_pks.resize_with(domain.size(), || hash_to_curve::<ark_bls12_377::G1Projective>(b"apk-proofs").into_affine()); //TODO: index?
-        let (pks_x, pks_y) = padded_pks.iter()
+        padded_pks.resize_with(domain.size(), || hash_to_curve::<ark_bls12_377::G1Projective>(b"apk-proofs"));
+
+        // convert into affine coordinates to commit
+        let (pks_x, pks_y) = G1Projective::batch_normalization_into_affine(&padded_pks).iter()
             .map(|p| (p.x, p.y))
             .unzip();
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
@@ -42,6 +45,7 @@ impl Keyset {
         }
     }
 
+    // actual number of signers, not including the padding
     pub fn size(&self) -> usize {
         self.pks.len()
     }
@@ -62,7 +66,7 @@ impl Keyset {
         }
     }
 
-    pub fn aggregate(&self, bitmask: &[bool]) -> ark_bls12_377::G1Affine {
+    pub fn aggregate(&self, bitmask: &[bool]) -> ark_bls12_377::G1Projective {
         assert_eq!(bitmask.len(), self.size());
         bitmask.iter()
             .zip(self.pks.iter())

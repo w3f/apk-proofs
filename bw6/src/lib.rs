@@ -143,10 +143,9 @@ mod tests {
             .collect()
     }
 
-    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Affine> {
+    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Projective> {
         (0..n)
             .map(|_| G1Projective::rand(rng))
-            .map(|p| p.into_affine())
             .collect()
     }
 

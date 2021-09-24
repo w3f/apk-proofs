@@ -11,8 +11,7 @@ use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
 use crate::keyset::Keyset;
-
-
+use ark_ec::ProjectiveCurve;
 
 
 pub struct Prover {
@@ -31,6 +30,7 @@ impl Prover {
         kzg_params: kzg::Params<BW6_761>,
         mut empty_transcript: Transcript,
     ) -> Self {
+        assert!(kzg_params.fits(keyset.domain.size())); // SRS contains enough elements
         empty_transcript.set_protocol_params(&keyset.domain, &kzg_params.get_vk());
         empty_transcript.set_keyset_commitment(&keyset_comm);
 
@@ -61,7 +61,7 @@ impl Prover {
         assert_eq!(bitmask.size(), self.keyset.size());
         assert!(bitmask.count_ones() > 0); // as EC identity doesn't have and affine representation
 
-        let apk = self.keyset.aggregate(&bitmask.to_bits());
+        let apk = self.keyset.aggregate(&bitmask.to_bits()).into_affine();
 
         let mut transcript = self.preprocessed_transcript.clone();
         let public_input = P::PI::new(&apk, &bitmask);

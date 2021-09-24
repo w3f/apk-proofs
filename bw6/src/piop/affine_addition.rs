@@ -3,7 +3,7 @@ use ark_bw6_761::{Fr, G1Affine};
 use crate::piop::{VerifierProtocol, RegisterPolynomials, RegisterCommitments, RegisterEvaluations};
 use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial, EvaluationDomain};
 use ark_ff::{Zero, One, Field};
-use ark_ec::AffineCurve;
+use ark_ec::{AffineCurve, ProjectiveCurve};
 use crate::utils::LagrangeEvaluations;
 use crate::{point_in_g1_complement, Keyset};
 use crate::domains::Domains;
@@ -11,6 +11,7 @@ use crate::domains::Domains;
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use std::iter;
+use ark_bls12_377::G1Projective;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct PartialSumsCommitments(
@@ -177,7 +178,7 @@ impl AffineAdditionRegisters {
         assert_eq!(bitmask.len(), keyset.size());
         let domain_size = keyset.domain.size();
 
-        let h = point_in_g1_complement();
+        let h = point_in_g1_complement().into_projective();
         let apk_acc = bitmask.iter().zip(keyset.pks.iter())
             .scan(h, |acc, (b, pk)| {
                 if *b {
@@ -185,9 +186,11 @@ impl AffineAdditionRegisters {
                 }
                 Some(*acc)
             });
-        let mut apk_acc: Vec<_> = iter::once(h)
+        let apk_acc: Vec<_> = iter::once(h)
             .chain(apk_acc)
             .collect();
+        let mut apk_acc = G1Projective::batch_normalization_into_affine(&apk_acc);
+
         apk_acc.resize(domain_size, apk_acc.last().cloned().unwrap());
         let apk_acc = apk_acc.iter()
             .map(|p| (p.x, p.y))
@@ -454,6 +457,7 @@ mod tests {
     use ark_poly::Polynomial;
     use crate::tests::{random_bits, random_bitmask, random_pks};
     use crate::utils;
+    use ark_ec::ProjectiveCurve;
 
     fn dummy_registers(n: usize) -> [Vec<Fr>; 2] {
         [vec![Fr::zero(); n], vec![Fr::zero(); n]]
@@ -543,7 +547,7 @@ mod tests {
         assert!(domains.is_zero(&constraint_polys.0));
         assert!(domains.is_zero(&constraint_polys.1));
 
-        let apk = keyset.aggregate(&bits);
+        let apk = keyset.aggregate(&bits).into_affine();
         let zeta = Fr::rand(rng);
         let evals_at_zeta = utils::lagrange_evaluations(zeta, registers.domains.domain);
         let acc_polys = registers.get_register_polynomials().partial_sums;
