@@ -8,7 +8,6 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError
 use ark_std::io::{Read, Write};
 
 pub use bitmask::Bitmask;
-pub use setup::Setup;
 pub use keyset::{Keyset, KeysetCommitment};
 
 use crate::kzg::KZG10;
@@ -36,7 +35,7 @@ mod fsrng;
 mod domains;
 mod piop;
 
-mod setup;
+pub mod setup;
 mod bitmask;
 mod keyset;
 
@@ -131,6 +130,7 @@ mod tests {
     use ark_ff::{One, Zero};
     use ark_bls12_377::G1Projective;
     use ark_ec::ProjectiveCurve;
+    use ark_poly::EvaluationDomain;
 
 
     pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
@@ -168,31 +168,29 @@ mod tests {
             AC: RegisterCommitments
     {
         let rng = &mut test_rng();
-        let log_domain_size = 8;
 
-        let t_setup = start_timer!(|| "setup");
-        let setup = Setup::generate(log_domain_size, rng);
-        end_timer!(t_setup);
-
-        // let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
-        // let keyset_size = keyset_size.try_into().unwrap();
         let keyset_size = 200;
         let keyset = Keyset::new(random_pks(keyset_size, rng));
+        let domain_size = keyset.domain.size();
+
+        let t_setup = start_timer!(|| "setup");
+        let kzg_params = setup::generate_for_keyset(keyset_size, rng);
+        end_timer!(t_setup);
 
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = keyset.commit(&setup.kzg_params.get_pk());
+        let pks_comm = keyset.commit(&kzg_params.get_pk());
         end_timer!(pks_commitment_);
 
         let t_prover_new = start_timer!(|| "prover precomputation");
         let prover = Prover::new(
-            &setup,
             keyset,
             &pks_comm,
+            kzg_params.clone(), //TODO
             Transcript::new(b"apk_proof")
         );
         end_timer!(t_prover_new);
 
-        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(domain_size, kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
         let b = Bitmask::from_bits(&bits);

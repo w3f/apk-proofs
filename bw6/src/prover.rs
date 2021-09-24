@@ -2,7 +2,7 @@ use ark_bw6_761::BW6_761;
 use ark_poly::{Polynomial, EvaluationDomain};
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, Bitmask, PublicInput, Setup, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment};
+use crate::{KZG_BW6, Proof, Bitmask, PublicInput, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment, kzg};
 use crate::transcript::ApkTranscript;
 use crate::kzg::ProverKey;
 use crate::piop::ProverProtocol;
@@ -25,19 +25,20 @@ pub struct Prover {
 impl Prover {
 
     pub fn new(
-        setup: &Setup,
         mut keyset: Keyset,
         keyset_comm: &KeysetCommitment,
+        // prover needs both KZG pk and vk, as it commits to the latter to bind the srs
+        kzg_params: kzg::Params<BW6_761>,
         mut empty_transcript: Transcript,
     ) -> Self {
-        empty_transcript.set_protocol_params(&keyset.domain, &setup.kzg_params.get_vk());
+        empty_transcript.set_protocol_params(&keyset.domain, &kzg_params.get_vk());
         empty_transcript.set_keyset_commitment(&keyset_comm);
 
         keyset.amplify();
 
         Self {
             keyset,
-            kzg_pk: setup.kzg_params.get_pk(),
+            kzg_pk: kzg_params.get_pk(),
             preprocessed_transcript: empty_transcript,
         }
     }
