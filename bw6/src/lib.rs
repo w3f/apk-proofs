@@ -40,7 +40,6 @@ mod bitmask;
 mod keyset;
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
-#[allow(non_camel_case_types)]
 type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
 
 // TODO: 1. From trait?

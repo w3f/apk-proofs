@@ -55,7 +55,6 @@ impl Prover {
         self.prove::<CountingScheme>(bitmask)
     }
 
-    #[allow(non_snake_case)]
     fn prove<P: ProverProtocol>(&self, bitmask: Bitmask) -> (Proof<P::E, <P::P1 as RegisterPolynomials>::C, <P::P2 as RegisterPolynomials>::C>, P::PI)
     {
         assert_eq!(bitmask.size(), self.keyset.size());

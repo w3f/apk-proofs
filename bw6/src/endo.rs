@@ -19,7 +19,6 @@ const OMEGA: Fq = field_new!(
 );
 
 
-#[allow(dead_code)]
 /// lambda in Z s.t. phi(P) = lambda*P for all P
 /// \lambda = 0x9b3af05dd14f6ec619aaf7d34594aabc5ed1347970dec00452217cc900000008508c00000000001
 const LAMBDA: Fr = field_new!(
@@ -41,13 +40,11 @@ fn mul_by_u(p: &G1Projective) -> G1Projective {
     res
 }
 
-#[allow(dead_code)]
 fn glv_endomorphism_in_place(p: &mut G1Affine) {
     let x =  &mut p.x;
     *x *= &OMEGA;
 }
 
-#[allow(dead_code)]
 fn glv_endomorphism(p: &G1Affine) -> G1Affine {
     G1Affine::new(p.x * OMEGA, p.y, false)
 }
