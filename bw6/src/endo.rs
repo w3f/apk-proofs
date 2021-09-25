@@ -51,7 +51,7 @@ mod tests {
     use super::*;
     use ark_ff::{Field, One, PrimeField};
     use ark_ec::AffineCurve;
-    use ark_bw6_761::Fr;
+    use ark_bw6_761::{Fr, G1Affine};
     use ark_std::{UniformRand, test_rng};
 
 

@@ -3,14 +3,14 @@ use apk_proofs::bls::{PublicKey, SecretKey, Signature};
 use apk_proofs::kzg::{VerifierKey, ProverKey};
 
 use ark_serialize::CanonicalSerialize;
-use ark_bls12_377::{G2Projective, G1Affine, G1Projective};
+use ark_bls12_377::{G2Projective, G1Projective};
 use ark_bw6_761::BW6_761;
 use ark_std::test_rng;
 
 use rand::Rng;
 use std::collections::HashSet;
 use merlin::Transcript;
-use ark_ec::{ProjectiveCurve, AffineCurve};
+use ark_ec::AffineCurve;
 use ark_poly::EvaluationDomain;
 
 
@@ -67,7 +67,7 @@ struct Validator(SecretKey);
 struct Approval {
     comm: KeysetCommitment,
     sig: Signature,
-    pk: G1Projective,
+    pk: PublicKey,
 }
 
 impl Validator {
@@ -79,14 +79,14 @@ impl Validator {
         (&self.0).into()
     }
 
-    fn approve(&self, new_validator_set: &ValidatorSet, domain_size: usize, kzg_pk: &ProverKey<BW6_761>) -> Approval {
-        let new_validator_set_commitment = Keyset::new(new_validator_set.public_keys())
-            .commit(kzg_pk);
+    fn approve(&self, new_validator_set: &ValidatorSet, kzg_pk: &ProverKey<BW6_761>) -> Approval {
+        let new_validator_set_commitment =
+            Keyset::new(new_validator_set.raw_public_keys()).commit(kzg_pk);
         let message = hash_commitment(&new_validator_set_commitment);
         Approval {
             comm: new_validator_set_commitment,
             sig: self.0.sign(&message),
-            pk: self.public_key().0,
+            pk: self.public_key(),
         }
     }
 }
@@ -102,17 +102,21 @@ impl ValidatorSet {
         Self(validators)
     }
 
-    fn public_keys(&self) -> Vec<G1Projective> {
+    fn public_keys(&self) -> Vec<PublicKey> {
         self.0.iter()
-            .map(|v| v.public_key().0)
+            .map(|v| v.public_key())
             .collect()
     }
 
-    fn rotate<R: Rng>(&self, domain_size: usize, kzg_pk: &ProverKey<BW6_761>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
+    fn raw_public_keys(&self) -> Vec<G1Projective> {
+        self.public_keys().iter().map(|pk| pk.0).collect()
+    }
+
+    fn rotate<R: Rng>(&self, kzg_pk: &ProverKey<BW6_761>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
         let new_validator_set = ValidatorSet::new(self.0.len(), rng);
         let approvals = self.0.iter()
             .filter(|_| rng.gen_bool(0.9))
-            .map(|v| v.approve(&new_validator_set, domain_size, kzg_pk))
+            .map(|v| v.approve(&new_validator_set, kzg_pk))
             .collect();
         (new_validator_set, approvals)
     }
@@ -163,7 +167,7 @@ struct TrustlessHelper {
 impl TrustlessHelper {
     fn new(genesis_validator_set: ValidatorSet, genesis_validator_set_commitment: &KeysetCommitment, kzg_params: kzg::Params<BW6_761>) -> Self {
         let prover = Prover::new(
-            Keyset::new(genesis_validator_set.public_keys()),
+            Keyset::new(genesis_validator_set.raw_public_keys()),
             genesis_validator_set_commitment,
             kzg_params.clone(),
             Transcript::new(b"apk_proof"),
@@ -191,7 +195,7 @@ impl TrustlessHelper {
 
         self.current_validator_set = new_validator_set.clone();
         self.prover = Prover::new(
-            Keyset::new(new_validator_set.public_keys()),
+            Keyset::new(new_validator_set.raw_public_keys()),
             new_validator_set_commitment,
             self.kzg_params.clone(),
             Transcript::new(b"apk_proof"),
@@ -212,7 +216,7 @@ fn main() {
     let keyset_size = 10;
     let kzg_params = setup::generate_for_keyset(keyset_size, rng);
     let genesis_validator_set = ValidatorSet::new(keyset_size, rng);
-    let keyset = Keyset::new(genesis_validator_set.public_keys());
+    let keyset = Keyset::new(genesis_validator_set.raw_public_keys());
     let domain_size = keyset.domain.size();
     let genesis_validator_set_commitment = keyset.commit(&kzg_params.get_pk());
 
@@ -222,7 +226,7 @@ fn main() {
     let mut current_validator_set = genesis_validator_set;
 
     for _epoch in 0..2 {
-        let (new_validator_set, approvals) = current_validator_set.rotate(domain_size, &kzg_params.get_pk(), rng);
+        let (new_validator_set, approvals) = current_validator_set.rotate(&kzg_params.get_pk(), rng);
 
         let (public_input, proof, aggregate_signature, new_validator_set_commitment) =
             helper.aggregate_approvals(new_validator_set.clone(), approvals);
