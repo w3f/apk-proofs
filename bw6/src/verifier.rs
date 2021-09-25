@@ -4,7 +4,7 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KZG_BW6, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
+use crate::{endo, Proof, utils, KzgBw6, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
 use crate::transcript::ApkTranscript;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::fsrng::fiat_shamir_rng;
@@ -147,27 +147,27 @@ impl Verifier {
         commitments.extend(proof.register_commitments.as_vec());
         commitments.extend(proof.additional_commitments.as_vec());
         commitments.push(proof.q_comm);
-        let w_comm = KZG_BW6::aggregate_commitments(challenges.nu, &commitments);
+        let w_comm = KzgBw6::aggregate_commitments(challenges.nu, &commitments);
         end_timer!(t_multiexp);
 
 
         let t_opening_points = start_timer!(|| "aggregated evaluation");
         let mut register_evals = proof.register_evaluations.as_vec();
         register_evals.push(proof.q_zeta);
-        let w_at_zeta = KZG_BW6::aggregate_values(challenges.nu, &register_evals);
+        let w_at_zeta = KzgBw6::aggregate_values(challenges.nu, &register_evals);
         end_timer!(t_opening_points);
 
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
 
-        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
-                                                             &[w_comm, r_comm],
-                                                             &[challenges.zeta, evals_at_zeta.zeta_omega],
-                                                             &[w_at_zeta, proof.r_zeta_omega],
-                                                             &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
-                                                             fsrng,
+        let (total_c, total_w) = KzgBw6::aggregate_openings(&self.kzg_pvk,
+                                                            &[w_comm, r_comm],
+                                                            &[challenges.zeta, evals_at_zeta.zeta_omega],
+                                                            &[w_at_zeta, proof.r_zeta_omega],
+                                                            &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
+                                                            fsrng,
         );
-        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
+        assert!(KzgBw6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
         end_timer!(t_kzg_batch_opening);
 
 

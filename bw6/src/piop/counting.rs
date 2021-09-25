@@ -169,7 +169,7 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use crate::tests::{random_bits, random_pks};
-    use crate::KZG_BW6;
+    use crate::KzgBw6;
 
     #[test]
     fn test_polynomial_ordering() {
@@ -177,7 +177,7 @@ mod tests {
         let n = 16;
         let m = n - 1;
 
-        let kzg_params = KZG_BW6::setup(m, rng);
+        let kzg_params = KzgBw6::setup(m, rng);
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let mut scheme = CountingScheme::init(
@@ -188,7 +188,7 @@ mod tests {
         let zeta = Fr::rand(rng);
 
         let actual_commitments = scheme.get_register_polynomials_to_commit1()
-            .commit(|p| KZG_BW6::commit(&kzg_params.get_pk(), &p)).as_vec();
+            .commit(|p| KzgBw6::commit(&kzg_params.get_pk(), &p)).as_vec();
         let actual_evaluations = scheme.evaluate_register_polynomials(zeta).as_vec();
         let polynomials = scheme.get_register_polynomials_to_open();
 
@@ -200,7 +200,7 @@ mod tests {
 
         let expected_commitments = polynomials.iter()
             .skip(2) // keyset commitment is publicly known
-            .map(|p| KZG_BW6::commit(&kzg_params.get_pk(), &p))
+            .map(|p| KzgBw6::commit(&kzg_params.get_pk(), &p))
             .collect::<Vec<_>>();
         assert_eq!(actual_commitments, expected_commitments);
     }

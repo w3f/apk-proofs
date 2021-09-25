@@ -2,7 +2,7 @@ use ark_bw6_761::BW6_761;
 use ark_poly::{Polynomial, EvaluationDomain};
 use merlin::Transcript;
 
-use crate::{KZG_BW6, Proof, Bitmask, PublicInput, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment, kzg};
+use crate::{KzgBw6, Proof, Bitmask, PublicInput, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment, kzg};
 use crate::transcript::ApkTranscript;
 use crate::kzg::ProverKey;
 use crate::piop::ProverProtocol;
@@ -70,7 +70,7 @@ impl Prover {
         let mut protocol = P::init(bitmask, self.keyset.clone());
         let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
-            |p| KZG_BW6::commit(&self.kzg_pk, &p)
+            |p| KzgBw6::commit(&self.kzg_pk, &p)
         );
 
         transcript.append_register_commitments(&partial_sums_commitments);
@@ -81,7 +81,7 @@ impl Prover {
         // let acc_registers = D::wrap(registers, b, r);
         let acc_register_polynomials = protocol.get_register_polynomials_to_commit2(r);
         let acc_register_commitments = acc_register_polynomials.commit(
-            |p| KZG_BW6::commit(&self.kzg_pk, &p)
+            |p| KzgBw6::commit(&self.kzg_pk, &p)
         );
         transcript.append_2nd_round_register_commitments(&acc_register_commitments);
 
@@ -89,7 +89,7 @@ impl Prover {
         // compute and commit to the quotient polynomial.
         let phi = transcript.get_constraints_aggregation_challenge();
         let q_poly = protocol.compute_quotient_polynomial(phi, self.keyset.domain);
-        let q_comm = KZG_BW6::commit(&self.kzg_pk, &q_poly);
+        let q_comm = KzgBw6::commit(&self.kzg_pk, &q_poly);
         transcript.append_quotient_commitment(&q_comm);
 
         // 4. Receive the evaluation point,
@@ -111,9 +111,9 @@ impl Prover {
         let nu = transcript.get_kzg_aggregation_challenge();
         let mut register_polynomials = protocol.get_register_polynomials_to_open();
         register_polynomials.push(q_poly);
-        let w_poly = KZG_BW6::aggregate_polynomials(nu, &register_polynomials);
-        let w_at_zeta_proof = KZG_BW6::open(&self.kzg_pk, &w_poly, zeta);
-        let r_at_zeta_omega_proof = KZG_BW6::open(&self.kzg_pk, &r_poly, zeta_omega);
+        let w_poly = KzgBw6::aggregate_polynomials(nu, &register_polynomials);
+        let w_at_zeta_proof = KzgBw6::open(&self.kzg_pk, &w_poly, zeta);
+        let r_at_zeta_omega_proof = KzgBw6::open(&self.kzg_pk, &r_poly, zeta_omega);
 
         // Finally, compose the proof.
         let proof = Proof {

@@ -40,7 +40,7 @@ mod bitmask;
 mod keyset;
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
-type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
+type KzgBw6 = KZG10<BW6_761, UniPoly761>;
 
 // TODO: 1. From trait?
 // TODO: 2. remove refs/clones
@@ -122,13 +122,11 @@ mod tests {
     use super::*;
 
     use ark_std::{end_timer, start_timer, UniformRand};
-    use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use ark_std::rand::Rng;
     use merlin::Transcript;
     use ark_ff::{One, Zero};
     use ark_bls12_377::G1Projective;
-    use ark_ec::ProjectiveCurve;
     use ark_poly::EvaluationDomain;
 
 

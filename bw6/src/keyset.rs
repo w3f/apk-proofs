@@ -1,6 +1,6 @@
-use crate::{hash_to_curve, KZG_BW6};
+use crate::{hash_to_curve, KzgBw6};
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain, Evaluations};
-use ark_bls12_377::{G1Affine, G1Projective};
+use ark_bls12_377::G1Projective;
 use ark_bw6_761::{Fr, BW6_761};
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::ProjectiveCurve;
@@ -58,8 +58,8 @@ impl Keyset {
 
     pub fn commit(&self, kzg_pk: &ProverKey<BW6_761>) -> KeysetCommitment {
         assert!(self.domain.size() <= kzg_pk.max_coeffs());
-        let pks_x_comm= KZG_BW6::commit(kzg_pk, &self.pks_polys[0]);
-        let pks_y_comm= KZG_BW6::commit(kzg_pk, &self.pks_polys[1]);
+        let pks_x_comm= KzgBw6::commit(kzg_pk, &self.pks_polys[0]);
+        let pks_y_comm= KzgBw6::commit(kzg_pk, &self.pks_polys[1]);
         KeysetCommitment {
             pks_comm: (pks_x_comm, pks_y_comm),
             keyset_size: self.pks.len(),

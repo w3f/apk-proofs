@@ -1,7 +1,7 @@
 use ark_ff::{field_new, Zero, BitIteratorBE};
 use ark_ec::ProjectiveCurve;
 use ark_ec::bls12::Bls12Parameters;
-use ark_bw6_761::{Fq, Fr, G1Affine, G1Projective};
+use ark_bw6_761::{Fq, G1Projective};
 use std::ops::AddAssign;
 
 // See https://github.com/celo-org/zexe/blob/master/algebra/src/bw6_761/curves/g1.rs#L37-L71
@@ -19,14 +19,6 @@ const OMEGA: Fq = field_new!(
 );
 
 
-/// lambda in Z s.t. phi(P) = lambda*P for all P
-/// \lambda = 0x9b3af05dd14f6ec619aaf7d34594aabc5ed1347970dec00452217cc900000008508c00000000001
-const LAMBDA: Fr = field_new!(
-        Fr,
-        "809496482649127194085583631406374772648452947207104994781372872627125359383014618798134594\
-        10945"
-    );
-
 const U: &'static [u64] = ark_bls12_377::Parameters::X;
 
 fn mul_by_u(p: &G1Projective) -> G1Projective {
@@ -38,15 +30,6 @@ fn mul_by_u(p: &G1Projective) -> G1Projective {
         }
     }
     res
-}
-
-fn glv_endomorphism_in_place(p: &mut G1Affine) {
-    let x =  &mut p.x;
-    *x *= &OMEGA;
-}
-
-fn glv_endomorphism(p: &G1Affine) -> G1Affine {
-    G1Affine::new(p.x * OMEGA, p.y, false)
 }
 
 fn glv_endomorphism_proj(p: &G1Projective) -> G1Projective {
@@ -68,7 +51,28 @@ mod tests {
     use super::*;
     use ark_ff::{Field, One, PrimeField};
     use ark_ec::AffineCurve;
+    use ark_bw6_761::Fr;
     use ark_std::{UniformRand, test_rng};
+
+
+    /// lambda in Z s.t. phi(P) = lambda*P for all P
+    /// \lambda = 0x9b3af05dd14f6ec619aaf7d34594aabc5ed1347970dec00452217cc900000008508c00000000001
+    const LAMBDA: Fr = field_new!(
+        Fr,
+        "809496482649127194085583631406374772648452947207104994781372872627125359383014618798134594\
+        10945"
+    );
+
+    fn glv_endomorphism_in_place(p: &mut G1Affine) {
+        let x = &mut p.x;
+        *x *= &OMEGA;
+    }
+
+    fn glv_endomorphism(p: &G1Affine) -> G1Affine {
+        let mut p = p.clone();
+        glv_endomorphism_in_place(&mut p);
+        p
+    }
 
     #[test]
     pub fn test_omega() {
