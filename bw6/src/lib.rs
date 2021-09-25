@@ -186,7 +186,7 @@ mod tests {
         );
         end_timer!(t_prover_new);
 
-        let verifier = Verifier::new(domain_size, kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
         let b = Bitmask::from_bits(&bits);

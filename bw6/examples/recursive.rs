@@ -147,7 +147,7 @@ impl LightClient {
                          proof: &SimpleProof,
                          aggregate_signature: &Signature,
                          new_validator_set_commitment: KeysetCommitment) {
-        let verifier = Verifier::new(self.domain_size, self.kzg_vk.clone(), self.current_validator_set_commitment.clone(), Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(self.kzg_vk.clone(), self.current_validator_set_commitment.clone(), Transcript::new(b"apk_proof"));
 
         assert!(verifier.verify_simple(&public_input, &proof));
         let aggregate_public_key = PublicKey(public_input.apk.into_projective());

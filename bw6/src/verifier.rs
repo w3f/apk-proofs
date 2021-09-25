@@ -198,18 +198,20 @@ impl Verifier {
     }
 
     pub fn new(
-        domain_size: usize,
         kzg_vk: VerifierKey<BW6_761>,
         pks_comm: KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
-        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
-
-        empty_transcript.set_protocol_params(&domain, &kzg_vk);
+        empty_transcript.set_protocol_params(&pks_comm.domain, &kzg_vk);
         empty_transcript.set_keyset_commitment(&pks_comm);
 
         let kzg_pvk = kzg_vk.prepare();
-        Self { domain, kzg_pvk, pks_comm, preprocessed_transcript: empty_transcript }
+        Self {
+            domain: pks_comm.domain,
+            kzg_pvk,
+            pks_comm,
+            preprocessed_transcript: empty_transcript
+        }
     }
 }
 

@@ -108,7 +108,6 @@ fn verification(c: &mut Criterion) {
 
         let create_verifier = || {
             Verifier::new(
-                setup.domain_size,
                 setup.kzg_params.get_vk(),
                 pks_comm.clone(),
                 Transcript::new(b"apk_proof"),
