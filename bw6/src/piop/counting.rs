@@ -1,15 +1,14 @@
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials, AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
 use crate::piop::{ProverProtocol, RegisterPolynomials, RegisterEvaluations, RegisterCommitments, VerifierProtocol};
-use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use crate::{Bitmask, utils, CountingPublicInput};
+use crate::{Bitmask, utils, CountingPublicInput, Keyset};
 use ark_bw6_761::{Fr, G1Projective};
 use crate::piop::bit_counting::{BitCountingRegisters, BitCountingEvaluation};
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use crate::utils::LagrangeEvaluations;
-use ark_poly::Polynomial;
+use ark_poly::{Polynomial, EvaluationDomain};
 use ark_ec::AffineCurve;
 
 
@@ -72,10 +71,10 @@ impl ProverProtocol for CountingScheme {
     type E = CountingEvaluations;
     type PI = CountingPublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
-        let n = domains.size;
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
+        let n = keyset.domain.size();
         CountingScheme {
-            affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
+            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             bit_counting_registers: BitCountingRegisters::new(n, &bitmask),
             register_evaluations: None,
         }
@@ -170,7 +169,7 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use crate::tests::{random_bits, random_pks};
-    use crate::KZG_BW6;
+    use crate::KzgBw6;
 
     #[test]
     fn test_polynomial_ordering() {
@@ -178,17 +177,18 @@ mod tests {
         let n = 16;
         let m = n - 1;
 
-        let kzg_params = KZG_BW6::setup(m, rng);
+        let kzg_params = KzgBw6::setup(m, rng);
+        let mut keyset = Keyset::new(random_pks(m, rng));
+        keyset.amplify();
         let mut scheme = CountingScheme::init(
-            Domains::new(n),
             Bitmask::from_bits(&random_bits(m, 0.5, rng)),
-            random_pks(m, rng),
+            keyset,
         );
 
         let zeta = Fr::rand(rng);
 
         let actual_commitments = scheme.get_register_polynomials_to_commit1()
-            .commit(|p| KZG_BW6::commit(&kzg_params.get_pk(), &p)).as_vec();
+            .commit(|p| KzgBw6::commit(&kzg_params.get_pk(), &p)).as_vec();
         let actual_evaluations = scheme.evaluate_register_polynomials(zeta).as_vec();
         let polynomials = scheme.get_register_polynomials_to_open();
 
@@ -200,7 +200,7 @@ mod tests {
 
         let expected_commitments = polynomials.iter()
             .skip(2) // keyset commitment is publicly known
-            .map(|p| KZG_BW6::commit(&kzg_params.get_pk(), &p))
+            .map(|p| KzgBw6::commit(&kzg_params.get_pk(), &p))
             .collect::<Vec<_>>();
         assert_eq!(actual_commitments, expected_commitments);
     }

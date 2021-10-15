@@ -24,9 +24,7 @@ mod tests {
         <Bls12_381 as PairingEngine>::Fr,
     >;
 
-    #[allow(non_camel_case_types)]
     type MIPP_SRS = TIPAWithSSM<IP, GC1, IPC, Bls12_381, Blake2b>;
-    #[allow(non_camel_case_types)]
     type TIPA_KZG = TIPA<IP, GC1, SC1, IPC, Bls12_381, Blake2b>;
 
     #[test]

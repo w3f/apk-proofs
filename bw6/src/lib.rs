@@ -8,19 +8,18 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError
 use ark_std::io::{Read, Write};
 
 pub use bitmask::Bitmask;
-pub use setup::Setup;
-pub use signer_set::{SignerSet, SignerSetCommitment};
+pub use keyset::{Keyset, KeysetCommitment};
 
 use crate::kzg::KZG10;
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;
-use crate::bls::PublicKey;
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use ark_bls12_377::G1Affine;
 
 mod prover;
 mod verifier;
@@ -31,34 +30,33 @@ pub mod bls;
 
 mod transcript;
 
-mod signer_set;
 pub mod kzg;
 mod fsrng;
 mod domains;
 mod piop;
 
-mod setup;
+pub mod setup;
 mod bitmask;
+mod keyset;
 
 type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
-#[allow(non_camel_case_types)]
-type KZG_BW6 = KZG10<BW6_761, UniPoly761>;
+type KzgBw6 = KZG10<BW6_761, UniPoly761>;
 
 // TODO: 1. From trait?
 // TODO: 2. remove refs/clones
 pub trait PublicInput : CanonicalSerialize + CanonicalDeserialize {
-    fn new(apk: &PublicKey, bitmask: &Bitmask) -> Self;
+    fn new(apk: &G1Affine, bitmask: &Bitmask) -> Self;
 }
 
 // Used in 'basic' and 'packed' schemes
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct AccountablePublicInput {
-    pub apk: PublicKey,
+    pub apk: G1Affine,
     pub bitmask: Bitmask,
 }
 
 impl PublicInput for AccountablePublicInput {
-    fn new(apk: &PublicKey, bitmask: &Bitmask) -> Self {
+    fn new(apk: &G1Affine, bitmask: &Bitmask) -> Self {
         AccountablePublicInput {
             apk: apk.clone(),
             bitmask: bitmask.clone(),
@@ -69,12 +67,12 @@ impl PublicInput for AccountablePublicInput {
 // Used in 'counting' scheme
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct CountingPublicInput {
-    pub apk: PublicKey,
+    pub apk: G1Affine,
     pub count: usize,
 }
 
 impl PublicInput for CountingPublicInput {
-    fn new(apk: &PublicKey, bitmask: &Bitmask) -> Self {
+    fn new(apk: &G1Affine, bitmask: &Bitmask) -> Self {
         CountingPublicInput {
             apk: apk.clone(),
             count: bitmask.count_ones(),
@@ -124,13 +122,12 @@ mod tests {
     use super::*;
 
     use ark_std::{end_timer, start_timer, UniformRand};
-    use ark_std::convert::TryInto;
     use ark_std::test_rng;
     use ark_std::rand::Rng;
     use merlin::Transcript;
     use ark_ff::{One, Zero};
     use ark_bls12_377::G1Projective;
-    use ark_ec::ProjectiveCurve;
+    use ark_poly::EvaluationDomain;
 
 
     pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
@@ -143,10 +140,9 @@ mod tests {
             .collect()
     }
 
-    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Affine> {
+    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Projective> {
         (0..n)
             .map(|_| G1Projective::rand(rng))
-            .map(|p| p.into_affine())
             .collect()
     }
 
@@ -168,30 +164,29 @@ mod tests {
             AC: RegisterCommitments
     {
         let rng = &mut test_rng();
-        let log_domain_size = 8;
+
+        let keyset_size = 200;
+        let keyset = Keyset::new(random_pks(keyset_size, rng));
+        let domain_size = keyset.domain.size();
 
         let t_setup = start_timer!(|| "setup");
-        let setup = Setup::generate(log_domain_size, rng);
+        let kzg_params = setup::generate_for_keyset(keyset_size, rng);
         end_timer!(t_setup);
 
-        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
-        let keyset_size = keyset_size.try_into().unwrap();
-        let signer_set = SignerSet::random(keyset_size, rng);
-
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        let pks_comm = keyset.commit(&kzg_params.get_pk());
         end_timer!(pks_commitment_);
 
         let t_prover_new = start_timer!(|| "prover precomputation");
         let prover = Prover::new(
-            &setup,
+            keyset,
             &pks_comm,
-            signer_set.get_all(),
+            kzg_params.clone(), //TODO
             Transcript::new(b"apk_proof")
         );
         end_timer!(t_prover_new);
 
-        let verifier = Verifier::new(setup.domain_size, setup.kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
         let b = Bitmask::from_bits(&bits);

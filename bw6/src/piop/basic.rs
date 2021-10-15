@@ -1,8 +1,7 @@
 use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
-use crate::domains::Domains;
-use crate::{Bitmask, utils, AccountablePublicInput};
+use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
 use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
 
 use ark_std::io::{Read, Write};
@@ -36,19 +35,16 @@ impl ProverProtocol for BasicRegisterBuilder {
     type E = AffineAdditionEvaluationsWithoutBitmask;
     type PI = AccountablePublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self {
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
         BasicRegisterBuilder {
-            registers:  AffineAdditionRegisters::new(domains, &bitmask, pks),
+            registers:  AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             register_evaluations: None,
         }
     }
 
     fn get_register_polynomials_to_commit1(&self) -> PartialSumsPolynomials {
         let polys = self.registers.get_register_polynomials();
-        PartialSumsPolynomials(
-            polys.partial_sums.0,
-            polys.partial_sums.1,
-        )
+        polys.partial_sums
     }
 
     fn get_register_polynomials_to_commit2(&mut self, _verifier_challenge: Fr) -> () {
@@ -57,12 +53,7 @@ impl ProverProtocol for BasicRegisterBuilder {
 
     fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>> {
         let polys = self.registers.get_register_polynomials();
-        vec![
-            polys.keyset.0,
-            polys.keyset.1,
-            polys.partial_sums.0,
-            polys.partial_sums.1,
-        ]
+        [polys.keyset, polys.partial_sums].concat()
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {

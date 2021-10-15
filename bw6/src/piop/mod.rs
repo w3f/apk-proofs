@@ -3,8 +3,8 @@ use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{Bitmask, utils, PublicInput};
-use crate::domains::Domains;
+use crate::{Bitmask, utils, PublicInput, Keyset};
+use ark_poly::Radix2EvaluationDomain;
 
 
 pub mod affine_addition;
@@ -98,7 +98,7 @@ pub trait ProverProtocol {
     type E: RegisterEvaluations;
     type PI: PublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<ark_bls12_377::G1Affine>) -> Self;
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self;
 
     // These 2 methods together return register polynomials the prover should commit to.
     // The 2nd one is used only in the "packed" scheme as it requires an additional challenge
@@ -115,9 +115,9 @@ pub trait ProverProtocol {
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>>;
 
     //TODO: remove domains param
-    fn compute_quotient_polynomial(&self, phi: Fr, domains: &Domains) -> DensePolynomial<Fr> {
+    fn compute_quotient_polynomial(&self, phi: Fr, domain: Radix2EvaluationDomain<Fr>) -> DensePolynomial<Fr> {
         let w = utils::randomize(phi, &self.compute_constraint_polynomials());
-        let (q_poly, r) = domains.compute_quotient(&w);
+        let (q_poly, r) = w.divide_by_vanishing_poly(domain).unwrap();
         assert_eq!(r, DensePolynomial::zero());
         q_poly
     }

@@ -4,9 +4,8 @@ use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KZG_BW6, point_in_g1_complement, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof};
+use crate::{endo, Proof, utils, KzgBw6, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
 use crate::transcript::ApkTranscript;
-use crate::signer_set::SignerSetCommitment;
 use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
@@ -20,8 +19,7 @@ use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 pub struct Verifier {
     domain: Radix2EvaluationDomain<Fr>,
     kzg_pvk: PreparedVerifierKey<BW6_761>,
-    h: ark_bls12_377::G1Affine,
-    pks_comm: SignerSetCommitment,
+    pks_comm: KeysetCommitment,
     preprocessed_transcript: Transcript,
 }
 
@@ -39,7 +37,7 @@ impl Verifier {
         public_input: &AccountablePublicInput,
         proof: &SimpleProof,
     ) -> bool {
-        assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
+        assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
         let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
@@ -60,7 +58,7 @@ impl Verifier {
             AffineAdditionEvaluations,
         >(proof, &evaluations_with_bitmask, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = public_input.apk.0.into_affine();
+        let apk = public_input.apk;
         let constraint_polynomial_evals = evaluations_with_bitmask.evaluate_constraint_polynomials(apk, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -71,7 +69,7 @@ impl Verifier {
         public_input: &AccountablePublicInput,
         proof: &PackedProof,
     ) -> bool {
-        assert_eq!(public_input.bitmask.size(), self.pks_comm.signer_set_size);
+        assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
         let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
@@ -82,7 +80,7 @@ impl Verifier {
             SuccinctAccountableRegisterEvaluations,
         >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = public_input.apk.0.into_affine();
+        let apk = public_input.apk;
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, &evals_at_zeta, challenges.r, &public_input.bitmask, self.domain.size);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -105,7 +103,7 @@ impl Verifier {
             CountingEvaluations,
         >(proof, &proof.register_evaluations, &challenges, &mut fsrng, &evals_at_zeta);
 
-        let apk = public_input.apk.0.into_affine();
+        let apk = public_input.apk;
         let constraint_polynomial_evals = proof.register_evaluations.evaluate_constraint_polynomials(apk, count, &evals_at_zeta);
         let w = utils::horner_field(&constraint_polynomial_evals, challenges.phi);
         proof.r_zeta_omega + w == proof.q_zeta * evals_at_zeta.vanishing_polynomial
@@ -143,33 +141,33 @@ impl Verifier {
         // Aggregate the commitments to be opened in \zeta, using the challenge \nu.
         let t_multiexp = start_timer!(|| "aggregated commitment");
         let mut commitments = vec![
-            self.pks_comm.pks_x_comm,
-            self.pks_comm.pks_y_comm,
+            self.pks_comm.pks_comm.0,
+            self.pks_comm.pks_comm.1,
         ];
         commitments.extend(proof.register_commitments.as_vec());
         commitments.extend(proof.additional_commitments.as_vec());
         commitments.push(proof.q_comm);
-        let w_comm = KZG_BW6::aggregate_commitments(challenges.nu, &commitments);
+        let w_comm = KzgBw6::aggregate_commitments(challenges.nu, &commitments);
         end_timer!(t_multiexp);
 
 
         let t_opening_points = start_timer!(|| "aggregated evaluation");
         let mut register_evals = proof.register_evaluations.as_vec();
         register_evals.push(proof.q_zeta);
-        let w_at_zeta = KZG_BW6::aggregate_values(challenges.nu, &register_evals);
+        let w_at_zeta = KzgBw6::aggregate_values(challenges.nu, &register_evals);
         end_timer!(t_opening_points);
 
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
 
-        let (total_c, total_w) = KZG_BW6::aggregate_openings(&self.kzg_pvk,
-                                                             &[w_comm, r_comm],
-                                                             &[challenges.zeta, evals_at_zeta.zeta_omega],
-                                                             &[w_at_zeta, proof.r_zeta_omega],
-                                                             &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
-                                                             fsrng,
+        let (total_c, total_w) = KzgBw6::aggregate_openings(&self.kzg_pvk,
+                                                            &[w_comm, r_comm],
+                                                            &[challenges.zeta, evals_at_zeta.zeta_omega],
+                                                            &[w_at_zeta, proof.r_zeta_omega],
+                                                            &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
+                                                            fsrng,
         );
-        assert!(KZG_BW6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
+        assert!(KzgBw6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
         end_timer!(t_kzg_batch_opening);
 
 
@@ -200,18 +198,20 @@ impl Verifier {
     }
 
     pub fn new(
-        domain_size: usize,
         kzg_vk: VerifierKey<BW6_761>,
-        pks_comm: SignerSetCommitment,
+        pks_comm: KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
-        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
-
-        empty_transcript.set_protocol_params(&domain, &kzg_vk);
+        empty_transcript.set_protocol_params(&pks_comm.domain, &kzg_vk);
         empty_transcript.set_keyset_commitment(&pks_comm);
 
         let kzg_pvk = kzg_vk.prepare();
-        Self { domain, kzg_pvk, h: point_in_g1_complement(), pks_comm, preprocessed_transcript: empty_transcript }
+        Self {
+            domain: pks_comm.domain,
+            kzg_pvk,
+            pks_comm,
+            preprocessed_transcript: empty_transcript
+        }
     }
 }
 

@@ -1,9 +1,7 @@
 use crate::piop::bitmask_packing::{BitmaskPackingRegisters, SuccinctAccountableRegisterEvaluations, BitmaskPackingPolynomials};
 use crate::piop::ProverProtocol;
-use crate::domains::Domains;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_bls12_377::G1Affine;
-use crate::{Bitmask, utils, AccountablePublicInput};
+use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
 use ark_bw6_761::Fr;
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials};
 
@@ -20,10 +18,10 @@ impl ProverProtocol for PackedRegisterBuilder {
     type E = SuccinctAccountableRegisterEvaluations;
     type PI = AccountablePublicInput;
 
-    fn init(domains: Domains, bitmask: Bitmask, pks: Vec<G1Affine>) -> Self {
+    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
         PackedRegisterBuilder {
             bitmask: bitmask.clone(),
-            affine_addition_registers: AffineAdditionRegisters::new(domains, &bitmask, pks),
+            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             bitmask_packing_registers: None,
             register_evaluations: None,
         }
