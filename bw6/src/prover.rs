@@ -12,9 +12,11 @@ use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
 use crate::keyset::Keyset;
 use ark_ec::ProjectiveCurve;
+use crate::domains::Domains;
 
 
 pub struct Prover {
+    domains: Domains,
     keyset: Keyset,
     kzg_pk: ProverKey<BW6_761>,
     preprocessed_transcript: Transcript,
@@ -30,6 +32,8 @@ impl Prover {
         kzg_params: kzg::Params<BW6_761>,
         mut empty_transcript: Transcript,
     ) -> Self {
+        let domains = Domains::new(keyset.domain.size());
+
         assert!(kzg_params.fits(keyset.domain.size())); // SRS contains enough elements
         empty_transcript.set_protocol_params(&keyset.domain, &kzg_params.get_vk());
         empty_transcript.set_keyset_commitment(&keyset_comm);
@@ -37,6 +41,7 @@ impl Prover {
         keyset.amplify();
 
         Self {
+            domains,
             keyset,
             kzg_pk: kzg_params.get_pk(),
             preprocessed_transcript: empty_transcript,
@@ -67,7 +72,7 @@ impl Prover {
         transcript.append_public_input(&public_input);
 
         // 1. Compute and commit to the basic registers.
-        let mut protocol = P::init(bitmask, self.keyset.clone());
+        let mut protocol = P::init(self.domains.clone(), bitmask, self.keyset.clone());
         let partial_sums_polynomials = protocol.get_register_polynomials_to_commit1();
         let partial_sums_commitments = partial_sums_polynomials.commit(
             |p| KzgBw6::commit(&self.kzg_pk, &p)

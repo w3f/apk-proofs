@@ -6,6 +6,7 @@ use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvalua
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use crate::domains::Domains;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct AffineAdditionEvaluationsWithoutBitmask {
@@ -35,7 +36,7 @@ impl ProverProtocol for BasicRegisterBuilder {
     type E = AffineAdditionEvaluationsWithoutBitmask;
     type PI = AccountablePublicInput;
 
-    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
+    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
         BasicRegisterBuilder {
             registers:  AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
             register_evaluations: None,

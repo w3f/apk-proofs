@@ -10,6 +10,7 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use crate::utils::LagrangeEvaluations;
 use ark_poly::{Polynomial, EvaluationDomain};
 use ark_ec::AffineCurve;
+use crate::domains::Domains;
 
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
@@ -71,7 +72,7 @@ impl ProverProtocol for CountingScheme {
     type E = CountingEvaluations;
     type PI = CountingPublicInput;
 
-    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
+    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
         let n = keyset.domain.size();
         CountingScheme {
             affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
@@ -177,10 +178,12 @@ mod tests {
         let n = 16;
         let m = n - 1;
 
+
         let kzg_params = KzgBw6::setup(m, rng);
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let mut scheme = CountingScheme::init(
+            Domains::new(n),
             Bitmask::from_bits(&random_bits(m, 0.5, rng)),
             keyset,
         );

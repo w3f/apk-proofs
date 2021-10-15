@@ -4,6 +4,7 @@ use ark_poly::polynomial::univariate::DensePolynomial;
 use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
 use ark_bw6_761::Fr;
 use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials};
+use crate::domains::Domains;
 
 pub struct PackedRegisterBuilder {
     bitmask: Bitmask,
@@ -18,7 +19,7 @@ impl ProverProtocol for PackedRegisterBuilder {
     type E = SuccinctAccountableRegisterEvaluations;
     type PI = AccountablePublicInput;
 
-    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
+    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
         PackedRegisterBuilder {
             bitmask: bitmask.clone(),
             affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),

@@ -5,6 +5,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::{Bitmask, utils, PublicInput, Keyset};
 use ark_poly::Radix2EvaluationDomain;
+use crate::domains::Domains;
 
 
 pub mod affine_addition;
@@ -98,7 +99,7 @@ pub trait ProverProtocol {
     type E: RegisterEvaluations;
     type PI: PublicInput;
 
-    fn init(bitmask: Bitmask, keyset: Keyset) -> Self;
+    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self;
 
     // These 2 methods together return register polynomials the prover should commit to.
     // The 2nd one is used only in the "packed" scheme as it requires an additional challenge
