@@ -22,7 +22,7 @@ impl ProverProtocol for PackedRegisterBuilder {
     fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
         PackedRegisterBuilder {
             bitmask: bitmask.clone(),
-            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
+            affine_addition_registers: AffineAdditionRegisters::new(domains, keyset, &bitmask.to_bits()),
             bitmask_packing_registers: None,
             register_evaluations: None,
         }

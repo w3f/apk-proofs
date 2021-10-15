@@ -172,7 +172,8 @@ pub struct AffineAdditionRegisters {
 }
 
 impl AffineAdditionRegisters {
-    pub fn new(keyset: Keyset,
+    pub fn new(domains: Domains,
+               keyset: Keyset,
                bitmask: &[bool],
     ) -> Self {
         assert_eq!(bitmask.len(), keyset.size());
@@ -205,25 +206,26 @@ impl AffineAdditionRegisters {
             .collect();
 
         Self::new_unchecked(
+            domains,
             bitmask,
             keyset,
             [apk_acc.0, apk_acc.1],
         )
     }
 
-    fn new_unchecked(bitmask: Vec<Fr>,
+    fn new_unchecked(domains: Domains,
+                     bitmask: Vec<Fr>,
                      keyset: Keyset,
                      apk_acc: [Vec<Fr>; 2],
     ) -> Self {
-        let domains = Domains::new(keyset.domain.size());
-
         let bitmask_polynomial = domains.interpolate(bitmask);
         let partial_sums_polynomial = apk_acc.map(|z| domains.interpolate(z));
         let partial_sums = partial_sums_polynomial.clone().map(|z| domains.amplify_polynomial(&z));
+        let bitmask = domains.amplify_polynomial(&bitmask_polynomial);
 
         Self {
-            domains: domains.clone(),
-            bitmask: domains.amplify_polynomial(&bitmask_polynomial),
+            domains,
+            bitmask,
             keyset: keyset.pks_evals_x4.unwrap(),
             partial_sums,
             polynomials: AffineAdditionPolynomials {
@@ -474,6 +476,7 @@ mod tests {
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let registers = AffineAdditionRegisters::new(
+            domains.clone(),
             keyset.clone(),
             &good_bitmask,
         );
@@ -492,6 +495,7 @@ mod tests {
         bad_bitmask[0] = Fr::rand(rng);
 
         let registers = AffineAdditionRegisters::new_unchecked(
+            domains.clone(),
             bad_bitmask,
             keyset,
             dummy_registers(n),
@@ -512,6 +516,7 @@ mod tests {
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let registers = AffineAdditionRegisters::new(
+            domains.clone(),
             keyset,
             &random_bits(m, 0.5, rng),
         );
@@ -537,6 +542,7 @@ mod tests {
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let registers = AffineAdditionRegisters::new(
+            domains.clone(),
             keyset.clone(),
             &bits,
         );

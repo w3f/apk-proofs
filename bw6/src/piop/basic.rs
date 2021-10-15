@@ -38,7 +38,7 @@ impl ProverProtocol for BasicRegisterBuilder {
 
     fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
         BasicRegisterBuilder {
-            registers:  AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
+            registers:  AffineAdditionRegisters::new(domains, keyset, &bitmask.to_bits()),
             register_evaluations: None,
         }
     }
