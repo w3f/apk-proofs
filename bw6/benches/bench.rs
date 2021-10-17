@@ -1,8 +1,11 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use ark_ff::{Field, PrimeField};
+use ark_ff::{Field, PrimeField, One};
 use ark_std::{UniformRand, test_rng};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use apk_proofs::{Keyset, setup};
+use ark_bw6_761::Fr;
+use ark_poly::Evaluations;
+use ark_poly::univariate::DensePolynomial;
 
 extern crate apk_proofs;
 
@@ -77,6 +80,40 @@ fn bw6_subgroup_check(c: &mut Criterion) {
     });
 }
 
+fn amplification(c: &mut Criterion) {
+    use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, UVPolynomial};
+    use apk_proofs::domains::Domains;
+
+    let mut group = c.benchmark_group("amplification");
+
+    let rng = &mut test_rng();
+    let log_domain_size_range = vec![10, 16];
+
+    for log_domain_size in log_domain_size_range {
+        let n = 2u32.pow(log_domain_size) as usize;
+        let domains = Domains::new(n);
+
+        let evals = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
+
+        group.bench_with_input(
+            BenchmarkId::new("2n-FFT", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let poly = Evaluations::from_vec_and_domain(evals.clone(), domains.domain).interpolate();
+                poly.evaluate_over_domain_by_ref(domains.domain2x)
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("coset n-FFT", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                domains.amplify_x2(evals.clone())
+            }),
+        );
+    }
+}
+
 fn verification(c: &mut Criterion) {
     use apk_proofs::{Prover, Verifier, Bitmask, bls};
     use merlin::Transcript;
@@ -89,7 +126,7 @@ fn verification(c: &mut Criterion) {
     let log_domain_size_range = 8..=10;
 
     for log_domain_size in log_domain_size_range {
-        let keyset_size = (2u16.pow(log_domain_size) - 1) as usize;
+        let keyset_size = (2u32.pow(log_domain_size) - 1) as usize;
         let keyset = (0..keyset_size).map(|_| ark_bls12_377::G1Projective::rand(rng)).collect();
         let keyset = Keyset::new(keyset);
         let kzg_params = setup::generate_for_keyset(keyset_size, rng);
@@ -151,6 +188,7 @@ fn components(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
     barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
     bw6_subgroup_check(c);
+    amplification(c);
 }
 
 criterion_group!(benches, components, verification);
