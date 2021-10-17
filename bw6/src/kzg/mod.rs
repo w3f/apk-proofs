@@ -18,8 +18,8 @@ use ark_std::{end_timer, start_timer};
 
 use crate::utils;
 
-// #[cfg(feature = "parallel")]
-// use rayon::prelude::*;
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 
 use rand::RngCore;
 
