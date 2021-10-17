@@ -96,7 +96,7 @@ fn amplification(c: &mut Criterion) {
         let evals = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
 
         group.bench_with_input(
-            BenchmarkId::new("2n-FFT", log_domain_size),
+            BenchmarkId::new("2x", log_domain_size),
             &log_domain_size,
             |b, _| b.iter(|| {
                 let poly = Evaluations::from_vec_and_domain(evals.clone(), domains.domain).interpolate();
@@ -105,10 +105,27 @@ fn amplification(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("coset n-FFT", log_domain_size),
+            BenchmarkId::new("2x-coset", log_domain_size),
             &log_domain_size,
             |b, _| b.iter(|| {
                 domains.amplify_x2(evals.clone())
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("4x", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let poly = Evaluations::from_vec_and_domain(evals.clone(), domains.domain).interpolate();
+                poly.evaluate_over_domain_by_ref(domains.domain4x)
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("4x-coset", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                domains.amplify_x4(evals.clone())
             }),
         );
     }
