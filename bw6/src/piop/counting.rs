@@ -73,10 +73,9 @@ impl ProverProtocol for CountingScheme {
     type PI = CountingPublicInput;
 
     fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
-        let n = keyset.domain.size();
         CountingScheme {
-            affine_addition_registers: AffineAdditionRegisters::new(domains, keyset, &bitmask.to_bits()),
-            bit_counting_registers: BitCountingRegisters::new(n, &bitmask),
+            affine_addition_registers: AffineAdditionRegisters::new(domains.clone(), keyset, &bitmask.to_bits()),
+            bit_counting_registers: BitCountingRegisters::new(domains, &bitmask),
             register_evaluations: None,
         }
     }

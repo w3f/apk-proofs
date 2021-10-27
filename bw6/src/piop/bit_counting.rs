@@ -7,6 +7,7 @@ use ark_poly::univariate::DensePolynomial;
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use crate::domains::Domains;
 
 
 // This "gadget" is used in the 'counting' scheme to constraint the number of set bits in the bitmask.
@@ -30,28 +31,30 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 // But we use the former check not to handle this case differently.
 
 pub(crate) struct BitCountingRegisters {
-    domain: Radix2EvaluationDomain<Fr>,
+    domains: Domains,
 
     bitmask: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
     partial_counts: Evaluations<Fr, Radix2EvaluationDomain<Fr>>,
 }
 
 impl BitCountingRegisters {
-    pub fn new(n: usize, bitmask: &Bitmask) -> Self {
+    pub fn new(domains: Domains, bitmask: &Bitmask) -> Self {
         let mut bitmask = bitmask.to_bits_as_field_elements();
-        bitmask.resize_with(n, || Fr::zero());
+        bitmask.resize_with(domains.size, || Fr::zero());
         let partial_counts = Self::build_partial_counts_register(&bitmask);
-        Self::new_unchecked(bitmask, partial_counts)
+        Self::new_unchecked(domains, bitmask, partial_counts)
     }
 
-    fn new_unchecked(bitmask: Vec<Fr>,
+    fn new_unchecked(domains: Domains,
+                     bitmask: Vec<Fr>,
                      partial_counts: Vec<Fr>,
     ) -> Self {
-        let domain = Radix2EvaluationDomain::<Fr>::new(bitmask.len()).unwrap();
+        let bitmask = Evaluations::from_vec_and_domain(bitmask, domains.domain.clone());
+        let partial_counts= Evaluations::from_vec_and_domain(partial_counts, domains.domain.clone());
         Self {
-            domain,
-            bitmask: Evaluations::from_vec_and_domain(bitmask, domain),
-            partial_counts: Evaluations::from_vec_and_domain(partial_counts, domain),
+            domains,
+            bitmask,
+            partial_counts,
         }
     }
 
@@ -143,19 +146,20 @@ mod tests {
         let rng = &mut test_rng();
         let n = 16;
         let bitmask = Bitmask::from_bits(&random_bits(n, 2.0 / 3.0, rng));
-        let registers = BitCountingRegisters::new(n, &bitmask);
+        let registers = BitCountingRegisters::new(Domains::new(n), &bitmask);
 
         let constraint = registers.compute_bit_counting_constraint();
-        assert!(constraint.divide_by_vanishing_poly(registers.domain).unwrap().1.is_zero());
+        assert!(constraint.divide_by_vanishing_poly(registers.domains.domain).unwrap().1.is_zero());
     }
 
     #[test]
     fn test_bit_counting_constraint_eval() {
         let rng = &mut test_rng();
         let n = 16;
-        let domain = Radix2EvaluationDomain::<Fr>::new(n).unwrap();
+        let domains = Domains::new(n);
+        let domain = domains.domain;
         let bitmask = Bitmask::from_bits(&random_bits(n, 2.0 / 3.0, rng));
-        let registers = BitCountingRegisters::new(n, &bitmask);
+        let registers = BitCountingRegisters::new(domains, &bitmask);
 
         let zeta = Fr::rand(rng);
 
