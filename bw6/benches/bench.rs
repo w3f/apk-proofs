@@ -1,10 +1,10 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use ark_ff::{Field, PrimeField, One};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use ark_ff::{Field, PrimeField, One, FftField};
 use ark_std::{UniformRand, test_rng};
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use apk_proofs::{Keyset, setup};
 use ark_bw6_761::Fr;
-use ark_poly::Evaluations;
+use ark_poly::{Evaluations, EvaluationDomain, UVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
 
 extern crate apk_proofs;
@@ -201,6 +201,26 @@ fn verification(c: &mut Criterion) {
     group.finish();
 }
 
+fn fft<F: FftField, D: EvaluationDomain<F>>(c: &mut Criterion) {
+    let mut group = c.benchmark_group("FFT");
+
+    let rng = &mut test_rng();
+
+    for logn in 10..=16 {
+        let n = 2usize.pow(logn);
+        let domain = D::new(n).unwrap();
+        let poly = DensePolynomial::<F>::rand(n-1, rng);
+        let coeffs = poly.coeffs;
+
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, n| {
+            b.iter(|| domain.fft(&coeffs))
+        });
+    }
+    group.finish();
+}
+
+
 fn components(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
     barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
@@ -208,5 +228,9 @@ fn components(c: &mut Criterion) {
     amplification(c);
 }
 
-criterion_group!(benches, components, verification);
+fn primitives(c: &mut Criterion) {
+    fft::<ark_bw6_761::Fr, Radix2EvaluationDomain<ark_bw6_761::Fr>>(c);
+}
+
+criterion_group!(benches, components, verification, primitives);
 criterion_main!(benches);
