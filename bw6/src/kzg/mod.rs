@@ -28,13 +28,15 @@ use rand::RngCore;
 pub struct Params<E: PairingEngine> {
     /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
     pub powers_of_g: Vec<E::G1Affine>,
+    // TODO
+    pub powers_of_g2: Vec<E::G2Affine>,
     /// The generator of G2.
     pub h: E::G2Affine,
     /// \beta times the above generator of G2.
     pub beta_h: E::G2Affine,
 }
 
-impl <E: PairingEngine> Params<E> {
+impl<E: PairingEngine> Params<E> {
     pub fn get_pk(&self) -> ProverKey<E> {
         ProverKey(self.powers_of_g.clone()) //TODO: avoid cloning
     }
@@ -46,6 +48,13 @@ impl <E: PairingEngine> Params<E> {
             beta_h: self.beta_h,
         }
     }
+
+    pub fn get_evk(&self) -> ExtendedVerifierKey<E> {
+        ExtendedVerifierKey {
+            powers_in_g1: self.powers_of_g.clone(),
+            powers_in_g2: self.powers_of_g2.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -54,7 +63,7 @@ pub struct ProverKey<E: PairingEngine> (
     Vec<E::G1Affine>
 );
 
-impl <E: PairingEngine> ProverKey<E> {
+impl<E: PairingEngine> ProverKey<E> {
     pub fn max_coeffs(&self) -> usize {
         self.0.len()
     }
@@ -74,7 +83,7 @@ pub struct VerifierKey<E: PairingEngine> {
     pub beta_h: E::G2Affine,
 }
 
-impl <E: PairingEngine> VerifierKey<E> {
+impl<E: PairingEngine> VerifierKey<E> {
     pub fn prepare(&self) -> PreparedVerifierKey<E> {
         PreparedVerifierKey {
             g: self.g,
@@ -95,6 +104,13 @@ pub struct PreparedVerifierKey<E: PairingEngine> {
     pub prepared_beta_h: E::G2Prepared,
 }
 
+#[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
+// Key for verifying n-point KZG with the polynomial and the proof committed to G1.
+// Contains n powers in G1 and n+1 power in G2.
+pub struct ExtendedVerifierKey<E: PairingEngine> {
+    pub powers_in_g1: Vec<E::G1Affine>,
+    pub powers_in_g2: Vec<E::G2Affine>,
+}
 
 /// `KZG10` is an implementation of the polynomial commitment scheme of
 /// [Kate, Zaverucha and Goldbgerg][kzg10]
@@ -108,8 +124,8 @@ pub struct KZG10<E: PairingEngine, P: UVPolynomial<E::Fr>> {
 impl<E, P> KZG10<E, P>
     where
         E: PairingEngine,
-        P: UVPolynomial<E::Fr, Point = E::Fr>,
-        for<'a, 'b> &'a P: Div<&'b P, Output = P>,
+        P: UVPolynomial<E::Fr, Point=E::Fr>,
+        for<'a, 'b> &'a P: Div<&'b P, Output=P>,
 {
     /// Constructs public parameters when given as input the maximum degree `degree`
     /// for the polynomial commitment scheme.
@@ -137,14 +153,31 @@ impl<E, P> KZG10<E, P>
         );
         end_timer!(g_time);
 
-
         let powers_of_g = E::G1Projective::batch_normalization_into_affine(&powers_of_g);
+
+
+        let max_degree = 10; //TODO
+        let powers_of_beta = utils::powers(beta, max_degree);
+        let window_size = FixedBaseMSM::get_mul_window_size(max_degree + 1);
+        let scalar_bits = E::Fr::size_in_bits();
+        let g_time = start_timer!(|| "Generating powers of G");
+        let g_table = FixedBaseMSM::get_window_table(scalar_bits, window_size, h);
+        let powers_of_g2 = FixedBaseMSM::multi_scalar_mul::<E::G2Projective>(
+            scalar_bits,
+            window_size,
+            &g_table,
+            &powers_of_beta,
+        );
+        end_timer!(g_time);
+        let powers_of_g2 = E::G2Projective::batch_normalization_into_affine(&powers_of_g2);
+
 
         let h = h.into_affine();
         let beta_h = h.mul(beta).into_affine();
 
         let pp = Params {
             powers_of_g,
+            powers_of_g2,
             h,
             beta_h,
         };
@@ -155,7 +188,7 @@ impl<E, P> KZG10<E, P>
     /// Outputs a commitment to `polynomial`.
     pub fn commit(
         powers: &ProverKey<E>,
-        polynomial: &P
+        polynomial: &P,
     ) -> E::G1Affine {
         assert!(polynomial.degree() <= powers.max_degree());
 
@@ -177,6 +210,25 @@ impl<E, P> KZG10<E, P>
         commitment.into()
     }
 
+    /// Outputs a commitment to `polynomial`.
+    pub fn commit_g<G: AffineCurve, PG: UVPolynomial<G::ScalarField>>(
+        powers: &[G],
+        polynomial: &PG,
+    ) -> G
+    {
+        assert!(polynomial.degree() + 1 <= powers.len());
+
+        let (num_leading_zeros, plain_coeffs) =
+            skip_leading_zeros_and_convert_to_bigints(polynomial);
+
+        let commitment = VariableBaseMSM::multi_scalar_mul(
+            &powers[num_leading_zeros..],
+            &plain_coeffs,
+        );
+
+        commitment.into()
+    }
+
     /// Compute witness polynomial.
     ///
     /// The witness polynomial w(x) the quotient of the division (p(x) - p(z)) / (x - z)
@@ -184,7 +236,7 @@ impl<E, P> KZG10<E, P>
     /// p(z) is the remainder term. We can therefore omit p(z) when computing the quotient.
     pub fn compute_witness_polynomial(
         p: &P,
-        point: P::Point
+        point: P::Point,
     ) -> P {
         let divisor = P::from_coefficients_vec(vec![-point, E::Fr::one()]);
 
@@ -217,7 +269,7 @@ impl<E, P> KZG10<E, P>
     pub fn open<'a>(
         powers: &ProverKey<E>,
         p: &P,
-        point: P::Point
+        point: P::Point,
     ) -> E::G1Affine {
         assert!(p.degree() <= powers.max_degree());
         let open_time = start_timer!(|| format!("Opening polynomial of degree {}", p.degree()));
@@ -228,7 +280,7 @@ impl<E, P> KZG10<E, P>
 
         let proof = Self::open_with_witness_polynomial(
             powers,
-            &witness_poly
+            &witness_poly,
         );
 
         end_timer!(open_time);
@@ -333,7 +385,7 @@ impl<E, P> KZG10<E, P>
     /// Computes p = p0 + (r * p1) + (r^2 * p2) + ... + (r^n * pn)
     pub fn aggregate_polynomials(
         randomizer: E::Fr,
-        polynomials: &[P]
+        polynomials: &[P],
     ) -> P {
         utils::randomize(randomizer, polynomials)
     }
@@ -341,7 +393,7 @@ impl<E, P> KZG10<E, P>
     /// Computes C = C0 + (r * C1) + (r^2 * C2) + ... + (r^n * Cn)
     pub fn aggregate_commitments(
         randomizer: E::Fr,
-        commitments: &[E::G1Affine]
+        commitments: &[E::G1Affine],
     ) -> E::G1Affine {
         utils::horner(commitments, randomizer)
     }
@@ -349,7 +401,7 @@ impl<E, P> KZG10<E, P>
     /// Computes v = v0 + (r * v1) + (r^2 * v2) + ... + (r^n * vn)
     pub fn aggregate_values(
         randomizer: E::Fr,
-        values: &[E::Fr]
+        values: &[E::Fr],
     ) -> E::Fr {
         utils::horner_field(values, randomizer)
     }
@@ -380,18 +432,19 @@ impl<E, P> KZG10<E, P>
     pub fn open_combined<'a>(
         powers: &ProverKey<E>,
         g: &P,
-        x: P::Point
+        x: P::Point,
+        t: usize,
     ) -> E::G1Affine {
         assert!(g.degree() <= powers.max_degree()); //TODO:
         let open_time = start_timer!(|| format!("Opening combined polynomial of degree {}", g.degree()));
 
         let witness_time = start_timer!(|| "Computing witness polynomials");
-        let witness_poly = Self::fflonk_quotient_polynomial(g, 1,x);
+        let witness_poly = Self::fflonk_quotient_poly(g, t, x);
         end_timer!(witness_time);
 
         let proof = Self::open_with_witness_polynomial(
             powers,
-            &witness_poly
+            &witness_poly,
         );
 
         end_timer!(open_time);
@@ -400,15 +453,15 @@ impl<E, P> KZG10<E, P>
 
     /// (fflonk) opening polynomial for `g = combine(f1,...,ft)` in point `x`
     /// `q = g // X^t - x`
-    pub fn fflonk_quotient_polynomial(
+    fn fflonk_quotient_poly(
         g: &P,
         t: usize,
         x: P::Point,
     ) -> P {
-
         let z = Self::fflonk_vanishing_poly(t, x);
         let witness_time = start_timer!(|| "Computing witness polynomial");
-        let q = g / &z; // ignores the remainder
+        let q = g / &z;
+        // ignores the remainder
         end_timer!(witness_time);
 
         q
@@ -426,6 +479,46 @@ impl<E, P> KZG10<E, P>
     fn fflonk_remainder_poly(fs: &[P], x: P::Point) -> P {
         let vs = fs.iter().map(|fi| fi.evaluate(&x)).collect();
         P::from_coefficients_vec(vs)
+    }
+
+    // Verifies single fflonk proof using n-point KZG.
+    // Checks g - r = q * z in the exponent,
+    // g = combine(f1,...,ft) is committed to G1,
+    // r(X) = f1(x) + f2(x)X + ... + ft(x)X^{t-1}, // fflonk_remainder_poly
+    // z(X) = X^t - x, // fflonk_vanishing_poly
+    // and q = g // z = (g - r) / z is commited to G1. // fflonk_vanishing_poly
+    fn verify_fflonk(
+        evk: &ExtendedVerifierKey<E>,
+        g1: E::G1Affine,
+        q1: E::G1Affine,
+        x: P::Point,
+        vs: &[P::Point],
+        t: usize,
+    ) -> bool {
+        let r = P::from_coefficients_slice(vs);
+        let r1 = Self::commit_g(&evk.powers_in_g1, &r);
+        let z = Self::fflonk_vanishing_poly(t, x);
+        let z2 = Self::commit_g(&evk.powers_in_g2, &z);
+
+        Self::verify(g1, r1, q1, z2, evk.powers_in_g2[0])
+    }
+
+    // checks f - r = q * z in the exponent given q and f are committed to G1
+    fn verify(
+        f1: E::G1Affine,
+        r1: E::G1Affine,
+        q1: E::G1Affine,
+        z2: E::G2Affine,
+        g2: E::G2Affine, // generator
+    ) -> bool {
+        let f1 = f1.into_projective();
+        let r1 = r1.into_projective();
+        let fr = f1 - r1;
+        assert_eq!(f1, fr + r1);
+        E::product_of_pairings(&[
+            (fr.into_affine().into(), (-g2).into()),
+            (q1.into(), z2.into()),
+        ]).is_one()
     }
 }
 
@@ -505,7 +598,7 @@ mod tests {
         let rng = &mut test_rng();
 
         let t: usize = 4;
-        let d = 1023;
+        let d = 15;
         let z = Fr::rand(rng);
         let x = z.pow([t as u64]);
 
@@ -514,15 +607,51 @@ mod tests {
             .collect();
 
         let g = KzgBw6::combine(&fs);
-
+        let q = KzgBw6::fflonk_quotient_poly(&g, t, x);
         let r = KzgBw6::fflonk_remainder_poly(&fs, x);
-
-        let p = &g - &r;
         let z = KzgBw6::fflonk_vanishing_poly(t, x);
 
+        let p = &g - &r;
         let p = DenseOrSparsePolynomial::from(p);
         let z = DenseOrSparsePolynomial::from(z);
-        assert!(p.divide_with_q_and_r(&z).unwrap().1.is_zero());
+        let (q2, r) = p.divide_with_q_and_r(&z).unwrap();
+        assert!(r.is_zero());
+        assert_eq!(q, q2);
+    }
+
+    #[test]
+    fn test_fflonk_with_n_point_kzg() {
+        let rng = &mut test_rng();
+
+        let t: usize = 4;
+        let d = 15;
+
+        let max_degree = t * (d + 1);
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let evk = params.get_evk();
+
+        let fs: Vec<_> = (0..t)
+            .map(|_| DensePolynomial::rand(d, rng))
+            .collect();
+        let g = KzgBw6::combine(&fs);
+
+        let g1 = KzgBw6::commit(&pk, &g);
+
+        let z = Fr::rand(rng);
+        let x = z.pow([t as u64]);
+
+        let q1 = KzgBw6::open_combined(&pk, &g, x, t);
+
+        let mut vs: Vec<_> = fs.iter().map(|fi| fi.evaluate(&x)).collect();
+
+        let valid = KzgBw6::verify_fflonk(&evk, g1, q1, x, &vs, t);
+        assert!(valid, "check failed for a valid point");
+
+        vs[0] = Fr::rand(rng);
+        let valid = KzgBw6::verify_fflonk(&evk, g1, q1, x, &vs, t);
+        assert!(!valid, "check failed for an invalid point");
     }
 
     #[test]
