@@ -353,6 +353,80 @@ impl<E, P> KZG10<E, P>
     ) -> E::Fr {
         utils::horner_field(values, randomizer)
     }
+
+    /// Flattens the matrix `fs` given as a list of rows by concatenating it's columns.
+    /// Rows are right-padded by 0s to `max_row_len`.
+    fn flatten<'a>(fs: impl ExactSizeIterator<Item=&'a [<E as PairingEngine>::Fr]>, max_row_len: usize) -> Vec<E::Fr> {
+        let t = fs.len();
+        let mut g = vec![E::Fr::zero(); t * max_row_len];
+        for (i, fi) in fs.enumerate() {
+            for (j, fij) in fi.iter().enumerate() {
+                g[t * j + i] = *fij;
+            }
+        }
+        g
+    }
+
+    /// `g = combine(f1,..,ft)`
+    fn combine(fs: &[P]) -> P {
+        let max_coeffs_len = fs.iter().map(|fi| fi.coeffs().len()).max().expect("empty slice");
+        let fs = fs.iter().map(|fi| fi.coeffs());
+        let g = Self::flatten(fs, max_coeffs_len);
+        P::from_coefficients_vec(g)
+    }
+
+    /// On input a polynomial `g = combine(f1,...,ft)` and a point `x`,
+    /// outputs single proof for `f1(x),...,ft(x)`.
+    pub fn open_combined<'a>(
+        powers: &ProverKey<E>,
+        g: &P,
+        x: P::Point
+    ) -> E::G1Affine {
+        assert!(g.degree() <= powers.max_degree()); //TODO:
+        let open_time = start_timer!(|| format!("Opening combined polynomial of degree {}", g.degree()));
+
+        let witness_time = start_timer!(|| "Computing witness polynomials");
+        let witness_poly = Self::fflonk_quotient_polynomial(g, 1,x);
+        end_timer!(witness_time);
+
+        let proof = Self::open_with_witness_polynomial(
+            powers,
+            &witness_poly
+        );
+
+        end_timer!(open_time);
+        proof
+    }
+
+    /// (fflonk) opening polynomial for `g = combine(f1,...,ft)` in point `x`
+    /// `q = g // X^t - x`
+    pub fn fflonk_quotient_polynomial(
+        g: &P,
+        t: usize,
+        x: P::Point,
+    ) -> P {
+
+        let z = Self::fflonk_vanishing_poly(t, x);
+        let witness_time = start_timer!(|| "Computing witness polynomial");
+        let q = g / &z; // ignores the remainder
+        end_timer!(witness_time);
+
+        q
+    }
+
+    // Z(X) = X^t - x
+    fn fflonk_vanishing_poly(t: usize, x: P::Point) -> P {
+        let mut z = vec![E::Fr::zero(); t + 1]; // deg(Z) = t
+        z[0] = -x;
+        z[t] = E::Fr::one();
+        P::from_coefficients_vec(z)
+    }
+
+    // r(X) = f1(x) + f2(x)X + ... + ft(x)X^{t-1}
+    fn fflonk_remainder_poly(fs: &[P], x: P::Point) -> P {
+        let vs = fs.iter().map(|fi| fi.evaluate(&x)).collect();
+        P::from_coefficients_vec(vs)
+    }
 }
 
 fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(
@@ -384,6 +458,7 @@ mod tests {
     use ark_bw6_761::{BW6_761, Fr};
 
     use rand::Rng;
+    use ark_ff::Field;
 
 
     type Bw6Poly = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
@@ -421,6 +496,33 @@ mod tests {
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(0);
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(1);
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(123);
+    }
+
+    #[test]
+    fn test_fflonk() {
+        use ark_poly::univariate::DenseOrSparsePolynomial;
+
+        let rng = &mut test_rng();
+
+        let t: usize = 4;
+        let d = 1023;
+        let z = Fr::rand(rng);
+        let x = z.pow([t as u64]);
+
+        let fs: Vec<_> = (0..t)
+            .map(|_| DensePolynomial::rand(d, rng))
+            .collect();
+
+        let g = KzgBw6::combine(&fs);
+
+        let r = KzgBw6::fflonk_remainder_poly(&fs, x);
+
+        let p = &g - &r;
+        let z = KzgBw6::fflonk_vanishing_poly(t, x);
+
+        let p = DenseOrSparsePolynomial::from(p);
+        let z = DenseOrSparsePolynomial::from(z);
+        assert!(p.divide_with_q_and_r(&z).unwrap().1.is_zero());
     }
 
     #[test]
