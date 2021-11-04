@@ -7,7 +7,7 @@
 
 use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{One, PrimeField, UniformRand, Zero};
+use ark_ff::{One, PrimeField, UniformRand, Zero, FftField};
 use ark_poly::UVPolynomial;
 use ark_std::{format, marker::PhantomData, ops::Div, vec};
 
@@ -454,6 +454,25 @@ impl<E, P> KZG10<E, P>
         g / &Self::fflonk_vanishing_poly(t, x) // ignores the remainder
     }
 
+    /// Primitive root of unity of order `t`.
+    fn primitive_root(t: usize) -> E::Fr {
+        E::Fr::get_root_of_unity(t).expect("no root of unity")
+    }
+
+    /// `z, zw,...,zw^{t-1}`
+    fn fflonk_roots(z: E::Fr, t: usize) -> Vec<E::Fr> {
+        let w = Self::primitive_root(t);
+        let mut acc = z;
+        let mut roots = vec![z];
+        roots.resize_with(t, || {acc *= w; acc});
+        roots
+    }
+
+    // Z(X) = X - x
+    fn z(x: P::Point) -> P {
+        P::from_coefficients_vec(vec![-x, E::Fr::one()])
+    }
+
     // Z(X) = X^t - x
     fn fflonk_vanishing_poly(t: usize, x: P::Point) -> P {
         let mut z = vec![E::Fr::zero(); t + 1]; // deg(Z) = t
@@ -510,9 +529,9 @@ impl<E, P> KZG10<E, P>
 
     fn interpolate(xs: &[E::Fr], ys: &[E::Fr]) -> P {
         let x1 = xs[0];
-        let mut l = P::from_coefficients_vec(vec![-x1, E::Fr::one()]);
+        let mut l = Self::z(x1);
         for &xj in xs.iter().skip(1) {
-            let q = P::from_coefficients_vec(vec![-xj, E::Fr::one()]);
+            let q = Self::z(xj);
             l = &l * &q;
         }
 
@@ -531,7 +550,7 @@ impl<E, P> KZG10<E, P>
 
         let mut res = P::zero();
         for ((&wi, &xi), &yi) in ws.iter().zip(xs).zip(ys) {
-            let d = P::from_coefficients_vec(vec![-xi, E::Fr::one()]);
+            let d = Self::z(xi);
             let mut z = &l / &d;
             z = &z * wi;
             z = &z * yi;
@@ -571,6 +590,7 @@ mod tests {
 
     use rand::Rng;
     use ark_ff::Field;
+    use ark_ec::group::Group;
 
 
     type Bw6Poly = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
@@ -610,6 +630,22 @@ mod tests {
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(0);
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(1);
         _setup_commit_open_check_test::<BW6_761, Bw6Poly>(123);
+    }
+
+    #[test]
+    fn test_fflonk_vanishing_poly() {
+        let rng = &mut test_rng();
+
+        let t = 2;
+        let z = Fr::rand(rng);
+        let x = z.pow([t as u64]);
+        let vp = KzgBw6::fflonk_vanishing_poly(t, x);
+        let zws = KzgBw6::fflonk_roots(z, t);
+        let vp2 = zws.iter()
+            .map(|&zw| KzgBw6::z(zw))
+            .reduce(|p, pi| &p * &pi)
+            .unwrap();
+        assert_eq!(vp, vp2);
     }
 
     #[test]
