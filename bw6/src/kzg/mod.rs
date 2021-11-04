@@ -7,7 +7,7 @@
 
 use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{One, PrimeField, UniformRand, Zero, FftField};
+use ark_ff::{One, PrimeField, UniformRand, Zero, FftField, Field};
 use ark_poly::UVPolynomial;
 use ark_std::{format, marker::PhantomData, ops::Div, vec};
 
@@ -433,7 +433,7 @@ impl<E, P> KZG10<E, P>
 
     /// On input a polynomial `g = combine(f1,...,ft)` and a point `x`,
     /// outputs single proof for `f1(x),...,ft(x)`.
-    pub fn open_combined<'a>(
+    pub fn open_combined(
         powers: &ProverKey<E>,
         g: &P,
         x: P::Point,
@@ -441,6 +441,25 @@ impl<E, P> KZG10<E, P>
     ) -> E::G1Affine {
         assert!(g.degree() <= powers.max_degree()); //TODO:
         let q = Self::fflonk_quotient_poly(g, t, x);
+        Self::open_with_witness_polynomial(powers,&q)
+    }
+
+    pub fn flonk_n_point_z(xs: &[P::Point], t: usize) -> P {
+        xs.iter()
+            .map(|&xi| Self::fflonk_vanishing_poly(t, xi))
+            .reduce(|p, pi| &p * &pi)
+            .unwrap()
+    }
+
+    pub fn flonk_open_1_poly_n_points(
+        powers: &ProverKey<E>,
+        g: &P,
+        xs: &[P::Point],
+        t: usize,
+    ) -> E::G1Affine {
+        assert!(g.degree() <= powers.max_degree()); //TODO:
+        let z = Self::flonk_n_point_z(xs, t);
+        let q = g / &z; // ignores the remainder
         Self::open_with_witness_polynomial(powers,&q)
     }
 
@@ -486,6 +505,40 @@ impl<E, P> KZG10<E, P>
         let vs = fs.iter().map(|fi| fi.evaluate(&x)).collect();
         P::from_coefficients_vec(vs)
     }
+
+    fn multi_eval(poly: &P, points: &[P::Point]) -> Vec<P::Point> {
+        assert_eq!(poly.degree() + 1, points.len());
+        points.iter().map(|p| poly.evaluate(p)).collect()
+    }
+
+    fn fflonk_aggregate_remainder(rxs: &[P::Point], vss: Vec<Vec<P::Point>>, t: usize) -> P {
+        assert!(vss.iter().all(|vs| vs.len() == t));
+        let rootss = rxs.iter().map(|&rx| Self::fflonk_roots(rx, t));
+        let polys= vss.iter().map(|vs| P::from_coefficients_slice(vs));
+        assert_eq!(rootss.len(), polys.len());
+        let xs: Vec<_> = rootss.clone().flatten().collect();
+        let ys: Vec<_> = polys.zip(rootss).flat_map(|(poly, roots)| Self::multi_eval(&poly, &roots)).collect();
+        Self::interpolate(&xs, &ys)
+    }
+
+    fn verify_fflonk_1_poly_n_points(
+        evk: &ExtendedVerifierKey<E>,
+        g1: E::G1Affine,
+        q1: E::G1Affine,
+        t_root_xs: &[P::Point],
+        vss: Vec<Vec<P::Point>>,
+        t: usize,
+    ) -> bool {
+        let r = Self::fflonk_aggregate_remainder(t_root_xs, vss, t);
+        let r1 = Self::commit_g(&evk.powers_in_g1, &r);
+
+        let xs: Vec<_> = t_root_xs.iter().map(|&t_root_x| t_root_x.pow([t as u64])).collect();
+        let z = Self::flonk_n_point_z(&xs, t);
+        let z2 = Self::commit_g(&evk.powers_in_g2, &z);
+
+        Self::verify(g1, r1, q1, z2, evk.powers_in_g2[0])
+    }
+
 
     // Verifies single fflonk proof using n-point KZG.
     // Checks g - r = q * z in the exponent,
@@ -709,6 +762,38 @@ mod tests {
         vs[0] = Fr::rand(rng);
         let valid = KzgBw6::verify_fflonk(&evk, g1, q1, x, &vs, t);
         assert!(!valid, "check failed for an invalid point");
+    }
+
+    #[test]
+    fn test_fflonk_in_m_points_with_n_point_kzg() {
+        let rng = &mut test_rng();
+
+        let t: usize = 4;
+        let d = 15;
+        let n = 2;
+
+        let max_degree = t * (d + 1);
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let evk = params.get_evk();
+
+        let fs: Vec<_> = (0..t)
+            .map(|_| DensePolynomial::rand(d, rng))
+            .collect();
+        let g = KzgBw6::combine(&fs);
+
+        let g1 = KzgBw6::commit(&pk, &g);
+
+        let zs: Vec<_> = (0..n).map(|_| Fr::rand(rng)).collect();
+        let xs: Vec<_> = zs.iter().map(|z| z.pow([t as u64])).collect();
+
+        let q1 = KzgBw6::flonk_open_1_poly_n_points(&pk, &g, &xs, t);
+
+        let vss = xs.iter().map(|x| fs.iter().map(|fi| fi.evaluate(&x)).collect()).collect();
+
+        let valid = KzgBw6::verify_fflonk_1_poly_n_points(&evk, g1, q1, &zs, vss, t);
+        assert!(valid, "check failed for a valid point");
     }
 
     #[test]
