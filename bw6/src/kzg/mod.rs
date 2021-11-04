@@ -22,6 +22,7 @@ use crate::utils;
 // use rayon::prelude::*;
 
 use rand::RngCore;
+use ark_std::ops::Mul;
 
 /// `Params` are the parameters for the KZG10 scheme.
 #[derive(Clone, Debug)]
@@ -126,6 +127,9 @@ impl<E, P> KZG10<E, P>
         E: PairingEngine,
         P: UVPolynomial<E::Fr, Point=E::Fr>,
         for<'a, 'b> &'a P: Div<&'b P, Output=P>,
+        for<'a, 'b> &'a P: Mul<&'b P, Output=P>,
+        for<'a> &'a P: Mul<E::Fr, Output=P>,
+
 {
     /// Constructs public parameters when given as input the maximum degree `degree`
     /// for the polynomial commitment scheme.
@@ -436,19 +440,8 @@ impl<E, P> KZG10<E, P>
         t: usize,
     ) -> E::G1Affine {
         assert!(g.degree() <= powers.max_degree()); //TODO:
-        let open_time = start_timer!(|| format!("Opening combined polynomial of degree {}", g.degree()));
-
-        let witness_time = start_timer!(|| "Computing witness polynomials");
-        let witness_poly = Self::fflonk_quotient_poly(g, t, x);
-        end_timer!(witness_time);
-
-        let proof = Self::open_with_witness_polynomial(
-            powers,
-            &witness_poly,
-        );
-
-        end_timer!(open_time);
-        proof
+        let q = Self::fflonk_quotient_poly(g, t, x);
+        Self::open_with_witness_polynomial(powers,&q)
     }
 
     /// (fflonk) opening polynomial for `g = combine(f1,...,ft)` in point `x`
@@ -458,13 +451,7 @@ impl<E, P> KZG10<E, P>
         t: usize,
         x: P::Point,
     ) -> P {
-        let z = Self::fflonk_vanishing_poly(t, x);
-        let witness_time = start_timer!(|| "Computing witness polynomial");
-        let q = g / &z;
-        // ignores the remainder
-        end_timer!(witness_time);
-
-        q
+        g / &Self::fflonk_vanishing_poly(t, x) // ignores the remainder
     }
 
     // Z(X) = X^t - x
@@ -520,6 +507,38 @@ impl<E, P> KZG10<E, P>
             (q1.into(), z2.into()),
         ]).is_one()
     }
+
+    fn interpolate(xs: &[E::Fr], ys: &[E::Fr]) -> P {
+        let x1 = xs[0];
+        let mut l = P::from_coefficients_vec(vec![-x1, E::Fr::one()]);
+        for &xj in xs.iter().skip(1) {
+            let q = P::from_coefficients_vec(vec![-xj, E::Fr::one()]);
+            l = &l * &q;
+        }
+
+        let mut ws = vec![];
+        for xj in xs {
+            let mut wj = E::Fr::one();
+            for xk in xs {
+                if xk != xj {
+                    let d = *xj - xk;
+                    wj *= d;
+                }
+            }
+            ws.push(wj);
+        }
+        ark_ff::batch_inversion(&mut ws);
+
+        let mut res = P::zero();
+        for ((&wi, &xi), &yi) in ws.iter().zip(xs).zip(ys) {
+            let d = P::from_coefficients_vec(vec![-xi, E::Fr::one()]);
+            let mut z = &l / &d;
+            z = &z * wi;
+            z = &z * yi;
+            res = res + z;
+        }
+        res
+    }
 }
 
 fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(
@@ -563,6 +582,8 @@ mod tests {
             E: PairingEngine,
             P: UVPolynomial<E::Fr, Point=E::Fr>,
             for<'a, 'b> &'a P: Div<&'b P, Output=P>,
+            for<'a, 'b> &'a P: Mul<&'b P, Output=P>,
+            for<'a> &'a P: Mul<E::Fr, Output=P>,
     {
         let rng = &mut test_rng();
 
