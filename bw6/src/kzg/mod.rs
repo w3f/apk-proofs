@@ -610,6 +610,42 @@ impl<E, P> KZG10<E, P>
         ]).is_one()
     }
 
+    pub fn flonk_in_shplonk_open(
+        powers: &ProverKey<E>,
+        gs: &[P],
+        rootss: &[Vec<E::Fr>],
+        ts: &Vec<usize>,
+    ) -> (E::G1Affine, E::G1Affine) {
+        let k = gs.len();
+        assert_eq!(k, rootss.len());
+        assert_eq!(k, ts.len());
+        let xss: Vec<_> = rootss.iter().zip(ts).map(|(roots, &ti)|
+            roots.iter().flat_map(|&root| Self::fflonk_roots(root, ti)).collect()
+        ).collect();
+
+        Self::shplonk_open(powers, gs, &xss, &mut Transcript::new(b"shplonk-test"))
+    }
+
+    fn flonk_in_shplonk_verify(
+        pvk: &PreparedVerifierKey<E>,
+        g_cs: &[E::G1Affine],
+        proof: (E::G1Affine, E::G1Affine),
+        rootss: &[Vec<E::Fr>],
+        vss: &[Vec<Vec<P::Point>>],
+        ts: &Vec<usize>,
+    ) -> bool {
+        let (xss, yss) = rootss.iter().zip(vss).zip(ts).map(|((rootsi, vsi), &ti)| {
+            // let padded = vsi.iter().cloned().map(|mut vs| {
+            //     vs.resize(ti, E::Fr::zero());
+            //     vs
+            // }).collect();
+            let padded = vsi.to_vec();
+            Self::fflonk_aggregate_values(rootsi, padded, ti)
+        }).unzip();
+
+        Self::shplonk_verify(pvk, g_cs, proof.0, proof.1, &xss, &yss, &mut Transcript::new(b"shplonk-test"))
+    }
+
     /// Flattens the matrix `fs` given as a list of rows by concatenating it's columns.
     /// Rows are right-padded by 0s to `max_row_len`.
     fn flatten<'a>(fs: impl ExactSizeIterator<Item=&'a [<E as PairingEngine>::Fr]>, max_row_len: usize) -> Vec<E::Fr> {
@@ -714,13 +750,18 @@ impl<E, P> KZG10<E, P>
         points.iter().map(|p| poly.evaluate(p)).collect()
     }
 
-    fn fflonk_aggregate_remainder(rxs: &[P::Point], vss: Vec<Vec<P::Point>>, t: usize) -> P {
+    fn fflonk_aggregate_values(rxs: &[P::Point], vss: Vec<Vec<P::Point>>, t: usize) -> (Vec<E::Fr>, Vec<E::Fr>) {
         assert!(vss.iter().all(|vs| vs.len() == t));
         let rootss = rxs.iter().map(|&rx| Self::fflonk_roots(rx, t));
         let polys = vss.iter().map(|vs| P::from_coefficients_slice(vs));
         assert_eq!(rootss.len(), polys.len());
         let xs: Vec<_> = rootss.clone().flatten().collect();
         let ys: Vec<_> = polys.zip(rootss).flat_map(|(poly, roots)| Self::multi_eval(&poly, &roots)).collect();
+        (xs, ys)
+    }
+
+    fn fflonk_aggregate_remainder(rxs: &[P::Point], vss: Vec<Vec<P::Point>>, t: usize) -> P {
+        let (xs, ys) = Self::fflonk_aggregate_values(rxs, vss, t);
         Self::interpolate(&xs, &ys)
     }
 
@@ -855,6 +896,7 @@ mod tests {
     use ark_ff::Field;
     use ark_ec::group::Group;
     use std::iter::FromIterator;
+    use std::cmp::max;
 
 
     type Bw6Poly = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
@@ -1055,6 +1097,72 @@ mod tests {
 
         let valid = KzgBw6::verify_fflonk_1_poly_n_points(&evk, g1, q1, &zs, vss, t);
         assert!(valid, "check failed for a valid point");
+    }
+
+    #[test]
+    fn test_fflonk_on_shplonk() {
+        let rng = &mut test_rng();
+
+        let n = 16; // domain size
+
+        let fs1 = vec![
+            DensePolynomial::rand(n - 1, rng),
+            DensePolynomial::rand(n - 1, rng),
+        ];
+
+        let fs2 = vec![
+            DensePolynomial::rand(n - 1, rng),
+            DensePolynomial::rand(n - 1, rng),
+            DensePolynomial::rand(4 * n - 3, rng),
+            DensePolynomial::rand(3 * n - 2, rng),
+            DensePolynomial::rand(2 * n - 2, rng),
+            DensePolynomial::rand(2 * n - 2, rng),
+            DensePolynomial::rand(2 * n - 2, rng),
+            DensePolynomial::rand(2 * n - 2, rng),
+        ];
+
+        let t1 = 2;
+        let t2 = 8; // TODO: 6
+        let d1 = fs1.iter().map(|fi| fi.degree()).max().unwrap();
+        let d2 = fs2.iter().map(|fi| fi.degree()).max().unwrap();
+
+        let max_degree = max(t1, t2) * (max(d1, d2)+1);
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let pvk = params.get_vk().prepare();
+
+        let g1 = KzgBw6::combine(&fs1);
+        let g2 = KzgBw6::combine(&fs2);
+
+        let g1_c = KzgBw6::commit(&pk, &g1);
+        let g2_c = KzgBw6::commit(&pk, &g2);
+
+        let x1_root_t2 = Fr::rand(rng);
+        let x1_root_t1 = x1_root_t2.pow([4]);
+        assert_eq!(x1_root_t1.pow([t1 as u64]), x1_root_t2.pow([t2 as u64]));
+        let x1 = x1_root_t1.pow([t1 as u64]);
+
+        let x2_root_t2 = Fr::rand(rng);
+        let x2 = x2_root_t2.pow([t2 as u64]);
+
+        let gs = vec![g1, g2];
+        let roots1 = vec![x1_root_t1];
+        let roots2 = vec![x1_root_t2, x2_root_t2];
+        let rootss = vec![roots1, roots2];
+        let ts = vec![t1, t2];
+
+        let proof = KzgBw6::flonk_in_shplonk_open(&pk, &gs, &rootss, &ts);
+
+        let g_cs = vec![g1_c, g2_c];
+
+        let fs1_in_x1 = fs1.iter().map(|fi| fi.evaluate(&x1)).collect();
+        let fs2_in_x1 = fs2.iter().map(|fi| fi.evaluate(&x1)).collect();
+        let fs2_in_x2 = fs2.iter().map(|fi| fi.evaluate(&x2)).collect();
+        let vss = vec![vec![fs1_in_x1], vec![fs2_in_x1, fs2_in_x2]];
+
+        let valid = KzgBw6::flonk_in_shplonk_verify(&pvk, &g_cs,proof, &rootss, &vss, &ts);
+        assert!(valid);
     }
 
     #[test]
