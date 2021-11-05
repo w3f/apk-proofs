@@ -9,6 +9,8 @@ use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField, UniformRand, Zero, FftField, Field};
 use ark_poly::UVPolynomial;
+use ark_poly::univariate::{DenseOrSparsePolynomial, DensePolynomial};
+
 use ark_std::{format, marker::PhantomData, ops::Div, vec};
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
@@ -23,6 +25,7 @@ use crate::utils;
 
 use rand::RngCore;
 use ark_std::ops::Mul;
+use std::collections::HashSet;
 
 /// `Params` are the parameters for the KZG10 scheme.
 #[derive(Clone, Debug)]
@@ -125,11 +128,11 @@ pub struct KZG10<E: PairingEngine, P: UVPolynomial<E::Fr>> {
 impl<E, P> KZG10<E, P>
     where
         E: PairingEngine,
-        P: UVPolynomial<E::Fr, Point=E::Fr>,
+        P: UVPolynomial<E::Fr, Point=E::Fr> + From<DensePolynomial<E::Fr>>,
         for<'a, 'b> &'a P: Div<&'b P, Output=P>,
         for<'a, 'b> &'a P: Mul<&'b P, Output=P>,
         for<'a> &'a P: Mul<E::Fr, Output=P>,
-
+        for<'a> &'a P: Into<DenseOrSparsePolynomial<'a, E::Fr>>,
 {
     /// Constructs public parameters when given as input the maximum degree `degree`
     /// for the polynomial commitment scheme.
@@ -251,7 +254,7 @@ impl<E, P> KZG10<E, P>
         witness_polynomial
     }
 
-    pub(crate) fn open_with_witness_polynomial<'a>(
+    pub(crate) fn open_with_witness_polynomial(
         powers: &ProverKey<E>,
         witness_polynomial: &P,
     ) -> E::G1Affine {
@@ -342,7 +345,8 @@ impl<E, P> KZG10<E, P>
             // only from 128-bit strings.
             randomizer = u128::rand(rng).into();
         }
-        total_c -= &vk.g.mul(g_multiplier); // $(\sum_i r_i y_i) [1]_1$
+        total_c -= &vk.g.mul(g_multiplier);
+        // $(\sum_i r_i y_i) [1]_1$
         end_timer!(combination_time);
 
         (total_c, total_w)
@@ -410,6 +414,64 @@ impl<E, P> KZG10<E, P>
         utils::horner_field(values, randomizer)
     }
 
+    // vanishing polynomial of the set
+    // TODO: product set
+    pub fn z_of_set<'a>(xs: impl IntoIterator<Item=&'a P::Point>) -> P {
+        xs.into_iter()
+            .map(|&xi| Self::z_of_point(xi))
+            .reduce(|p, pi| &p * &pi)
+            .unwrap()
+    }
+
+    pub fn shplonk_open_1_poly_n_points_interactive(
+        powers: &ProverKey<E>,
+        f: &P,
+        xs: &HashSet<P::Point>,
+        zeta: P::Point,
+    ) -> (E::G1Affine, E::G1Affine) {
+        assert!(f.degree() <= powers.max_degree());
+        let z = Self::z_of_set(xs);
+        let (q, r) = Self::divide_with_remainder(f, &z);
+        let q1 = Self::open_with_witness_polynomial(powers, &q);
+        let r_at_zeta = r.evaluate(&zeta);
+        let z_at_zeta = z.evaluate(&zeta);
+
+        let mut l = P::zero();
+        l += f;
+        l -= &(&q * z_at_zeta);
+        l -= &P::from_coefficients_vec(vec![r_at_zeta]);
+
+        let z_of_zeta = Self::z_of_point(zeta);
+        let (q_of_l, r_of_l) = Self::divide_with_remainder(&l, &z_of_zeta);
+        assert!(r_of_l.is_zero());
+        let q_of_l1 = Self::open_with_witness_polynomial(powers, &q_of_l);
+        (q1, q_of_l1)
+    }
+
+    pub fn shplonk_verify_1_poly_n_points_interactive(
+        pvk: &PreparedVerifierKey<E>,
+        f1: &E::G1Affine,
+        q1: E::G1Affine,
+        q_of_l1: E::G1Affine,
+        xs: &[E::Fr],
+        ys: &[E::Fr],
+        zeta: E::Fr,
+    ) -> bool {
+        let r = Self::interpolate(xs, ys);
+        let r_zeta = r.evaluate(&zeta);
+        let r_zeta_1 = pvk.g.mul(r_zeta);
+
+        let z = Self::z_of_set(xs);
+        let z_at_zeta = z.evaluate(&zeta);
+
+        let l_1 = f1.into_projective() - r_zeta_1 - q1.mul(z_at_zeta) + q_of_l1.mul(zeta);
+
+        E::product_of_pairings(&[
+            (l_1.into_affine().into(), pvk.prepared_h.clone()),
+            ((-q_of_l1).into(), pvk.prepared_beta_h.clone()),
+        ]).is_one()
+    }
+
     /// Flattens the matrix `fs` given as a list of rows by concatenating it's columns.
     /// Rows are right-padded by 0s to `max_row_len`.
     fn flatten<'a>(fs: impl ExactSizeIterator<Item=&'a [<E as PairingEngine>::Fr]>, max_row_len: usize) -> Vec<E::Fr> {
@@ -441,7 +503,7 @@ impl<E, P> KZG10<E, P>
     ) -> E::G1Affine {
         assert!(g.degree() <= powers.max_degree()); //TODO:
         let q = Self::fflonk_quotient_poly(g, t, x);
-        Self::open_with_witness_polynomial(powers,&q)
+        Self::open_with_witness_polynomial(powers, &q)
     }
 
     pub fn flonk_n_point_z(xs: &[P::Point], t: usize) -> P {
@@ -460,7 +522,7 @@ impl<E, P> KZG10<E, P>
         assert!(g.degree() <= powers.max_degree()); //TODO:
         let z = Self::flonk_n_point_z(xs, t);
         let q = g / &z; // ignores the remainder
-        Self::open_with_witness_polynomial(powers,&q)
+        Self::open_with_witness_polynomial(powers, &q)
     }
 
     /// (fflonk) opening polynomial for `g = combine(f1,...,ft)` in point `x`
@@ -483,12 +545,15 @@ impl<E, P> KZG10<E, P>
         let w = Self::primitive_root(t);
         let mut acc = z;
         let mut roots = vec![z];
-        roots.resize_with(t, || {acc *= w; acc});
+        roots.resize_with(t, || {
+            acc *= w;
+            acc
+        });
         roots
     }
 
     // Z(X) = X - x
-    fn z(x: P::Point) -> P {
+    fn z_of_point(x: P::Point) -> P {
         P::from_coefficients_vec(vec![-x, E::Fr::one()])
     }
 
@@ -514,7 +579,7 @@ impl<E, P> KZG10<E, P>
     fn fflonk_aggregate_remainder(rxs: &[P::Point], vss: Vec<Vec<P::Point>>, t: usize) -> P {
         assert!(vss.iter().all(|vs| vs.len() == t));
         let rootss = rxs.iter().map(|&rx| Self::fflonk_roots(rx, t));
-        let polys= vss.iter().map(|vs| P::from_coefficients_slice(vs));
+        let polys = vss.iter().map(|vs| P::from_coefficients_slice(vs));
         assert_eq!(rootss.len(), polys.len());
         let xs: Vec<_> = rootss.clone().flatten().collect();
         let ys: Vec<_> = polys.zip(rootss).flat_map(|(poly, roots)| Self::multi_eval(&poly, &roots)).collect();
@@ -582,9 +647,9 @@ impl<E, P> KZG10<E, P>
 
     fn interpolate(xs: &[E::Fr], ys: &[E::Fr]) -> P {
         let x1 = xs[0];
-        let mut l = Self::z(x1);
+        let mut l = Self::z_of_point(x1);
         for &xj in xs.iter().skip(1) {
-            let q = Self::z(xj);
+            let q = Self::z_of_point(xj);
             l = &l * &q;
         }
 
@@ -603,13 +668,20 @@ impl<E, P> KZG10<E, P>
 
         let mut res = P::zero();
         for ((&wi, &xi), &yi) in ws.iter().zip(xs).zip(ys) {
-            let d = Self::z(xi);
+            let d = Self::z_of_point(xi);
             let mut z = &l / &d;
             z = &z * wi;
             z = &z * yi;
             res = res + z;
         }
         res
+    }
+
+    fn divide_with_remainder(a: &P, b: &P) -> (P, P) {
+        let a: DenseOrSparsePolynomial<E::Fr> = a.into();
+        let b: DenseOrSparsePolynomial<E::Fr> = b.into();
+        let (q, r) = a.divide_with_q_and_r(&b).unwrap();
+        (q.into(), r.into())
     }
 }
 
@@ -644,6 +716,7 @@ mod tests {
     use rand::Rng;
     use ark_ff::Field;
     use ark_ec::group::Group;
+    use std::iter::FromIterator;
 
 
     type Bw6Poly = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
@@ -653,10 +726,11 @@ mod tests {
     fn _setup_commit_open_check_test<E, P>(max_degree: usize)
         where
             E: PairingEngine,
-            P: UVPolynomial<E::Fr, Point=E::Fr>,
+            P: UVPolynomial<E::Fr, Point=E::Fr> + From<DensePolynomial<E::Fr>>,
             for<'a, 'b> &'a P: Div<&'b P, Output=P>,
             for<'a, 'b> &'a P: Mul<&'b P, Output=P>,
             for<'a> &'a P: Mul<E::Fr, Output=P>,
+            for<'a> &'a P: Into<DenseOrSparsePolynomial<'a, E::Fr>>,
     {
         let rng = &mut test_rng();
 
@@ -695,7 +769,7 @@ mod tests {
         let vp = KzgBw6::fflonk_vanishing_poly(t, x);
         let zws = KzgBw6::fflonk_roots(z, t);
         let vp2 = zws.iter()
-            .map(|&zw| KzgBw6::z(zw))
+            .map(|&zw| KzgBw6::z_of_point(zw))
             .reduce(|p, pi| &p * &pi)
             .unwrap();
         assert_eq!(vp, vp2);
@@ -703,8 +777,6 @@ mod tests {
 
     #[test]
     fn test_fflonk() {
-        use ark_poly::univariate::DenseOrSparsePolynomial;
-
         let rng = &mut test_rng();
 
         let t: usize = 4;
@@ -722,11 +794,34 @@ mod tests {
         let z = KzgBw6::fflonk_vanishing_poly(t, x);
 
         let p = &g - &r;
-        let p = DenseOrSparsePolynomial::from(p);
-        let z = DenseOrSparsePolynomial::from(z);
-        let (q2, r) = p.divide_with_q_and_r(&z).unwrap();
+        let (q2, r) = KzgBw6::divide_with_remainder(&p, &z);
         assert!(r.is_zero());
         assert_eq!(q, q2);
+    }
+
+    #[test]
+    fn test_shplonk2_n_points() {
+        let rng = &mut test_rng();
+        let max_degree = 10;
+        let k = 4;
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let pvk = params.get_vk().prepare();
+
+        let degree = rng.gen_range(0..=max_degree);
+        let poly = DensePolynomial::rand(degree, rng);
+        let comm = KzgBw6::commit(&pk, &poly);
+
+        let zeta = Fr::rand(rng);
+        let xs: Vec<_> = (0..k).map(|_| Fr::rand(rng)).collect();
+
+        let xs_set = HashSet::from_iter(xs.clone());
+        let (qf, ql) = KzgBw6::shplonk_open_1_poly_n_points_interactive(&pk, &poly, &xs_set, zeta);
+
+        let ys: Vec<_> = xs.iter().map(|x| poly.evaluate(x)).collect();
+        let valid = KzgBw6::shplonk_verify_1_poly_n_points_interactive(&pvk, &comm, qf, ql, &xs, &ys, zeta);
+        assert!(valid, "check failed for a valid point");
     }
 
     #[test]
