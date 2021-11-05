@@ -26,6 +26,28 @@ use crate::utils;
 use rand::RngCore;
 use ark_std::ops::Mul;
 use std::collections::HashSet;
+use merlin::Transcript;
+use crate::transcript::ApkTranscript;
+
+pub trait ShplonkTranscript<E: PairingEngine> {
+    fn get_zeta(&mut self) -> E::Fr;
+
+    fn commit_to_q(&mut self, point: &E::G1Affine);
+}
+
+impl<E: PairingEngine> ShplonkTranscript<E> for Transcript {
+    fn get_zeta(&mut self) -> E::Fr {
+        let mut buf = [0u8; 16];
+        self.challenge_bytes(b"zeta", &mut buf);
+        E::Fr::from_random_bytes(&buf).unwrap()
+    }
+
+    fn commit_to_q(&mut self, point: &E::G1Affine) {
+        let mut buf = vec![0; point.serialized_size()];
+        point.serialize(&mut buf);
+        self.append_message(b"q", &buf);
+    }
+}
 
 /// `Params` are the parameters for the KZG10 scheme.
 #[derive(Clone, Debug)]
@@ -423,16 +445,20 @@ impl<E, P> KZG10<E, P>
             .unwrap()
     }
 
-    pub fn shplonk_open_1_poly_n_points_interactive(
+    pub fn shplonk_open_1_poly_n_points_interactive<T: ShplonkTranscript<E>>(
         powers: &ProverKey<E>,
         f: &P,
         xs: &HashSet<P::Point>,
-        zeta: P::Point,
+        transcript: &mut T,
     ) -> (E::G1Affine, E::G1Affine) {
         assert!(f.degree() <= powers.max_degree());
         let z = Self::z_of_set(xs);
         let (q, r) = Self::divide_with_remainder(f, &z);
         let q1 = Self::open_with_witness_polynomial(powers, &q);
+
+        transcript.commit_to_q(&q1);
+        let zeta = transcript.get_zeta();
+
         let r_at_zeta = r.evaluate(&zeta);
         let z_at_zeta = z.evaluate(&zeta);
 
@@ -448,15 +474,18 @@ impl<E, P> KZG10<E, P>
         (q1, q_of_l1)
     }
 
-    pub fn shplonk_verify_1_poly_n_points_interactive(
+    pub fn shplonk_verify_1_poly_n_points_interactive<T: ShplonkTranscript<E>>(
         pvk: &PreparedVerifierKey<E>,
         f1: &E::G1Affine,
         q1: E::G1Affine,
         q_of_l1: E::G1Affine,
         xs: &[E::Fr],
         ys: &[E::Fr],
-        zeta: E::Fr,
+        transcript: &mut T,
     ) -> bool {
+        transcript.commit_to_q(&q1);
+        let zeta = transcript.get_zeta();
+
         let r = Self::interpolate(xs, ys);
         let r_zeta = r.evaluate(&zeta);
         let r_zeta_1 = pvk.g.mul(r_zeta);
@@ -817,10 +846,10 @@ mod tests {
         let xs: Vec<_> = (0..k).map(|_| Fr::rand(rng)).collect();
 
         let xs_set = HashSet::from_iter(xs.clone());
-        let (qf, ql) = KzgBw6::shplonk_open_1_poly_n_points_interactive(&pk, &poly, &xs_set, zeta);
+        let (qf, ql) = KzgBw6::shplonk_open_1_poly_n_points_interactive(&pk, &poly, &xs_set, &mut Transcript::new(b"shplonk-test"));
 
         let ys: Vec<_> = xs.iter().map(|x| poly.evaluate(x)).collect();
-        let valid = KzgBw6::shplonk_verify_1_poly_n_points_interactive(&pvk, &comm, qf, ql, &xs, &ys, zeta);
+        let valid = KzgBw6::shplonk_verify_1_poly_n_points_interactive(&pvk, &comm, qf, ql, &xs, &ys, &mut Transcript::new(b"shplonk-test"));
         assert!(valid, "check failed for a valid point");
     }
 
