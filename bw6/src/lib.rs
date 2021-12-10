@@ -32,7 +32,7 @@ mod transcript;
 
 pub mod kzg;
 mod fsrng;
-mod domains;
+pub mod domains;
 mod piop;
 
 pub mod setup;

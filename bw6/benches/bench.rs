@@ -1,7 +1,11 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use ark_ff::{Field, PrimeField};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use ark_ff::{Field, PrimeField, One, FftField};
 use ark_std::{UniformRand, test_rng};
 use ark_ec::{AffineCurve, ProjectiveCurve};
+use apk_proofs::{Keyset, setup};
+use ark_bw6_761::Fr;
+use ark_poly::{Evaluations, EvaluationDomain, UVPolynomial, Radix2EvaluationDomain};
+use ark_poly::univariate::DensePolynomial;
 
 extern crate apk_proofs;
 
@@ -76,8 +80,59 @@ fn bw6_subgroup_check(c: &mut Criterion) {
     });
 }
 
+fn amplification(c: &mut Criterion) {
+    use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, UVPolynomial};
+    use apk_proofs::domains::Domains;
+
+    let mut group = c.benchmark_group("amplification");
+
+    let rng = &mut test_rng();
+    let log_domain_size_range = vec![10, 16];
+
+    for log_domain_size in log_domain_size_range {
+        let n = 2u32.pow(log_domain_size) as usize;
+        let domains = Domains::new(n);
+
+        let evals = (0..n).map(|_| Fr::rand(rng)).collect::<Vec<_>>();
+
+        group.bench_with_input(
+            BenchmarkId::new("2x", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let poly = Evaluations::from_vec_and_domain(evals.clone(), domains.domain).interpolate();
+                poly.evaluate_over_domain_by_ref(domains.domain2x)
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("2x-coset", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                domains.amplify_x2(evals.clone())
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("4x", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                let poly = Evaluations::from_vec_and_domain(evals.clone(), domains.domain).interpolate();
+                poly.evaluate_over_domain_by_ref(domains.domain4x)
+            }),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("4x-coset", log_domain_size),
+            &log_domain_size,
+            |b, _| b.iter(|| {
+                domains.amplify_x4(evals.clone())
+            }),
+        );
+    }
+}
+
 fn verification(c: &mut Criterion) {
-    use apk_proofs::{Prover, Verifier, Setup, SignerSet, Bitmask, bls};
+    use apk_proofs::{Prover, Verifier, Bitmask, bls};
     use merlin::Transcript;
     use rand::{Rng, seq::SliceRandom};
     use std::convert::TryInto;
@@ -85,21 +140,21 @@ fn verification(c: &mut Criterion) {
     let mut group = c.benchmark_group("verification");
 
     let rng = &mut test_rng();
-    let log_domain_size_range = 8..=16;
+    let log_domain_size_range = 8..=10;
 
     for log_domain_size in log_domain_size_range {
-        let setup = Setup::generate(log_domain_size, rng);
-        let keyset_size = rng.gen_range(1..=setup.max_keyset_size());
-        let keyset_size = keyset_size.try_into().unwrap();
-        let signer_set = SignerSet::random(keyset_size, rng);
-        let pks_comm = signer_set.commit(setup.domain_size, &setup.kzg_params.get_pk());
+        let keyset_size = (2u32.pow(log_domain_size) - 1) as usize;
+        let keyset = (0..keyset_size).map(|_| ark_bls12_377::G1Projective::rand(rng)).collect();
+        let keyset = Keyset::new(keyset);
+        let kzg_params = setup::generate_for_keyset(keyset_size, rng);
+        let pks_comm = keyset.commit(&kzg_params.get_pk());
+
         let bitmask = Bitmask::from_bits(&vec![true; keyset_size]);
-        let apk = bls::PublicKey::aggregate(signer_set.get_by_mask(&bitmask));
 
         let prover = Prover::new(
-            &setup,
+            keyset,
             &pks_comm,
-            signer_set.get_all(),
+            kzg_params.clone(),
             Transcript::new(b"apk_proof"),
         );
         let proof_basic = prover.prove_simple(bitmask.clone());
@@ -108,7 +163,7 @@ fn verification(c: &mut Criterion) {
 
         let create_verifier = || {
             Verifier::new(
-                setup.kzg_params.get_vk(),
+                kzg_params.get_vk(),
                 pks_comm.clone(),
                 Transcript::new(b"apk_proof"),
             )
@@ -119,7 +174,7 @@ fn verification(c: &mut Criterion) {
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_simple(&apk, black_box(&bitmask), &proof_basic);
+                verifier.verify_simple(&proof_basic.1, &proof_basic.0);
             }),
         );
 
@@ -128,7 +183,7 @@ fn verification(c: &mut Criterion) {
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_packed(&apk, black_box(&bitmask), &proof_packed);
+                verifier.verify_packed(&proof_packed.1, &proof_packed.0);
             }),
         );
 
@@ -138,7 +193,7 @@ fn verification(c: &mut Criterion) {
             &log_domain_size,
             |b, _| b.iter(|| {
                 let verifier = create_verifier();
-                verifier.verify_counting(&apk, black_box(count), &proof_counting);
+                verifier.verify_counting(&proof_counting.1, &proof_counting.0);
             }),
         );
     }
@@ -146,11 +201,36 @@ fn verification(c: &mut Criterion) {
     group.finish();
 }
 
+fn fft<F: FftField, D: EvaluationDomain<F>>(c: &mut Criterion) {
+    let mut group = c.benchmark_group("FFT");
+
+    let rng = &mut test_rng();
+
+    for logn in 10..=16 {
+        let n = 2usize.pow(logn);
+        let domain = D::new(n).unwrap();
+        let poly = DensePolynomial::<F>::rand(n-1, rng);
+        let coeffs = poly.coeffs;
+
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, n| {
+            b.iter(|| domain.fft(&coeffs))
+        });
+    }
+    group.finish();
+}
+
+
 fn components(c: &mut Criterion) {
     msm::<ark_bw6_761::G1Affine>(c, 6);
     barycentric_evaluation::<ark_bw6_761::Fr>(c, 2u32.pow(10));
     bw6_subgroup_check(c);
+    amplification(c);
 }
 
-criterion_group!(benches, components, verification);
+fn primitives(c: &mut Criterion) {
+    fft::<ark_bw6_761::Fr, Radix2EvaluationDomain<ark_bw6_761::Fr>>(c);
+}
+
+criterion_group!(benches, components, verification, primitives);
 criterion_main!(benches);

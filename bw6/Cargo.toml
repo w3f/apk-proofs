@@ -19,6 +19,7 @@ ark-poly = { version = "0.3", default-features = false }
 rand = "0.8"
 merlin = "3.0"
 blake2 = "0.9"
+rayon = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -31,4 +32,6 @@ harness = false
 name = "recursive"
 
 [features]
-print-trace = [ "ark-std/print-trace" ]
+print-trace = ["ark-std/print-trace"]
+std = ["ark-ff/std", "ark-ec/std", "ark-serialize/std", "ark-std/std", "ark-poly/std"]
+parallel = ["std", "ark-ff/parallel", "ark-ec/parallel", "ark-std/parallel", "ark-poly/parallel", "rayon"]

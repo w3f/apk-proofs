@@ -10,6 +10,7 @@ use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError
 use crate::utils::LagrangeEvaluations;
 use ark_poly::{Polynomial, EvaluationDomain};
 use ark_ec::AffineCurve;
+use crate::domains::Domains;
 
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
@@ -71,11 +72,10 @@ impl ProverProtocol for CountingScheme {
     type E = CountingEvaluations;
     type PI = CountingPublicInput;
 
-    fn init(bitmask: Bitmask, keyset: Keyset) -> Self {
-        let n = keyset.domain.size();
+    fn init(domains: Domains, bitmask: Bitmask, keyset: Keyset) -> Self {
         CountingScheme {
-            affine_addition_registers: AffineAdditionRegisters::new(keyset, &bitmask.to_bits()),
-            bit_counting_registers: BitCountingRegisters::new(n, &bitmask),
+            affine_addition_registers: AffineAdditionRegisters::new(domains.clone(), keyset, &bitmask.to_bits()),
+            bit_counting_registers: BitCountingRegisters::new(domains, &bitmask),
             register_evaluations: None,
         }
     }
@@ -92,21 +92,17 @@ impl ProverProtocol for CountingScheme {
     }
 
     fn get_register_polynomials_to_open(self) -> Vec<DensePolynomial<Fr>> {
-        let affine_addition_polynomials = self.affine_addition_registers.get_register_polynomials();
-        let partial_counts_polynomial = self.bit_counting_registers.get_partial_counts_polynomial();
-        let mut polynomials = vec![];
-        polynomials.extend(affine_addition_polynomials.to_vec());
-        polynomials.push(partial_counts_polynomial);
-        polynomials
+        [
+            self.affine_addition_registers.get_register_polynomials().to_vec(),
+            vec![self.bit_counting_registers.get_partial_counts_polynomial()],
+        ].concat()
     }
 
     fn compute_constraint_polynomials(&self) -> Vec<DensePolynomial<Fr>> {
-        let affine_addition_constraints = self.affine_addition_registers.compute_constraint_polynomials();
-        let bit_counting_constraint = self.bit_counting_registers.compute_bit_counting_constraint();
-        let mut constraints = vec![];
-        constraints.extend(affine_addition_constraints);
-        constraints.push(bit_counting_constraint);
-        constraints
+        [
+            self.affine_addition_registers.compute_constraint_polynomials(),
+            self.bit_counting_registers.constraints(),
+        ].concat()
     }
 
     fn evaluate_register_polynomials(&mut self, point: Fr) -> Self::E {
@@ -122,14 +118,10 @@ impl ProverProtocol for CountingScheme {
 
     fn compute_linearization_polynomial(&self, phi: Fr, zeta: Fr) -> DensePolynomial<Fr> {
         let evals = self.register_evaluations.as_ref().unwrap();
-        let affine_addition_parts =
-            self.affine_addition_registers.compute_constraints_linearized(&evals.affine_addition_evaluations, zeta);
-        let bit_counting_part =
-            self.bit_counting_registers.compute_bit_counting_constraint_linearized();
-
-        let mut parts = vec![];
-        parts.extend(affine_addition_parts);
-        parts.push(bit_counting_part);
+        let parts = [
+            self.affine_addition_registers.compute_constraints_linearized(&evals.affine_addition_evaluations, zeta),
+            self.bit_counting_registers.constraints_lin(),
+        ].concat();
         utils::randomize(phi, &parts)
     }
 }
@@ -155,11 +147,11 @@ impl CountingEvaluations {
                                            count: Fr,
                                            evals_at_zeta: &LagrangeEvaluations<Fr>,
     ) -> Vec<Fr> {
-        let mut res = self.affine_addition_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta);
         let b_at_zeta = self.affine_addition_evaluations.bitmask;
-        let a6 = self.partial_counts_evaluation.evaluate_constraint_at_zeta(count, b_at_zeta, evals_at_zeta.l_last);
-        res.push(a6);
-        res
+        [
+            self.affine_addition_evaluations.evaluate_constraint_polynomials(apk, evals_at_zeta),
+            self.partial_counts_evaluation.evaluate_constraints_at_zeta(count, b_at_zeta, evals_at_zeta.l_last),
+        ].concat()
     }
 }
 
@@ -177,10 +169,12 @@ mod tests {
         let n = 16;
         let m = n - 1;
 
+
         let kzg_params = KzgBw6::setup(m, rng);
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let mut scheme = CountingScheme::init(
+            Domains::new(n),
             Bitmask::from_bits(&random_bits(m, 0.5, rng)),
             keyset,
         );
