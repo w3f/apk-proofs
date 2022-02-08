@@ -34,7 +34,7 @@ pub struct Params<E: PairingEngine> {
     pub beta_h: E::G2Affine,
 }
 
-impl <E: PairingEngine> Params<E> {
+impl<E: PairingEngine> Params<E> {
     pub fn get_pk(&self) -> ProverKey<E> {
         ProverKey(self.powers_of_g.clone()) //TODO: avoid cloning
     }
@@ -54,7 +54,7 @@ pub struct ProverKey<E: PairingEngine> (
     Vec<E::G1Affine>
 );
 
-impl <E: PairingEngine> ProverKey<E> {
+impl<E: PairingEngine> ProverKey<E> {
     pub fn max_coeffs(&self) -> usize {
         self.0.len()
     }
@@ -74,7 +74,7 @@ pub struct VerifierKey<E: PairingEngine> {
     pub beta_h: E::G2Affine,
 }
 
-impl <E: PairingEngine> VerifierKey<E> {
+impl<E: PairingEngine> VerifierKey<E> {
     pub fn prepare(&self) -> PreparedVerifierKey<E> {
         PreparedVerifierKey {
             g: self.g,
@@ -108,8 +108,8 @@ pub struct KZG10<E: PairingEngine, P: UVPolynomial<E::Fr>> {
 impl<E, P> KZG10<E, P>
     where
         E: PairingEngine,
-        P: UVPolynomial<E::Fr, Point = E::Fr>,
-        for<'a, 'b> &'a P: Div<&'b P, Output = P>,
+        P: UVPolynomial<E::Fr, Point=E::Fr>,
+        for<'a, 'b> &'a P: Div<&'b P, Output=P>,
 {
     /// Constructs public parameters when given as input the maximum degree `degree`
     /// for the polynomial commitment scheme.
@@ -155,7 +155,7 @@ impl<E, P> KZG10<E, P>
     /// Outputs a commitment to `polynomial`.
     pub fn commit(
         powers: &ProverKey<E>,
-        polynomial: &P
+        polynomial: &P,
     ) -> E::G1Affine {
         assert!(polynomial.degree() <= powers.max_degree());
 
@@ -184,7 +184,7 @@ impl<E, P> KZG10<E, P>
     /// p(z) is the remainder term. We can therefore omit p(z) when computing the quotient.
     pub fn compute_witness_polynomial(
         p: &P,
-        point: P::Point
+        point: P::Point,
     ) -> P {
         let divisor = P::from_coefficients_vec(vec![-point, E::Fr::one()]);
 
@@ -217,7 +217,7 @@ impl<E, P> KZG10<E, P>
     pub fn open<'a>(
         powers: &ProverKey<E>,
         p: &P,
-        point: P::Point
+        point: P::Point,
     ) -> E::G1Affine {
         assert!(p.degree() <= powers.max_degree());
         let open_time = start_timer!(|| format!("Opening polynomial of degree {}", p.degree()));
@@ -228,7 +228,7 @@ impl<E, P> KZG10<E, P>
 
         let proof = Self::open_with_witness_polynomial(
             powers,
-            &witness_poly
+            &witness_poly,
         );
 
         end_timer!(open_time);
@@ -286,7 +286,8 @@ impl<E, P> KZG10<E, P>
             // only from 128-bit strings.
             randomizer = u128::rand(rng).into();
         }
-        total_c -= &vk.g.mul(g_multiplier); // $(\sum_i r_i y_i) [1]_1$
+        total_c -= &vk.g.mul(g_multiplier);
+        // $(\sum_i r_i y_i) [1]_1$
         end_timer!(combination_time);
 
         (total_c, total_w)
@@ -333,7 +334,7 @@ impl<E, P> KZG10<E, P>
     /// Computes p = p0 + (r * p1) + (r^2 * p2) + ... + (r^n * pn)
     pub fn aggregate_polynomials(
         randomizer: E::Fr,
-        polynomials: &[P]
+        polynomials: &[P],
     ) -> P {
         utils::randomize(randomizer, polynomials)
     }
@@ -341,7 +342,7 @@ impl<E, P> KZG10<E, P>
     /// Computes C = C0 + (r * C1) + (r^2 * C2) + ... + (r^n * Cn)
     pub fn aggregate_commitments(
         randomizer: E::Fr,
-        commitments: &[E::G1Affine]
+        commitments: &[E::G1Affine],
     ) -> E::G1Affine {
         utils::horner(commitments, randomizer)
     }
@@ -349,7 +350,7 @@ impl<E, P> KZG10<E, P>
     /// Computes v = v0 + (r * v1) + (r^2 * v2) + ... + (r^n * vn)
     pub fn aggregate_values(
         randomizer: E::Fr,
-        values: &[E::Fr]
+        values: &[E::Fr],
     ) -> E::Fr {
         utils::horner_field(values, randomizer)
     }
@@ -481,6 +482,42 @@ mod tests {
         let proof1 = KzgBw6::open(&pk, &poly1, x);
         let proof2 = KzgBw6::open(&pk, &poly2, x);
         assert_eq!(agg_proof, proof1 + proof2.mul(r).into_affine());
+    }
+
+    #[test]
+    fn test_batch_verification() {
+        let rng = &mut test_rng();
+
+        let log_n = 12;
+        let k = 5;
+
+        let max_degree = (1 << log_n) - 1;
+
+        let params = KzgBw6::setup(max_degree, rng);
+        let pk = params.get_pk();
+        let pvk = params.get_vk().prepare();
+
+        let fs = (0..k)
+            .map(|_| Bw6Poly::rand(max_degree, rng))
+            .collect::<Vec<_>>();
+        let cs = fs.iter()
+            .map(|f| KzgBw6::commit(&pk, f))
+            .collect::<Vec<_>>();
+        let xs = (0..k)
+            .map(|_| Fr::rand(rng))
+            .collect::<Vec<_>>();
+        let ys = fs.iter().zip(xs.iter())
+            .map(|(f, x)| f.evaluate(x))
+            .collect::<Vec<_>>();
+        let proofs = fs.iter().zip(xs.iter())
+            .map(|(f, x)| KzgBw6::open(&pk, f, *x))
+            .collect::<Vec<_>>();
+
+        let t_kzg_batch_opening = start_timer!(|| "batched KZG opening");
+        let (total_c, total_w) =
+            KzgBw6::aggregate_openings(&pvk, &cs, &xs, &ys, &proofs, rng);
+        assert!(KzgBw6::batch_check_aggregated(&pvk, total_c, total_w));
+        end_timer!(t_kzg_batch_opening);
     }
 
     //
