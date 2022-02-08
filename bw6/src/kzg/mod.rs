@@ -514,9 +514,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG opening");
-        let (total_c, total_w) =
-            KzgBw6::aggregate_openings(&pvk, &cs, &xs, &ys, &proofs, rng);
-        assert!(KzgBw6::batch_check_aggregated(&pvk, total_c, total_w));
+        assert!(KzgBw6::batch_check(&pvk, &cs, &xs, &ys, &proofs, rng));
         end_timer!(t_kzg_batch_opening);
     }
 
