@@ -1,4 +1,4 @@
-use ark_poly::{Evaluations, Radix2EvaluationDomain, EvaluationDomain, Polynomial};
+use ark_poly::{Evaluations, Polynomial};
 use ark_bw6_761::Fr;
 use crate::Bitmask;
 use ark_ff::{Zero, One};
@@ -8,7 +8,6 @@ use ark_poly::univariate::DensePolynomial;
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use crate::domains::Domains;
-use crate::utils::LagrangeEvaluations;
 
 
 // This "gadget" is used in the 'counting' scheme to constraint the number of set bits in the bitmask.

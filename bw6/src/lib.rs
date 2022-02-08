@@ -1,16 +1,14 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::{PairingEngine, ProjectiveCurve};
+use ark_ec::ProjectiveCurve;
 use ark_ff::field_new;
-use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
 
 pub use bitmask::Bitmask;
 pub use keyset::{Keyset, KeysetCommitment};
 
-use crate::kzg::KZG10;
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub use self::prover::*;
@@ -20,6 +18,7 @@ use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmask
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 use ark_bls12_377::G1Affine;
+use fflonk::pcs::kzg::KZG;
 
 mod prover;
 mod verifier;
@@ -39,8 +38,7 @@ pub mod setup;
 mod bitmask;
 mod keyset;
 
-type UniPoly761 = DensePolynomial<<BW6_761 as PairingEngine>::Fr>;
-type KzgBw6 = KZG10<BW6_761, UniPoly761>;
+type NewKzgBw6 = KZG<BW6_761>;
 
 // TODO: 1. From trait?
 // TODO: 2. remove refs/clones
@@ -127,7 +125,7 @@ mod tests {
     use merlin::Transcript;
     use ark_ff::{One, Zero};
     use ark_bls12_377::G1Projective;
-    use ark_poly::EvaluationDomain;
+    use fflonk::pcs::PcsParams;
 
 
     pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
@@ -167,14 +165,13 @@ mod tests {
 
         let keyset_size = 200;
         let keyset = Keyset::new(random_pks(keyset_size, rng));
-        let domain_size = keyset.domain.size();
 
         let t_setup = start_timer!(|| "setup");
         let kzg_params = setup::generate_for_keyset(keyset_size, rng);
         end_timer!(t_setup);
 
         let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = keyset.commit(&kzg_params.get_pk());
+        let pks_comm = keyset.commit(&kzg_params.ck());
         end_timer!(pks_commitment_);
 
         let t_prover_new = start_timer!(|| "prover precomputation");
@@ -186,7 +183,7 @@ mod tests {
         );
         end_timer!(t_prover_new);
 
-        let verifier = Verifier::new(kzg_params.get_vk(), pks_comm, Transcript::new(b"apk_proof"));
+        let verifier = Verifier::new(kzg_params.raw_vk(), pks_comm, Transcript::new(b"apk_proof"));
 
         let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
         let b = Bitmask::from_bits(&bits);

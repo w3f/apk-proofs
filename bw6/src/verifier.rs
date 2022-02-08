@@ -1,12 +1,11 @@
-use ark_poly::{Radix2EvaluationDomain, EvaluationDomain};
+use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
-use crate::{endo, Proof, utils, KzgBw6, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment};
+use crate::{endo, Proof, utils, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment, NewKzgBw6};
 use crate::transcript::ApkTranscript;
-use crate::kzg::{VerifierKey, PreparedVerifierKey};
 use crate::fsrng::fiat_shamir_rng;
 use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
 use crate::piop::{VerifierProtocol, RegisterEvaluations};
@@ -14,11 +13,14 @@ use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitm
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 use crate::utils::LagrangeEvaluations;
 use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use fflonk::aggregation::single::aggregate_claims_multiexp;
+use fflonk::pcs::kzg::KzgOpening;
+use fflonk::pcs::kzg::params::{KzgVerifierKey, RawKzgVerifierKey};
 
 
 pub struct Verifier {
     domain: Radix2EvaluationDomain<Fr>,
-    kzg_pvk: PreparedVerifierKey<BW6_761>,
+    kzg_pvk: KzgVerifierKey<BW6_761>,
     pks_comm: KeysetCommitment,
     preprocessed_transcript: Transcript,
 }
@@ -27,7 +29,7 @@ struct Challenges {
     r: Fr,
     phi: Fr,
     zeta: Fr,
-    nu: Fr,
+    nus: Vec<Fr>,
 }
 
 
@@ -38,7 +40,7 @@ impl Verifier {
         proof: &SimpleProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
-        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, 5);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
@@ -70,7 +72,7 @@ impl Verifier {
         proof: &PackedProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
-        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, 8);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         self.validate_evaluations::<
@@ -92,7 +94,7 @@ impl Verifier {
         proof: &CountingProof,
     ) -> bool {
         assert!(public_input.count > 0);
-        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, 7);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
         let count = Fr::from(public_input.count as u16);
 
@@ -139,7 +141,7 @@ impl Verifier {
 
 
         // Aggregate the commitments to be opened in \zeta, using the challenge \nu.
-        let t_multiexp = start_timer!(|| "aggregated commitment");
+        let t_aggregate_claims = start_timer!(|| "aggregate evaluation claims in zeta");
         let mut commitments = vec![
             self.pks_comm.pks_comm.0,
             self.pks_comm.pks_comm.1,
@@ -147,38 +149,39 @@ impl Verifier {
         commitments.extend(proof.register_commitments.as_vec());
         commitments.extend(proof.additional_commitments.as_vec());
         commitments.push(proof.q_comm);
-        let w_comm = KzgBw6::aggregate_commitments(challenges.nu, &commitments);
-        end_timer!(t_multiexp);
 
-
-        let t_opening_points = start_timer!(|| "aggregated evaluation");
         let mut register_evals = proof.register_evaluations.as_vec();
         register_evals.push(proof.q_zeta);
-        let w_at_zeta = KzgBw6::aggregate_values(challenges.nu, &register_evals);
-        end_timer!(t_opening_points);
 
+        let (w_comm, w_at_zeta) = aggregate_claims_multiexp(commitments, register_evals, &challenges.nus);
+        end_timer!(t_aggregate_claims);
 
         let t_kzg_batch_opening = start_timer!(|| "batched KZG openning");
+        let opening_at_zeta = KzgOpening {
+            c: w_comm,
+            x: challenges.zeta,
+            y: w_at_zeta,
+            proof: proof.w_at_zeta_proof,
+        };
+        let opening_at_zeta_omega = KzgOpening {
+            c: r_comm,
+            x: evals_at_zeta.zeta_omega,
+            y: proof.r_zeta_omega,
+            proof: proof.r_at_zeta_omega_proof,
+        };
 
-        let (total_c, total_w) = KzgBw6::aggregate_openings(&self.kzg_pvk,
-                                                            &[w_comm, r_comm],
-                                                            &[challenges.zeta, evals_at_zeta.zeta_omega],
-                                                            &[w_at_zeta, proof.r_zeta_omega],
-                                                            &[proof.w_at_zeta_proof, proof.r_at_zeta_omega_proof],
-                                                            fsrng,
-        );
-        assert!(KzgBw6::batch_check_aggregated(&self.kzg_pvk, total_c, total_w));
+        assert!(NewKzgBw6::verify_batch(vec![opening_at_zeta, opening_at_zeta_omega], &self.kzg_pvk, fsrng));
         end_timer!(t_kzg_batch_opening);
 
-
-        let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
-        assert!(endo::subgroup_check(&total_c));
-        assert!(endo::subgroup_check(&total_w));
-        end_timer!(t_lazy_subgroup_checks);
+        // TODO:
+        // let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
+        // assert!(endo::subgroup_check(&total_c));
+        // assert!(endo::subgroup_check(&total_w));
+        // end_timer!(t_lazy_subgroup_checks);
         end_timer!(t_kzg);
     }
 
-    fn restore_challenges<E, C, AC>(&self, public_input: &impl PublicInput, proof: &Proof<E, C, AC>) -> (Challenges, TranscriptRng)
+    fn restore_challenges<E, C, AC>(&self, public_input: &impl PublicInput, proof: &Proof<E, C, AC>, batch_size: usize) -> (Challenges, TranscriptRng)
         where
             AC: RegisterCommitments,
             C: RegisterCommitments,
@@ -193,12 +196,12 @@ impl Verifier {
         transcript.append_quotient_commitment(&proof.q_comm);
         let zeta = transcript.get_evaluation_point();
         transcript.append_evaluations(&proof.register_evaluations, &proof.q_zeta, &proof.r_zeta_omega);
-        let nu = transcript.get_kzg_aggregation_challenge();
-        (Challenges { r, phi, zeta, nu }, fiat_shamir_rng(&mut transcript))
+        let nus = transcript.get_kzg_aggregation_challenges(batch_size);
+        (Challenges { r, phi, zeta, nus }, fiat_shamir_rng(&mut transcript))
     }
 
     pub fn new(
-        kzg_vk: VerifierKey<BW6_761>,
+        kzg_vk: RawKzgVerifierKey<BW6_761>,
         pks_comm: KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {

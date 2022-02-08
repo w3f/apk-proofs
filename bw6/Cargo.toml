@@ -10,11 +10,12 @@ categories = ["cryptography"]
 [dependencies]
 ark-ff = { version = "0.3", default-features = false }
 ark-ec = { version = "0.3", default-features = false }
-ark-serialize = { version = "0.3", default-features = false, features = [ "derive" ] }
-ark-bls12-377 = { version = "0.3", default-features = false, features = [ "curve" ] }
-ark-bw6-761 = { version = "0.3", default-features = false }
+ark-serialize = { version = "0.3", default-features = false, features = ["derive"] }
+ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", version = "0.3", default-features = false, features = ["curve"] }
+ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", version = "0.3", default-features = false }
 ark-std = { version = "0.3", default-features = false }
 ark-poly = { version = "0.3", default-features = false }
+fflonk = { git = "https://github.com/w3f/fflonk" }
 
 rand = "0.8"
 merlin = "3.0"

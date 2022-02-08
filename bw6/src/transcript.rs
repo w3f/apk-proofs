@@ -5,12 +5,12 @@ use crate::{PublicInput, KeysetCommitment};
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{Fr, BW6_761, G1Affine};
-use crate::kzg::VerifierKey;
+use fflonk::pcs::kzg::params::RawKzgVerifierKey;
 
 
 pub(crate) trait ApkTranscript {
 
-    fn set_protocol_params(&mut self, domain: &Radix2EvaluationDomain<Fr>, kzg_vk: &VerifierKey<BW6_761>) {
+    fn set_protocol_params(&mut self, domain: &Radix2EvaluationDomain<Fr>, kzg_vk: &RawKzgVerifierKey<BW6_761>) {
         self._append_serializable(b"domain", domain);
         self._append_serializable(b"vk", kzg_vk);
     }
@@ -53,11 +53,13 @@ pub(crate) trait ApkTranscript {
         self._append_serializable(b"shifted_linearization_evaluation", r_at_zeta_omega);
     }
 
-    fn get_kzg_aggregation_challenge(&mut self) -> Fr {
-        self._get_128_bit_challenge(b"kzg_aggregation")
+    fn get_kzg_aggregation_challenges(&mut self, n: usize) -> Vec<Fr> {
+        self._get_128_bit_challenges(b"kzg_aggregation", n)
     }
 
     fn _get_128_bit_challenge(&mut self, label: &'static [u8]) -> Fr;
+
+    fn _get_128_bit_challenges(&mut self, label: &'static [u8], n: usize) -> Vec<Fr>;
 
     fn _append_serializable(&mut self, label: &'static [u8], message: &impl CanonicalSerialize);
 }
@@ -70,9 +72,13 @@ impl ApkTranscript for Transcript {
         Fr::from_random_bytes(&buf).unwrap()
     }
 
+    fn _get_128_bit_challenges(&mut self, label: &'static [u8], n: usize) -> Vec<Fr> {
+        (0..n).map(|_| self._get_128_bit_challenge(label)).collect() //TODO: unlikely secure
+    }
+
     fn _append_serializable(&mut self, label: &'static [u8], message: &impl CanonicalSerialize) {
         let mut buf = vec![0; message.serialized_size()];
-        message.serialize(&mut buf);
+        message.serialize(&mut buf).unwrap();
         self.append_message(label, &buf);
     }
 }

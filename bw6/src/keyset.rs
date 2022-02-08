@@ -1,14 +1,15 @@
-use crate::{hash_to_curve, KzgBw6};
+use crate::{hash_to_curve, NewKzgBw6};
 use ark_poly::{Radix2EvaluationDomain, EvaluationDomain, Evaluations};
 use ark_bls12_377::G1Projective;
-use ark_bw6_761::{Fr, BW6_761};
+use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
 use ark_ec::ProjectiveCurve;
-use crate::kzg::ProverKey;
 use crate::domains::Domains;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
+use fflonk::pcs::kzg::params::KzgCommitterKey;
+use fflonk::pcs::{PCS, CommitterKey};
 
 
 // Polynomial commitment to the vector of public keys.
@@ -85,10 +86,10 @@ impl Keyset {
         self.pks_evals_x4 = Some(pks_evals_x4);
     }
 
-    pub fn commit(&self, kzg_pk: &ProverKey<BW6_761>) -> KeysetCommitment {
-        assert!(self.domain.size() <= kzg_pk.max_coeffs());
-        let pks_x_comm= KzgBw6::commit(kzg_pk, &self.pks_polys[0]);
-        let pks_y_comm= KzgBw6::commit(kzg_pk, &self.pks_polys[1]);
+    pub fn commit(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>) -> KeysetCommitment {
+        assert!(self.domain.size() <= kzg_pk.max_degree() + 1);
+        let pks_x_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[0]).0.into_affine();
+        let pks_y_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[1]).0.into_affine();
         KeysetCommitment {
             pks_comm: (pks_x_comm, pks_y_comm),
             domain: self.domain,

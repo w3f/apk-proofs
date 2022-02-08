@@ -5,7 +5,7 @@
 //! proposed by Kate, Zaverucha, and Goldberg ([KZG11](http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf)).
 //! This construction achieves extractability in the algebraic group model (AGM).
 
-use ark_ec::msm::{FixedBaseMSM, VariableBaseMSM};
+use ark_ec::msm::{FixedBase, VariableBase};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{One, PrimeField, UniformRand, Zero};
 use ark_poly::UVPolynomial;
@@ -124,12 +124,12 @@ impl<E, P> KZG10<E, P>
 
         let powers_of_beta = utils::powers(beta, max_degree);
 
-        let window_size = FixedBaseMSM::get_mul_window_size(max_degree + 1);
+        let window_size = FixedBase::get_mul_window_size(max_degree + 1);
 
         let scalar_bits = E::Fr::size_in_bits();
         let g_time = start_timer!(|| "Generating powers of G");
-        let g_table = FixedBaseMSM::get_window_table(scalar_bits, window_size, g);
-        let powers_of_g = FixedBaseMSM::multi_scalar_mul::<E::G1Projective>(
+        let g_table = FixedBase::get_window_table(scalar_bits, window_size, g);
+        let powers_of_g = FixedBase::msm::<E::G1Projective>(
             scalar_bits,
             window_size,
             &g_table,
@@ -168,7 +168,7 @@ impl<E, P> KZG10<E, P>
             skip_leading_zeros_and_convert_to_bigints(polynomial);
 
         let msm_time = start_timer!(|| "MSM to compute commitment to plaintext poly");
-        let commitment = VariableBaseMSM::multi_scalar_mul(
+        let commitment = VariableBase::msm(
             &powers.0[num_leading_zeros..],
             &plain_coeffs,
         );
@@ -204,7 +204,7 @@ impl<E, P> KZG10<E, P>
             skip_leading_zeros_and_convert_to_bigints(witness_polynomial);
 
         let witness_comm_time = start_timer!(|| "Computing commitment to witness polynomial");
-        let w = VariableBaseMSM::multi_scalar_mul(
+        let w = VariableBase::msm(
             &powers.0[num_leading_zeros..],
             &witness_coeffs,
         );
@@ -485,6 +485,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_batch_verification() {
         let rng = &mut test_rng();
 
