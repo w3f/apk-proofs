@@ -1,6 +1,6 @@
 use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::ProjectiveCurve;
+use ark_ec::{ProjectiveCurve, AffineCurve};
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
@@ -16,6 +16,7 @@ use crate::piop::counting::{CountingEvaluations, CountingCommitments};
 use fflonk::aggregation::single::aggregate_claims_multiexp;
 use fflonk::pcs::kzg::KzgOpening;
 use fflonk::pcs::kzg::params::{KzgVerifierKey, RawKzgVerifierKey};
+use ark_ff::{UniformRand, One};
 
 
 pub struct Verifier {
@@ -112,7 +113,6 @@ impl Verifier {
     }
 
 
-
     fn validate_evaluations<AC, C, E, P>(
         &self,
         proof: &Proof<E, C, AC>,
@@ -169,15 +169,18 @@ impl Verifier {
             y: proof.r_zeta_omega,
             proof: proof.r_at_zeta_omega_proof,
         };
+        let openings = vec![opening_at_zeta, opening_at_zeta_omega];
+        let coeffs = [Fr::one(), u128::rand(fsrng).into()];
+        let acc_opening = NewKzgBw6::accumulate(openings, &coeffs, &self.kzg_pvk);
 
-        assert!(NewKzgBw6::verify_batch(vec![opening_at_zeta, opening_at_zeta_omega], &self.kzg_pvk, fsrng));
+        let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
+        assert!(endo::subgroup_check(&acc_opening.acc.into_projective()));
+        assert!(endo::subgroup_check(&acc_opening.proof.into_projective()));
+        end_timer!(t_lazy_subgroup_checks);
+
+        assert!(NewKzgBw6::verify_accumulated(acc_opening, &self.kzg_pvk));
         end_timer!(t_kzg_batch_opening);
 
-        // TODO:
-        // let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
-        // assert!(endo::subgroup_check(&total_c));
-        // assert!(endo::subgroup_check(&total_w));
-        // end_timer!(t_lazy_subgroup_checks);
         end_timer!(t_kzg);
     }
 
@@ -213,7 +216,7 @@ impl Verifier {
             domain: pks_comm.domain,
             kzg_pvk,
             pks_comm,
-            preprocessed_transcript: empty_transcript
+            preprocessed_transcript: empty_transcript,
         }
     }
 }
