@@ -149,10 +149,9 @@ impl Verifier {
         commitments.extend(proof.register_commitments.as_vec());
         commitments.extend(proof.additional_commitments.as_vec());
         commitments.push(proof.q_comm);
-
+        // ...together with the corresponding values
         let mut register_evals = proof.register_evaluations.as_vec();
         register_evals.push(proof.q_zeta);
-
         let (w_comm, w_at_zeta) = aggregate_claims_multiexp(commitments, register_evals, &challenges.nus);
         end_timer!(t_aggregate_claims);
 
@@ -172,14 +171,13 @@ impl Verifier {
         let openings = vec![opening_at_zeta, opening_at_zeta_omega];
         let coeffs = [Fr::one(), u128::rand(fsrng).into()];
         let acc_opening = NewKzgBw6::accumulate(openings, &coeffs, &self.kzg_pvk);
+        assert!(NewKzgBw6::verify_accumulated(acc_opening.clone(), &self.kzg_pvk), "KZG verification");
+        end_timer!(t_kzg_batch_opening);
 
         let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
         assert!(endo::subgroup_check(&acc_opening.acc.into_projective()));
         assert!(endo::subgroup_check(&acc_opening.proof.into_projective()));
         end_timer!(t_lazy_subgroup_checks);
-
-        assert!(NewKzgBw6::verify_accumulated(acc_opening, &self.kzg_pvk));
-        end_timer!(t_kzg_batch_opening);
 
         end_timer!(t_kzg);
     }
