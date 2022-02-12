@@ -88,8 +88,8 @@ impl Keyset {
 
     pub fn commit(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>) -> KeysetCommitment {
         assert!(self.domain.size() <= kzg_pk.max_degree() + 1);
-        let pks_x_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[0]).0.into_affine();
-        let pks_y_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[1]).0.into_affine();
+        let pks_x_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[0]).0;
+        let pks_y_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[1]).0;
         KeysetCommitment {
             pks_comm: (pks_x_comm, pks_y_comm),
             domain: self.domain,

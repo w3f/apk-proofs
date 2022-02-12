@@ -163,7 +163,6 @@ mod tests {
     use crate::tests::{random_bits, random_pks};
     use crate::NewKzgBw6;
     use fflonk::pcs::{PCS, PcsParams};
-    use ark_ec::ProjectiveCurve;
 
     #[test]
     fn test_polynomial_ordering() {
@@ -184,7 +183,7 @@ mod tests {
         let zeta = Fr::rand(rng);
 
         let actual_commitments = scheme.get_register_polynomials_to_commit1()
-            .commit(|p| NewKzgBw6::commit(&kzg_params.ck(), &p).0.into_affine()).as_vec();
+            .commit(|p| NewKzgBw6::commit(&kzg_params.ck(), &p).0).as_vec();
         let actual_evaluations = scheme.evaluate_register_polynomials(zeta).as_vec();
         let polynomials = scheme.get_register_polynomials_to_open();
 
@@ -196,7 +195,7 @@ mod tests {
 
         let expected_commitments = polynomials.iter()
             .skip(2) // keyset commitment is publicly known
-            .map(|p| NewKzgBw6::commit(&kzg_params.ck(), &p).0.into_affine())
+            .map(|p| NewKzgBw6::commit(&kzg_params.ck(), &p).0)
             .collect::<Vec<_>>();
         assert_eq!(actual_commitments, expected_commitments);
     }
