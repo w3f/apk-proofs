@@ -1,14 +1,13 @@
-use ark_poly::{Evaluations, Polynomial};
 use ark_bw6_761::Fr;
-use crate::Bitmask;
-use ark_ff::{Zero, One};
-use ark_std::iter::once;
+use ark_ff::{One, Zero};
+use ark_poly::{Evaluations, Polynomial};
 use ark_poly::univariate::DensePolynomial;
-
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
-use crate::domains::Domains;
+use ark_std::iter::once;
 
+use crate::Bitmask;
+use crate::domains::Domains;
 
 // This "gadget" is used in the 'counting' scheme to constraint the number of set bits in the bitmask.
 
@@ -181,12 +180,14 @@ impl BitCountingEvaluation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ark_std::{test_rng, UniformRand};
-    use crate::tests::{random_bitmask, random_bits};
     use ark_poly::Polynomial;
+    use ark_std::{test_rng, UniformRand};
+
+    use crate::test_helpers::{random_bitmask, random_bits};
     use crate::utils;
     use crate::utils::lagrange_evaluations;
+
+    use super::*;
 
     #[test]
     fn test_partial_counts_register() {

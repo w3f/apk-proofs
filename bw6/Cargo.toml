@@ -32,7 +32,19 @@ harness = false
 [[example]]
 name = "recursive"
 
+[[test]]
+name = "basic"
+harness = false
+
+[[test]]
+name = "packed"
+harness = false
+
+[[test]]
+name = "counting"
+harness = false
+
 [features]
 print-trace = ["ark-std/print-trace"]
 std = ["ark-ff/std", "ark-ec/std", "ark-serialize/std", "ark-std/std", "ark-poly/std"]
-parallel = ["std", "ark-ff/parallel", "ark-ec/parallel", "ark-std/parallel", "ark-poly/parallel", "rayon"]
+parallel = ["std", "ark-ff/parallel", "ark-ec/parallel", "ark-std/parallel", "ark-poly/parallel", "fflonk/parallel", "rayon"]

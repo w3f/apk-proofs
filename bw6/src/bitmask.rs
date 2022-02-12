@@ -99,7 +99,7 @@ mod tests {
     use super::*;
     use ark_bw6_761::Fr;
     use ark_std::test_rng;
-    use crate::tests::random_bits;
+    use crate::test_helpers::random_bits;
 
     pub fn _test_from_bits_to_bits(size: usize) {
         let bits = random_bits(size, 1.0 / 2.0, &mut test_rng());

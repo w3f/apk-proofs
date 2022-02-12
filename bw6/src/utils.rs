@@ -159,7 +159,7 @@ mod tests {
     use ark_poly::{Evaluations, Polynomial};
     use ark_std::{UniformRand, test_rng};
     use ark_std::convert::TryInto;
-    use crate::tests::random_bits;
+    use crate::test_helpers::random_bits;
 
     #[test]
     pub fn test_barycentric_eval() {

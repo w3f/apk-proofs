@@ -1,17 +1,16 @@
-use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials, AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
-use crate::piop::{ProverProtocol, RegisterPolynomials, RegisterEvaluations, RegisterCommitments, VerifierProtocol};
-use ark_poly::polynomial::univariate::DensePolynomial;
-use crate::{Bitmask, utils, CountingPublicInput, Keyset};
 use ark_bw6_761::{Fr, G1Projective};
-use crate::piop::bit_counting::{BitCountingRegisters, BitCountingEvaluation};
-
-use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
-use crate::utils::LagrangeEvaluations;
-use ark_poly::Polynomial;
 use ark_ec::AffineCurve;
-use crate::domains::Domains;
+use ark_poly::Polynomial;
+use ark_poly::polynomial::univariate::DensePolynomial;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
 
+use crate::{Bitmask, CountingPublicInput, Keyset, utils};
+use crate::domains::Domains;
+use crate::piop::{ProverProtocol, RegisterCommitments, RegisterEvaluations, RegisterPolynomials, VerifierProtocol};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsAndBitmaskCommitments, PartialSumsAndBitmaskPolynomials};
+use crate::piop::bit_counting::{BitCountingEvaluation, BitCountingRegisters};
+use crate::utils::LagrangeEvaluations;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct CountingCommitments {
@@ -160,11 +159,13 @@ impl CountingEvaluations {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_std::{test_rng, UniformRand};
-    use crate::tests::{random_bits, random_pks};
-    use crate::NewKzgBw6;
     use fflonk::pcs::{PCS, PcsParams};
+
+    use crate::NewKzgBw6;
+    use crate::test_helpers::{random_bits, random_pks};
+
+    use super::*;
 
     #[test]
     fn test_polynomial_ordering() {
