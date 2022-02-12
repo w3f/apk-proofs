@@ -36,6 +36,14 @@ name = "recursive"
 name = "basic"
 harness = false
 
+[[test]]
+name = "packed"
+harness = false
+
+[[test]]
+name = "counting"
+harness = false
+
 [features]
 print-trace = ["ark-std/print-trace"]
 std = ["ark-ff/std", "ark-ec/std", "ark-serialize/std", "ark-std/std", "ark-poly/std"]
