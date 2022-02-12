@@ -154,7 +154,7 @@ impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
     type C1 = PartialSumsAndBitmaskCommitments;
     type C2 = BitmaskPackingCommitments;
 
-
+    const POLYS_OPENED_AT_ZETA: usize = 8;
 
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,

@@ -41,7 +41,7 @@ impl Verifier {
         proof: &SimpleProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
-        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, 5);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, AffineAdditionEvaluations::POLYS_OPENED_AT_ZETA);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         let t_linear_accountability = start_timer!(|| "linear accountability check");
@@ -73,7 +73,7 @@ impl Verifier {
         proof: &PackedProof,
     ) -> bool {
         assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
-        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, 8);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, SuccinctAccountableRegisterEvaluations::POLYS_OPENED_AT_ZETA);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
         self.validate_evaluations::<
@@ -95,7 +95,7 @@ impl Verifier {
         proof: &CountingProof,
     ) -> bool {
         assert!(public_input.count > 0);
-        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, 7);
+        let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, CountingEvaluations::POLYS_OPENED_AT_ZETA);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
         let count = Fr::from(public_input.count as u16);
 
@@ -152,6 +152,8 @@ impl Verifier {
         // ...together with the corresponding values
         let mut register_evals = proof.register_evaluations.as_vec();
         register_evals.push(proof.q_zeta);
+        assert_eq!(commitments.len(), challenges.nus.len());
+        assert_eq!(register_evals.len(), challenges.nus.len());
         let (w_comm, w_at_zeta) = aggregate_claims_multiexp(commitments, register_evals, &challenges.nus);
         end_timer!(t_aggregate_claims);
 

@@ -147,6 +147,8 @@ pub trait VerifierProtocol {
     type C1: RegisterCommitments; // commitments to ProverProtocol::P1
     type C2: RegisterCommitments; // commitments to ProverProtocol::P2
 
+    const POLYS_OPENED_AT_ZETA: usize;
+
     fn restore_commitment_to_linearization_polynomial(
         &self,
         phi: Fr,

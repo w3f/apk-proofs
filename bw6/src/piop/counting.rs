@@ -131,6 +131,8 @@ impl VerifierProtocol for CountingEvaluations {
     type C1 = CountingCommitments;
     type C2 = ();
 
+    const POLYS_OPENED_AT_ZETA: usize = 7;
+
     fn restore_commitment_to_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr, commitments: &Self::C1, _extra_commitments: &Self::C2) -> G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
         let partial_sums_commitments = &commitments.affine_addition_commitments.partial_sums;
