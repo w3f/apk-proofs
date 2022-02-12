@@ -118,6 +118,8 @@ impl VerifierProtocol for AffineAdditionEvaluations {
     type C2 = ();
     type C1 = PartialSumsCommitments;
 
+    const POLYS_OPENED_AT_ZETA: usize = 5;
+
     fn restore_commitment_to_linearization_polynomial(&self,
                                                       phi: Fr,
                                                       zeta_minus_omega_inv: Fr,

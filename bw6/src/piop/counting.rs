@@ -8,7 +8,7 @@ use crate::piop::bit_counting::{BitCountingRegisters, BitCountingEvaluation};
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use crate::utils::LagrangeEvaluations;
-use ark_poly::{Polynomial, EvaluationDomain};
+use ark_poly::Polynomial;
 use ark_ec::AffineCurve;
 use crate::domains::Domains;
 
@@ -131,6 +131,8 @@ impl VerifierProtocol for CountingEvaluations {
     type C1 = CountingCommitments;
     type C2 = ();
 
+    const POLYS_OPENED_AT_ZETA: usize = 7;
+
     fn restore_commitment_to_linearization_polynomial(&self, phi: Fr, zeta_minus_omega_inv: Fr, commitments: &Self::C1, _extra_commitments: &Self::C2) -> G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
         let partial_sums_commitments = &commitments.affine_addition_commitments.partial_sums;
@@ -161,7 +163,8 @@ mod tests {
     use super::*;
     use ark_std::{test_rng, UniformRand};
     use crate::tests::{random_bits, random_pks};
-    use crate::KzgBw6;
+    use crate::NewKzgBw6;
+    use fflonk::pcs::{PCS, PcsParams};
 
     #[test]
     fn test_polynomial_ordering() {
@@ -170,7 +173,7 @@ mod tests {
         let m = n - 1;
 
 
-        let kzg_params = KzgBw6::setup(m, rng);
+        let kzg_params = NewKzgBw6::setup(m, rng);
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let mut scheme = CountingScheme::init(
@@ -182,7 +185,7 @@ mod tests {
         let zeta = Fr::rand(rng);
 
         let actual_commitments = scheme.get_register_polynomials_to_commit1()
-            .commit(|p| KzgBw6::commit(&kzg_params.get_pk(), &p)).as_vec();
+            .commit(|p| NewKzgBw6::commit(&kzg_params.ck(), &p).0).as_vec();
         let actual_evaluations = scheme.evaluate_register_polynomials(zeta).as_vec();
         let polynomials = scheme.get_register_polynomials_to_open();
 
@@ -194,7 +197,7 @@ mod tests {
 
         let expected_commitments = polynomials.iter()
             .skip(2) // keyset commitment is publicly known
-            .map(|p| KzgBw6::commit(&kzg_params.get_pk(), &p))
+            .map(|p| NewKzgBw6::commit(&kzg_params.ck(), &p).0)
             .collect::<Vec<_>>();
         assert_eq!(actual_commitments, expected_commitments);
     }

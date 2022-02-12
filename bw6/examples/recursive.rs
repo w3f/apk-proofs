@@ -1,6 +1,5 @@
-use apk_proofs::{Prover, Verifier, Bitmask, SimpleProof, AccountablePublicInput, hash_to_curve, Keyset, KeysetCommitment, setup, kzg};
+use apk_proofs::{Prover, Verifier, Bitmask, SimpleProof, AccountablePublicInput, hash_to_curve, Keyset, KeysetCommitment, setup};
 use apk_proofs::bls::{PublicKey, SecretKey, Signature};
-use apk_proofs::kzg::{VerifierKey, ProverKey};
 
 use ark_serialize::CanonicalSerialize;
 use ark_bls12_377::{G2Projective, G1Projective};
@@ -11,7 +10,9 @@ use rand::Rng;
 use std::collections::HashSet;
 use merlin::Transcript;
 use ark_ec::AffineCurve;
-use ark_poly::EvaluationDomain;
+use fflonk::pcs::PcsParams;
+use fflonk::pcs::kzg::params::{KzgCommitterKey, RawKzgVerifierKey};
+use fflonk::pcs::kzg::urs::URS;
 
 
 // This example sketches the primary intended use case of the crate functionality:
@@ -79,7 +80,7 @@ impl Validator {
         (&self.0).into()
     }
 
-    fn approve(&self, new_validator_set: &ValidatorSet, kzg_pk: &ProverKey<BW6_761>) -> Approval {
+    fn approve(&self, new_validator_set: &ValidatorSet, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>) -> Approval {
         let new_validator_set_commitment =
             Keyset::new(new_validator_set.raw_public_keys()).commit(kzg_pk);
         let message = hash_commitment(&new_validator_set_commitment);
@@ -112,7 +113,7 @@ impl ValidatorSet {
         self.public_keys().iter().map(|pk| pk.0).collect()
     }
 
-    fn rotate<R: Rng>(&self, kzg_pk: &ProverKey<BW6_761>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
+    fn rotate<R: Rng>(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
         let new_validator_set = ValidatorSet::new(self.0.len(), rng);
         let approvals = self.0.iter()
             .filter(|_| rng.gen_bool(0.9))
@@ -123,20 +124,16 @@ impl ValidatorSet {
 }
 
 struct LightClient {
-    domain_size: usize,
-    kzg_vk: VerifierKey<BW6_761>,
-
+    kzg_vk: RawKzgVerifierKey<BW6_761>,
     current_validator_set_commitment: KeysetCommitment,
 }
 
 impl LightClient {
     fn init(
-        domain_size: usize,
-        kzg_vk: VerifierKey<BW6_761>,
+        kzg_vk: RawKzgVerifierKey<BW6_761>,
         genesis_keyset_commitment: KeysetCommitment,
     ) -> Self {
         Self {
-            domain_size,
             kzg_vk,
             current_validator_set_commitment: genesis_keyset_commitment,
         }
@@ -159,13 +156,13 @@ impl LightClient {
 }
 
 struct TrustlessHelper {
-    kzg_params: kzg::Params<BW6_761>,
+    kzg_params: URS<BW6_761>,
     current_validator_set: ValidatorSet,
     prover: Prover,
 }
 
 impl TrustlessHelper {
-    fn new(genesis_validator_set: ValidatorSet, genesis_validator_set_commitment: &KeysetCommitment, kzg_params: kzg::Params<BW6_761>) -> Self {
+    fn new(genesis_validator_set: ValidatorSet, genesis_validator_set_commitment: &KeysetCommitment, kzg_params: URS<BW6_761>) -> Self {
         let prover = Prover::new(
             Keyset::new(genesis_validator_set.raw_public_keys()),
             genesis_validator_set_commitment,
@@ -217,16 +214,15 @@ fn main() {
     let kzg_params = setup::generate_for_keyset(keyset_size, rng);
     let genesis_validator_set = ValidatorSet::new(keyset_size, rng);
     let keyset = Keyset::new(genesis_validator_set.raw_public_keys());
-    let domain_size = keyset.domain.size();
-    let genesis_validator_set_commitment = keyset.commit(&kzg_params.get_pk());
+    let genesis_validator_set_commitment = keyset.commit(&kzg_params.ck());
 
     let mut helper = TrustlessHelper::new(genesis_validator_set.clone(), &genesis_validator_set_commitment, kzg_params.clone());
-    let mut light_client = LightClient::init(domain_size, kzg_params.get_vk(), genesis_validator_set_commitment);
+    let mut light_client = LightClient::init(kzg_params.raw_vk(), genesis_validator_set_commitment);
 
     let mut current_validator_set = genesis_validator_set;
 
     for _epoch in 0..2 {
-        let (new_validator_set, approvals) = current_validator_set.rotate(&kzg_params.get_pk(), rng);
+        let (new_validator_set, approvals) = current_validator_set.rotate(&kzg_params.ck(), rng);
 
         let (public_input, proof, aggregate_signature, new_validator_set_commitment) =
             helper.aggregate_approvals(new_validator_set.clone(), approvals);
