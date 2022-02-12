@@ -1,24 +1,24 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
+use ark_bls12_377::G1Affine;
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
 use ark_ff::field_new;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
+use fflonk::pcs::kzg::KZG;
 
 pub use bitmask::Bitmask;
 pub use keyset::{Keyset, KeysetCommitment};
 
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
+use crate::piop::affine_addition::{PartialSumsAndBitmaskCommitments, PartialSumsCommitments};
+use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
+use crate::piop::bitmask_packing::{BitmaskPackingCommitments, SuccinctAccountableRegisterEvaluations};
+use crate::piop::counting::{CountingCommitments, CountingEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;
-use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
-use crate::piop::affine_addition::{PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
-use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
-use crate::piop::counting::{CountingEvaluations, CountingCommitments};
-use ark_bls12_377::G1Affine;
-use fflonk::pcs::kzg::KZG;
 
 mod prover;
 mod verifier;
@@ -37,6 +37,7 @@ mod piop;
 pub mod setup;
 mod bitmask;
 mod keyset;
+pub mod test_helpers; //TODO: cfgtest
 
 type NewKzgBw6 = KZG<BW6_761>;
 
@@ -117,33 +118,16 @@ pub fn hash_to_curve<G: ProjectiveCurve>(message: &[u8]) -> G {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use ark_std::{end_timer, start_timer, UniformRand};
-    use ark_std::test_rng;
-    use ark_std::rand::Rng;
-    use merlin::Transcript;
-    use ark_ff::{One, Zero};
     use ark_bls12_377::G1Projective;
+    use ark_ff::{One, Zero};
+    use ark_std::rand::Rng;
+    use ark_std::test_rng;
     use fflonk::pcs::PcsParams;
+    use merlin::Transcript;
 
+    use crate::test_helpers;
 
-    pub fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
-        (0..n).map(|_| rng.gen_bool(density)).collect()
-    }
-
-    pub fn random_bitmask<R: Rng>(n: usize, rng: &mut R) -> Vec<Fr> {
-        random_bits(n, 2.0 / 3.0, rng).into_iter()
-            .map(|b| if b { Fr::one() } else { Fr::zero() })
-            .collect()
-    }
-
-    pub fn random_pks<R: Rng>(n: usize, rng: &mut R) -> Vec<ark_bls12_377::G1Projective> {
-        (0..n)
-            .map(|_| G1Projective::rand(rng))
-            .collect()
-    }
-
+    use super::*;
 
     #[test]
     fn h_is_not_in_g1() {
@@ -152,84 +136,19 @@ mod tests {
         assert!(!h.is_in_correct_subgroup_assuming_on_curve());
     }
 
-    fn _test_prove_verify<P, V, PI, E, C, AC>(prove: P, verify: V, proof_size: usize)
-        where
-            P: Fn(Prover, Bitmask) -> (Proof<E, C, AC>, PI),
-            V: Fn(Verifier, Proof<E, C, AC>, PI) -> bool,
-            PI: PublicInput,
-            E: RegisterEvaluations,
-            C: RegisterCommitments,
-            AC: RegisterCommitments
-    {
-        let rng = &mut test_rng();
-
-        let keyset_size = 200;
-        let keyset = Keyset::new(random_pks(keyset_size, rng));
-
-        let t_setup = start_timer!(|| "setup");
-        let kzg_params = setup::generate_for_keyset(keyset_size, rng);
-        end_timer!(t_setup);
-
-        let pks_commitment_ = start_timer!(|| "signer set commitment");
-        let pks_comm = keyset.commit(&kzg_params.ck());
-        end_timer!(pks_commitment_);
-
-        let t_prover_new = start_timer!(|| "prover precomputation");
-        let prover = Prover::new(
-            keyset,
-            &pks_comm,
-            kzg_params.clone(), //TODO
-            Transcript::new(b"apk_proof")
-        );
-        end_timer!(t_prover_new);
-
-        let verifier = Verifier::new(kzg_params.raw_vk(), pks_comm, Transcript::new(b"apk_proof"));
-
-        let bits = (0..keyset_size).map(|_| rng.gen_bool(2.0 / 3.0)).collect::<Vec<_>>();
-        let b = Bitmask::from_bits(&bits);
-
-        let prove_ = start_timer!(|| "BW6 prove");
-        let (proof, public_input) = prove(prover, b.clone());
-        end_timer!(prove_);
-
-        let mut serialized_proof = vec![0; proof.serialized_size()];
-        proof.serialize(&mut serialized_proof[..]).unwrap();
-        let proof = Proof::<E, C, AC>::deserialize(&serialized_proof[..]).unwrap();
-
-        assert_eq!(proof.serialized_size(), proof_size);
-
-        let verify_ = start_timer!(|| "BW6 verify");
-        let valid = verify(verifier, proof, public_input);
-        end_timer!(verify_);
-
-        assert!(valid);
-    }
-
     #[test]
     fn test_simple_scheme() {
-        _test_prove_verify(
-            |prover, bitmask| prover.prove_simple(bitmask),
-            |verifier, proof, public_input| verifier.verify_simple(&public_input, &proof),
-            (5 * 2 + 6) * 48 // 5C + 6F
-        );
+        test_helpers::test_simple_scheme(8);
     }
 
 
     #[test]
     fn test_packed_scheme() {
-        _test_prove_verify(
-            |prover, bitmask| prover.prove_packed(bitmask),
-            |verifier, proof, public_input| verifier.verify_packed(&public_input, &proof),
-            (8 * 2 + 9) * 48 // 8C + 9F
-        );
+        test_helpers::test_packed_scheme(8);
     }
 
     #[test]
     fn test_counting_scheme() {
-        _test_prove_verify(
-            |prover, bitmask| prover.prove_counting(bitmask),
-            |verifier, proof, public_input| verifier.verify_counting(&public_input, &proof),
-            (7 * 2 + 8) * 48 // 7C + 8F
-        );
+        test_helpers::test_counting_scheme(8);
     }
 }

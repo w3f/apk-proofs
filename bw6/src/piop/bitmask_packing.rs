@@ -380,7 +380,7 @@ mod tests {
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
     use ark_ec::ProjectiveCurve;
-    use crate::tests::random_bits;
+    use crate::test_helpers::random_bits;
     use crate::domains::Domains;
 
     fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {

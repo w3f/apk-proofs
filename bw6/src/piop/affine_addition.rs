@@ -1,17 +1,18 @@
-use ark_poly::univariate::DensePolynomial;
-use ark_bw6_761::{Fr, G1Affine};
-use crate::piop::{VerifierProtocol, RegisterPolynomials, RegisterCommitments, RegisterEvaluations};
-use ark_poly::{Polynomial, Evaluations, Radix2EvaluationDomain, UVPolynomial, EvaluationDomain};
-use ark_ff::{Zero, One, Field};
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use crate::utils::LagrangeEvaluations;
-use crate::{point_in_g1_complement, Keyset};
-use crate::domains::Domains;
-
-use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
 use std::iter;
+
 use ark_bls12_377::G1Projective;
+use ark_bw6_761::{Fr, G1Affine};
+use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ff::{Field, One, Zero};
+use ark_poly::{EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain, UVPolynomial};
+use ark_poly::univariate::DensePolynomial;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use ark_std::io::{Read, Write};
+
+use crate::{Keyset, point_in_g1_complement};
+use crate::domains::Domains;
+use crate::piop::{RegisterCommitments, RegisterEvaluations, RegisterPolynomials, VerifierProtocol};
+use crate::utils::LagrangeEvaluations;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct PartialSumsCommitments(
@@ -456,12 +457,14 @@ fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ark_std::{test_rng, UniformRand};
-    use ark_poly::Polynomial;
-    use crate::tests::{random_bits, random_bitmask, random_pks};
-    use crate::utils;
     use ark_ec::ProjectiveCurve;
+    use ark_poly::Polynomial;
+    use ark_std::{test_rng, UniformRand};
+
+    use crate::test_helpers::{random_bitmask, random_bits, random_pks};
+    use crate::utils;
+
+    use super::*;
 
     fn dummy_registers(n: usize) -> [Vec<Fr>; 2] {
         [vec![Fr::zero(); n], vec![Fr::zero(); n]]

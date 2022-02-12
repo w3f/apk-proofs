@@ -32,6 +32,10 @@ harness = false
 [[example]]
 name = "recursive"
 
+[[test]]
+name = "basic"
+harness = false
+
 [features]
 print-trace = ["ark-std/print-trace"]
 std = ["ark-ff/std", "ark-ec/std", "ark-serialize/std", "ark-std/std", "ark-poly/std"]
