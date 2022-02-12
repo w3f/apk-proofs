@@ -7,8 +7,7 @@ use merlin::Transcript;
 use crate::{Bitmask, Keyset, Proof, Prover, PublicInput, setup, Verifier};
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use ark_std::{end_timer, start_timer, UniformRand};
 
