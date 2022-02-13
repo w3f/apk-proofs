@@ -5,6 +5,7 @@ members = [
     "mipp",
 ]
 
+# until https://github.com/arkworks-rs/curves/pull/95 is merged
 [patch.crates-io]
 ark-std = { git = "https://github.com/arkworks-rs/std" }
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", rev = "d6365c3" }
