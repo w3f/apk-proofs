@@ -93,18 +93,21 @@ impl Validator {
 }
 
 #[derive(Clone)]
-struct ValidatorSet(Vec<Validator>);
+struct ValidatorSet {
+    validators: Vec<Validator>,
+    quorum: usize,
+}
 
 impl ValidatorSet {
-    fn new<R: Rng>(size: usize, rng: &mut R) -> Self {
+    fn new<R: Rng>(size: usize, quorum: usize, rng: &mut R) -> Self {
         let validators = (0..size)
             .map(|_| Validator::new(rng))
             .collect();
-        Self(validators)
+        Self { validators, quorum }
     }
 
     fn public_keys(&self) -> Vec<PublicKey> {
-        self.0.iter()
+        self.validators.iter()
             .map(|v| v.public_key())
             .collect()
     }
@@ -114,8 +117,8 @@ impl ValidatorSet {
     }
 
     fn rotate<R: Rng>(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
-        let new_validator_set = ValidatorSet::new(self.0.len(), rng);
-        let approvals = self.0.iter()
+        let new_validator_set = ValidatorSet::new(self.validators.len(), self.quorum, rng);
+        let approvals = self.validators.iter()
             .filter(|_| rng.gen_bool(0.9))
             .map(|v| v.approve(&new_validator_set, kzg_pk))
             .collect();
@@ -211,8 +214,9 @@ fn hash_commitment(commitment: &KeysetCommitment) -> G2Projective {
 fn main() {
     let rng = &mut test_rng(); // Don't use in production code!
     let keyset_size = 10;
+    let quarum = 7;
     let kzg_params = setup::generate_for_keyset(keyset_size, rng);
-    let genesis_validator_set = ValidatorSet::new(keyset_size, rng);
+    let genesis_validator_set = ValidatorSet::new(keyset_size, quarum, rng);
     let keyset = Keyset::new(genesis_validator_set.raw_public_keys());
     let genesis_validator_set_commitment = keyset.commit(&kzg_params.ck());
 
