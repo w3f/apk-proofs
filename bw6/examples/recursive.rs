@@ -21,7 +21,7 @@ use ark_std::{end_timer, start_timer};
 // building communication-efficient light clients for blockchains.
 
 // Here we model a blockchain as a set of validators who are responsible for signing for the chain events.
-// The validator set changes in periods of time called 'epochs'. Common assumptions is that within an epoch,
+// The validator set changes in periods of time called 'eras'. Common assumptions is that within an era,
 // only a fraction of validators in the set is malicious/unresponsive.
 
 // Light client is a resource-constrained blockchain client (think a mobile app or better an Ethereum smart contract),
@@ -43,16 +43,16 @@ use ark_std::{end_timer, start_timer};
 // of the other events (like a block finality) in the same way.
 
 
-// Light client's state is initialized with a commitment 'C0' to the ('genesis') validator set of the epoch #0
+// Light client's state is initialized with a commitment 'C0' to the ('genesis') validator set of the era #0
 // (and some technical stuff, like public parameters).
 
-// When an epoch (tautologically, a validator set) changes, a helper provides:
+// When an era (tautologically, a validator set) changes, a helper provides:
 // 1. the commitment 'C1' to the new validator set,
-// 2. an aggregate signature 'asig0' of a subset of validators of the previous epoch on the new commitment 'C1',
+// 2. an aggregate signature 'asig0' of a subset of validators of the previous era on the new commitment 'C1',
 // 3. an aggregate public key 'apk0' of this subset of validators,
-// 4. a bitmask 'b0' identifying this subset in the whole set of the validators of the previous epoch, and
+// 4. a bitmask 'b0' identifying this subset in the whole set of the validators of the previous era, and
 // 5. a proof 'p0', that attests that the key 'apk0' is indeed the aggregate public key of a subset identified by 'b0'
-//                  of the set of the validators, identified by the commitment 'C0', of the previous epoch.
+//                  of the set of the validators, identified by the commitment 'C0', of the previous era.
 // All together this is ('C1', 'asig0', 'apk0', 'b0', 'p0').
 
 // The light client:
@@ -77,7 +77,7 @@ thread_local! {
     static CACHE: RefCell<Option<KeysetCommitment>> = RefCell::new(None);
 }
 
-fn new_epoch() {
+fn new_era() {
     CACHE.with(|cell| {
         cell.replace(None);
     });
@@ -150,7 +150,7 @@ impl ValidatorSet {
     }
 
     fn rotate<R: Rng>(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
-        new_epoch();
+        new_era();
         let new_validator_set = ValidatorSet::new(self.size(), self.quorum, rng);
 
         let t_approval = start_timer!(|| format!("Each (honest) validators computes the commitment to the new validator set of size {} and signs the commitment", new_validator_set.size()));
@@ -281,17 +281,17 @@ fn main() {
 
     let log_n: usize = args.next().unwrap_or("4".to_string())
         .parse().expect("invalid LOG_N");
-    let n_epochs: usize = args.next().unwrap_or("10".to_string())
-        .parse().expect("invalid N_EPOCHS");
+    let n_eras: usize = args.next().unwrap_or("10".to_string())
+        .parse().expect("invalid N_ERAS");
 
-    print!("Running a chain with 2^{}-1 validators for {} epochs. ", log_n, n_epochs);
-    println!("To change the values run with '--example recursive LOG_N N_EPOCHS'\n");
+    print!("Running a chain with 2^{}-1 validators for {} eras. ", log_n, n_eras);
+    println!("To change the values run with '--example recursive LOG_N N_ERAS'\n");
 
     let rng = &mut test_rng(); // Don't use in production code!
 
     println!("Setup: max validator set size = 2^{}-1\n", log_n);
 
-    let t_setup = start_timer!(|| format!("Generating URS to support 2^{n}-1 signers", log_n));
+    let t_setup = start_timer!(|| format!("Generating URS to support 2^{}-1 signers", log_n));
     let kzg_params = setup::generate_for_domain(log_n as u32, rng);
     end_timer!(t_setup);
 
@@ -311,8 +311,8 @@ fn main() {
 
     let mut current_validator_set = genesis_validator_set;
 
-    for epoch in 1..=n_epochs {
-        println!("\nEra {}\n", epoch);
+    for era in 1..=n_eras {
+        println!("\nEra {}\n", era);
         let (new_validator_set, approvals) = current_validator_set.rotate(&kzg_params.ck(), rng);
 
         let (public_input, proof, aggregate_signature, new_validator_set_commitment) =
