@@ -15,6 +15,8 @@ use fflonk::pcs::kzg::params::{KzgCommitterKey, RawKzgVerifierKey};
 use fflonk::pcs::kzg::urs::URS;
 use std::cell::RefCell;
 
+use ark_std::{end_timer, start_timer};
+
 // This example sketches the primary intended use case of the crate functionality:
 // building communication-efficient light clients for blockchains.
 
@@ -149,12 +151,22 @@ impl ValidatorSet {
 
     fn rotate<R: Rng>(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>, rng: &mut R) -> (ValidatorSet, Vec<Approval>) {
         new_epoch();
-        let new_validator_set = ValidatorSet::new(self.validators.len(), self.quorum, rng);
+        let new_validator_set = ValidatorSet::new(self.size(), self.quorum, rng);
+
+        let t_approval = start_timer!(|| format!("Validators: new validator set of size {} approval", new_validator_set.size()));
         let approvals = self.validators.iter()
-            .filter(|_| rng.gen_bool(0.9))
+            // .filter(|_| rng.gen_bool(0.9))
             .map(|v| v.approve(&new_validator_set, kzg_pk))
             .collect();
+
+        end_timer!(t_approval);
+        println!();
+
         (new_validator_set, approvals)
+    }
+
+    fn size(&self) -> usize {
+        self.validators.len()
     }
 }
 
@@ -179,14 +191,22 @@ impl LightClient {
                          proof: &SimpleProof,
                          aggregate_signature: &Signature,
                          new_validator_set_commitment: KeysetCommitment) {
-        let verifier = Verifier::new(self.kzg_vk.clone(), self.current_validator_set_commitment.clone(), Transcript::new(b"apk_proof"));
+        let t_verification = start_timer!(|| format!("Light client: verifying light client proof for {} signers", public_input.bitmask.count_ones()));
 
+        let t_apk = start_timer!(|| "apk proof verification");
+        let verifier = Verifier::new(self.kzg_vk.clone(), self.current_validator_set_commitment.clone(), Transcript::new(b"apk_proof"));
         assert!(verifier.verify_simple(&public_input, &proof));
+        end_timer!(t_apk);
+
+        let t_bls = start_timer!(|| "aggregate BLS signature verification");
         let aggregate_public_key = PublicKey(public_input.apk.into_projective());
         let message = hash_commitment(&new_validator_set_commitment);
         assert!(aggregate_public_key.verify(&aggregate_signature, &message));
+        end_timer!(t_bls);
 
         self.current_validator_set_commitment = new_validator_set_commitment;
+
+        end_timer!(t_verification);
     }
 }
 
@@ -212,6 +232,8 @@ impl TrustlessHelper {
     }
 
     fn aggregate_approvals(&mut self, new_validator_set: ValidatorSet, approvals: Vec<Approval>) -> (AccountablePublicInput, SimpleProof, Signature, KeysetCommitment) {
+        let t_approval = start_timer!(|| format!("Helper: generating accountable light client proof from {} individual signatures", approvals.len()));
+
         let new_validator_set_commitment = &approvals[0].comm;
         let actual_signers = approvals.iter()
             .map(|a| &a.pk)
@@ -233,6 +255,9 @@ impl TrustlessHelper {
             Transcript::new(b"apk_proof"),
         );
 
+        end_timer!(t_approval);
+        println!();
+
         (public_input, proof, aggregate_signature, new_validator_set_commitment.clone())
     }
 }
@@ -244,20 +269,42 @@ fn hash_commitment(commitment: &KeysetCommitment) -> G2Projective {
 }
 
 fn main() {
+    let mut args= std::env::args();
+    args.next();
+
+    let log_n: usize = args.next().unwrap_or("4".to_string())
+        .parse().expect("invalid LOG_N");
+    let n_epochs: usize = args.next().unwrap_or("5".to_string())
+        .parse().expect("invalid N_EPOCHS");
+        let keyset_size = (1 << log_n) - 1;
+    let quorum = ((keyset_size * 2) / 3) + 1;
+
+    println!("Running a chain with {} validators for {} epochs. ", keyset_size, n_epochs);
+    println!("To change the values run with '--example recursive LOG_N N_EPOCHS'\n");
+
     let rng = &mut test_rng(); // Don't use in production code!
-    let keyset_size = 15;
-    let quorum = 11;
+
+    println!("Setup\n");
+
+    let t_setup = start_timer!(|| format!("Setup: generating URS for a keyset pf max size = 2^{}-1", log_n));
     let kzg_params = setup::generate_for_keyset(keyset_size, rng);
+    end_timer!(t_setup);
+
+    println!("\nGenesis\n");
+
+    let t_genesis = start_timer!(|| format!("Genesis: building commitment to the set of {} validators", keyset_size));
     let genesis_validator_set = ValidatorSet::new(keyset_size, quorum, rng);
     let keyset = Keyset::new(genesis_validator_set.raw_public_keys());
     let genesis_validator_set_commitment = keyset.commit(&kzg_params.ck());
+    end_timer!(t_genesis);
 
     let mut helper = TrustlessHelper::new(genesis_validator_set.clone(), &genesis_validator_set_commitment, kzg_params.clone());
     let mut light_client = LightClient::init(kzg_params.raw_vk(), genesis_validator_set_commitment);
 
     let mut current_validator_set = genesis_validator_set;
 
-    for _epoch in 0..3 {
+    for epoch in 1..=n_epochs {
+        println!("\nEra {}\n", epoch);
         let (new_validator_set, approvals) = current_validator_set.rotate(&kzg_params.ck(), rng);
 
         let (public_input, proof, aggregate_signature, new_validator_set_commitment) =
