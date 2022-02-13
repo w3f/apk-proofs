@@ -119,7 +119,7 @@ impl Validator {
         let message = hash_commitment(&new_validator_set_commitment);
         Approval {
             comm: new_validator_set_commitment,
-            sig: self.0.sign(&message),
+            sig: self.0.sign(&message), //TODO: signing is also done in parallel
             pk: self.public_key(),
         }
     }
@@ -284,14 +284,14 @@ fn main() {
     let n_epochs: usize = args.next().unwrap_or("10".to_string())
         .parse().expect("invalid N_EPOCHS");
 
-    print!("Running a chain over domain of size 2^{} validators for {} epochs. ", log_n, n_epochs);
+    print!("Running a chain with 2^{}-1 validators for {} epochs. ", log_n, n_epochs);
     println!("To change the values run with '--example recursive LOG_N N_EPOCHS'\n");
 
     let rng = &mut test_rng(); // Don't use in production code!
 
-    println!("Setup\n");
+    println!("Setup: max validator set size = 2^{}-1\n", log_n);
 
-    let t_setup = start_timer!(|| format!("Setup: generating URS for a domain of size 2^{}", log_n));
+    let t_setup = start_timer!(|| format!("Generating URS to support 2^{n}-1 signers", log_n));
     let kzg_params = setup::generate_for_domain(log_n as u32, rng);
     end_timer!(t_setup);
 
@@ -300,7 +300,7 @@ fn main() {
 
     println!("\nGenesis: validator set size = {}, quorum = {}\n", keyset_size, quorum);
 
-    let t_genesis = start_timer!(|| format!("Genesis: computing commitment to the set of initial {} validators", keyset_size));
+    let t_genesis = start_timer!(|| format!("Computing commitment to the set of initial {} validators", keyset_size));
     let genesis_validator_set = ValidatorSet::new(keyset_size, quorum, rng);
     let keyset = Keyset::new(genesis_validator_set.raw_public_keys());
     let genesis_validator_set_commitment = keyset.commit(&kzg_params.ck());
