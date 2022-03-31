@@ -1,5 +1,5 @@
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ff::{FftField, FftParameters};
+use ark_ff::FftField;
 use crate::NewKzgBw6;
 use rand::Rng;
 use fflonk::pcs::PCS;
@@ -17,7 +17,7 @@ pub fn generate_for_keyset<R: Rng>(keyset_size: usize, rng: &mut R) -> URS<BW6_7
 pub fn generate_for_domain<R: Rng>(log_domain_size: u32, rng: &mut R) -> URS<BW6_761> {
     let domain_size = 2usize.pow(log_domain_size);
     // to operate with polynomials of degree up to 4 * domain_size, there should exist a domain of size 4 * domain_size
-    assert!(log_domain_size + 2 <= <Fr as FftField>::FftParams::TWO_ADICITY, "not enough 2-adicity in ark_bw6_761::Fr");
+    assert!(log_domain_size + 2 <= Fr::TWO_ADICITY, "not enough 2-adicity in ark_bw6_761::Fr");
 
     // the highest degree polynomial prover needs to commit is the quotient q=aggregate_constraint_polynomial/vanishing_polynomial
     // as the highest constraint degree is 4n-3, deg(q) = 3n-3

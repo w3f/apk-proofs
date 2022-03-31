@@ -1,4 +1,4 @@
-use ark_ff::{PrimeField, FpParameters, BitIteratorLE};
+use ark_ff::{PrimeField, BitIteratorLE};
 use ark_std::convert::{TryInto, TryFrom};
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
@@ -70,7 +70,8 @@ impl Bitmask {
     /// Panics if the chunk doesn't have the unique representation in the field (chunk size exceeds the field capacity).
     pub fn to_chunks_as_field_elements<F: PrimeField>(&self, limbs_in_chunk: usize) -> Vec<F> {
         let bits_in_chunk = BITS_IN_LIMB * limbs_in_chunk;
-        assert!(bits_in_chunk <= F::Params::CAPACITY.try_into().unwrap());
+        let capacity = (F::MODULUS_BIT_SIZE - 1).try_into().unwrap();
+        assert!(bits_in_chunk <= capacity);
         self.limbs.chunks(limbs_in_chunk).map(limbs_to_field_elements::<F>).collect()
     }
 }
@@ -91,7 +92,7 @@ fn limbs_to_field_elements<F: PrimeField>(limbs: &[u64]) -> F {
     let repr_limbs = repr.as_mut();
     assert!(repr_limbs.len() >= limbs.len());
     repr_limbs.iter_mut().zip(limbs).for_each(|(a, b)| *a = *b);
-    F::from_repr(repr).unwrap()
+    F::from_bigint(repr).unwrap()
 }
 
 #[cfg(test)]

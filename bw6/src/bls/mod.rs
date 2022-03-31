@@ -57,7 +57,7 @@ impl SecretKey {
     }
 
     pub fn sign(&self, message: &G2Projective) -> Signature {
-        message.mul(self.as_ref().into_repr()).into()
+        message.mul(self.as_ref().into_bigint()).into()
     }
 }
 
@@ -74,7 +74,7 @@ impl From<G1Projective> for PublicKey {
 
 impl From<&SecretKey> for PublicKey {
     fn from(sk: &SecretKey) -> PublicKey {
-        G1Projective::prime_subgroup_generator().mul(sk.as_ref().into_repr()).into()
+        G1Projective::prime_subgroup_generator().mul(sk.as_ref().into_bigint()).into()
     }
 }
 

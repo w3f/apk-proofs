@@ -22,6 +22,7 @@ use crate::utils;
 use rayon::prelude::*;
 
 use rand::RngCore;
+use ark_std::convert::TryInto;
 
 /// `Params` are the parameters for the KZG10 scheme.
 #[derive(Clone, Debug)]
@@ -126,7 +127,7 @@ impl<E, P> KZG10<E, P>
 
         let window_size = FixedBase::get_mul_window_size(max_degree + 1);
 
-        let scalar_bits = E::Fr::size_in_bits();
+        let scalar_bits = E::Fr::MODULUS_BIT_SIZE.try_into().unwrap();
         let g_time = start_timer!(|| "Generating powers of G");
         let g_table = FixedBase::get_window_table(scalar_bits, window_size, g);
         let powers_of_g = FixedBase::msm::<E::G1Projective>(
@@ -280,7 +281,7 @@ impl<E, P> KZG10<E, P>
             temp.add_assign_mixed(&c); // $[p_i(x)]_1 + x_i [q_i(x)]_1$
             let c = temp;
             g_multiplier += &(randomizer * v); // $r_i y_i$
-            total_c += &c.mul(randomizer.into_repr()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
+            total_c += &c.mul(randomizer.into_bigint()); // $r_i [p_i(x)]_1 + r_i x_i [q_i(x)]_1$
             total_w += &w.mul(randomizer); //  $r_i [q_i(x)]_1$
             // We don't need to sample randomizers from the full field,
             // only from 128-bit strings.
@@ -370,7 +371,7 @@ fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(
 fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
     let to_bigint_time = start_timer!(|| "Converting polynomial coeffs to bigints");
     let coeffs = ark_std::cfg_iter!(p)
-        .map(|s| s.into_repr())
+        .map(|s| s.into_bigint())
         .collect::<Vec<_>>();
     end_timer!(to_bigint_time);
     coeffs

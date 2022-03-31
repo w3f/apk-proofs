@@ -103,7 +103,7 @@ pub fn horner<G: AffineCurve>(
     bases: &[G],
     nu: G::ScalarField,
 ) -> G {
-    let nu = nu.into_repr();
+    let nu = nu.into_bigint();
     bases.iter().rev().fold(G::Projective::zero(), |acc, b|
         acc.mul(nu).add_mixed(b)
     ).into_affine()
@@ -192,7 +192,7 @@ mod tests {
         let nu = ark_bw6_761::Fr::rand(rng);
         let bases = (0..n).map(|_| ark_bw6_761::G1Projective::rand(rng).into_affine()).collect::<Vec<_>>();
 
-        let powers = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
+        let powers = (0..n).map(|i| nu.pow([i as u64]).into_bigint()).collect::<Vec<_>>();
 
         assert_eq!(horner(&bases, nu), mul_then_add(&bases, &powers));
     }
