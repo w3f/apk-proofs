@@ -3,7 +3,7 @@
 use ark_bls12_377::G1Affine;
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::ProjectiveCurve;
-use ark_ff::field_new;
+use ark_ff::MontFp;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
 use fflonk::pcs::kzg::KZG;
@@ -100,8 +100,8 @@ pub type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSums
 pub type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
 
 
-const H_X: Fr = field_new!(Fr, "0");
-const H_Y: Fr = field_new!(Fr, "1");
+const H_X: Fr = MontFp!(Fr, "0");
+const H_Y: Fr = MontFp!(Fr, "1");
 fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
     ark_bls12_377::G1Affine::new(H_X, H_Y, false)
 }

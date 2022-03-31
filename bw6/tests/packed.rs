@@ -1,9 +1,7 @@
-use std::env;
-use apk_proofs::test_helpers;
+mod helper;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-    let log_n = args[1].parse().unwrap();
-    test_helpers::test_packed_scheme(log_n);
+    let log_n = helper::parse_args_or(8, "packed");
+    println!("Running test for the 'packed' scheme for N = 2^{}", log_n);
+    apk_proofs::test_helpers::test_packed_scheme(log_n);
 }

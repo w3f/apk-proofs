@@ -38,7 +38,7 @@ fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
     let rng = &mut test_rng();
 
     let nu = G::ScalarField::rand(rng);
-    let scalars = (0..n).map(|i| nu.pow([i as u64]).into_repr()).collect::<Vec<_>>();
+    let scalars = (0..n).map(|i| nu.pow([i as u64]).into_bigint()).collect::<Vec<_>>();
     let bases = (0..n).map(|_| G::Projective::rand(rng).into_affine()).collect::<Vec<_>>();
 
     {

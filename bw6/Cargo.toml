@@ -8,13 +8,15 @@ repository = "https://github.com/w3f/apk-proofs"
 categories = ["cryptography"]
 
 [dependencies]
-ark-ff = { version = "0.3", default-features = false }
-ark-ec = { version = "0.3", default-features = false }
-ark-serialize = { version = "0.3", default-features = false, features = ["derive"] }
-ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", version = "0.3", default-features = false, features = ["curve"] }
-ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", version = "0.3", default-features = false }
-ark-std = { version = "0.3", default-features = false }
-ark-poly = { version = "0.3", default-features = false }
+ark-std = { git = "https://github.com/arkworks-rs/std", default-features = false }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra", default-features = false, features = ["derive"] }
+
+ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
+ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", default-features = false, features = ["curve"] }
+
 fflonk = { git = "https://github.com/w3f/fflonk" }
 
 rand = "0.8"
@@ -45,6 +47,7 @@ name = "counting"
 harness = false
 
 [features]
+default = []
+std = ["ark-std/std", "ark-ff/std", "ark-ec/std", "ark-poly/std", "ark-serialize/std"]
+parallel = ["std", "ark-std/parallel", "ark-ff/parallel", "ark-ec/parallel", "ark-poly/parallel", "fflonk/parallel", "rayon"]
 print-trace = ["ark-std/print-trace"]
-std = ["ark-ff/std", "ark-ec/std", "ark-serialize/std", "ark-std/std", "ark-poly/std"]
-parallel = ["std", "ark-ff/parallel", "ark-ec/parallel", "ark-std/parallel", "ark-poly/parallel", "fflonk/parallel", "rayon"]

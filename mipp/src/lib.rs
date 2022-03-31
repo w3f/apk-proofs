@@ -34,7 +34,7 @@ mod tests {
         let rng = &mut test_rng();
 
         let pks = (0..n)
-            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_repr()))
+            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_bigint()))
             .collect::<Vec<_>>();
         let bitmask = (0..n)
             .map(|_| if rng.gen::<bool>() { Fr::one() } else { Fr::zero() } )
@@ -78,7 +78,7 @@ mod tests {
         let rng = &mut test_rng();
 
         let pks = (0..n)
-            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_repr()))
+            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_bigint()))
             .collect::<Vec<_>>();
         let bitmask = (0..n)
             .map(|_| if rng.gen::<bool>() { Fr::one() } else { Fr::zero() } )

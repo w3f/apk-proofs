@@ -5,10 +5,9 @@ members = [
     "mipp",
 ]
 
-# until https://github.com/arkworks-rs/curves/pull/95 is merged
 [patch.crates-io]
 ark-std = { git = "https://github.com/arkworks-rs/std" }
-ark-ff = { git = "https://github.com/arkworks-rs/algebra", rev = "d6365c3" }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra", rev = "d6365c3" }
-ark-poly = { git = "https://github.com/arkworks-rs/algebra", rev = "d6365c3" }
-ark-serialize = { git = "https://github.com/arkworks-rs/algebra", rev = "d6365c3" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
