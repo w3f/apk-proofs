@@ -1,6 +1,6 @@
 ## Recursive validator set validation
 
-See comments in recursive.rs
+See comments in [recursive.rs](recursive.rs)
 
 > cargo run --release --features "parallel print-trace" --example recursive 8 2
 
