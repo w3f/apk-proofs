@@ -118,16 +118,8 @@ pub fn hash_to_curve<G: ProjectiveCurve>(message: &[u8]) -> G {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_377::G1Projective;
-    use ark_ff::{One, Zero};
-    use ark_std::rand::Rng;
-    use ark_std::test_rng;
-    use fflonk::pcs::PcsParams;
-    use merlin::Transcript;
-
-    use crate::test_helpers;
-
     use super::*;
+    use crate::test_helpers;
 
     #[test]
     fn h_is_not_in_g1() {

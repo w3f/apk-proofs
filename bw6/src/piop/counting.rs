@@ -158,13 +158,15 @@ impl CountingEvaluations {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use ark_std::{test_rng, UniformRand};
+    use ark_poly::Polynomial;
+
     use fflonk::pcs::{PCS, PcsParams};
 
     use crate::NewKzgBw6;
     use crate::test_helpers::{_random_bits, random_pks};
-
-    use super::*;
 
     #[test]
     fn test_polynomial_ordering() {
