@@ -163,7 +163,7 @@ mod tests {
     use fflonk::pcs::{PCS, PcsParams};
 
     use crate::NewKzgBw6;
-    use crate::test_helpers::{random_bits, random_pks};
+    use crate::test_helpers::{_random_bits, random_pks};
 
     use super::*;
 
@@ -179,7 +179,7 @@ mod tests {
         keyset.amplify();
         let mut scheme = CountingScheme::init(
             Domains::new(n),
-            Bitmask::from_bits(&random_bits(m, 0.5, rng)),
+            Bitmask::from_bits(&_random_bits(m, 0.5, rng)),
             keyset,
         );
 

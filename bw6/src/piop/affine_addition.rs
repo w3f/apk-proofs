@@ -461,7 +461,7 @@ mod tests {
     use ark_poly::Polynomial;
     use ark_std::{test_rng, UniformRand};
 
-    use crate::test_helpers::{random_bitmask, random_bits, random_pks};
+    use crate::test_helpers::{_random_bitmask, _random_bits, random_pks};
     use crate::utils;
 
     use super::*;
@@ -477,7 +477,7 @@ mod tests {
         let m = n - 1;
         let domains = Domains::new(n);
 
-        let good_bitmask = random_bits(m, 0.5, rng);
+        let good_bitmask = _random_bits(m, 0.5, rng);
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();
         let registers = AffineAdditionRegisters::new(
@@ -496,7 +496,7 @@ mod tests {
             constraint_poly.evaluate(&zeta)
         );
 
-        let mut bad_bitmask = random_bitmask(m, rng);
+        let mut bad_bitmask = _random_bitmask(m, rng);
         bad_bitmask[0] = Fr::rand(rng);
 
         let registers = AffineAdditionRegisters::new_unchecked(
@@ -523,7 +523,7 @@ mod tests {
         let registers = AffineAdditionRegisters::new(
             domains.clone(),
             keyset,
-            &random_bits(m, 0.5, rng),
+            &_random_bits(m, 0.5, rng),
         );
         let constraint_polys =
             Constraints::compute_conditional_affine_addition_constraint_polynomials(&registers);
@@ -542,7 +542,7 @@ mod tests {
         let m = n - 1;
         let domains = Domains::new(n);
 
-        let bits = random_bits(m, 0.5, rng);
+        let bits = _random_bits(m, 0.5, rng);
 
         let mut keyset = Keyset::new(random_pks(m, rng));
         keyset.amplify();

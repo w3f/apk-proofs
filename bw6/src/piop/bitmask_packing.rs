@@ -380,7 +380,7 @@ mod tests {
     use ark_poly::Polynomial;
     use ark_bls12_377::G1Projective;
     use ark_ec::ProjectiveCurve;
-    use crate::test_helpers::random_bits;
+    use crate::test_helpers::_random_bits;
     use crate::domains::Domains;
 
     fn random_pks(n: usize, rng: &mut StdRng) -> Vec<ark_bls12_377::G1Affine> {
@@ -418,7 +418,7 @@ mod tests {
         let m = n - 1;
         let domains = Domains::new(n);
 
-        let bitmask = Bitmask::from_bits(&random_bits(m, 0.5, rng));
+        let bitmask = Bitmask::from_bits(&_random_bits(m, 0.5, rng));
 
         let r = Fr::rand(rng);
         let acc_registers = BitmaskPackingRegisters::new(

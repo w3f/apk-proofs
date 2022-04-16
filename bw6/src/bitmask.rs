@@ -100,10 +100,10 @@ mod tests {
     use super::*;
     use ark_bw6_761::Fr;
     use ark_std::test_rng;
-    use crate::test_helpers::random_bits;
+    use crate::test_helpers::_random_bits;
 
     pub fn _test_from_bits_to_bits(size: usize) {
-        let bits = random_bits(size, 1.0 / 2.0, &mut test_rng());
+        let bits = _random_bits(size, 1.0 / 2.0, &mut test_rng());
         let bitmask = Bitmask::from_bits(&bits);
         let limbs_in_bitmask = div_ceil(size, BITS_IN_LIMB);
         assert_eq!(bitmask.limbs.len(), limbs_in_bitmask);
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     pub fn test_bitmask_limbs_to_field_elements() {
-        let bits = random_bits(1024, 1.0 / 2.0, &mut test_rng());
+        let bits = _random_bits(1024, 1.0 / 2.0, &mut test_rng());
         let bitmask = Bitmask::from_bits(&bits);
         let chunks = bitmask.to_chunks_as_field_elements::<Fr>(1);
         assert_eq!(chunks, bitmask.limbs.iter().cloned().map(Fr::from).collect::<Vec<_>>());
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     pub fn test_bitmask_bigger_chunks_to_field_elements() {
-        let bits = random_bits(1024, 1.0 / 2.0, &mut test_rng());
+        let bits = _random_bits(1024, 1.0 / 2.0, &mut test_rng());
         let bitmask = Bitmask::from_bits(&bits);
         let chunks = bitmask.to_chunks_as_field_elements::<Fr>(4);
         assert_eq!(chunks.len(), 4);

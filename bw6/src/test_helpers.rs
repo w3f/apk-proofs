@@ -11,12 +11,12 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use ark_std::{end_timer, start_timer, UniformRand};
 
-pub(crate) fn random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
+pub(crate) fn _random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
     (0..n).map(|_| rng.gen_bool(density)).collect()
 }
 
-pub(crate) fn random_bitmask<R: Rng>(n: usize, rng: &mut R) -> Vec<Fr> {
-    random_bits(n, 2.0 / 3.0, rng).into_iter()
+pub(crate) fn _random_bitmask<R: Rng>(n: usize, rng: &mut R) -> Vec<Fr> {
+    _random_bits(n, 2.0 / 3.0, rng).into_iter()
         .map(|b| if b { Fr::one() } else { Fr::zero() })
         .collect()
 }

@@ -183,7 +183,7 @@ mod tests {
     use ark_poly::Polynomial;
     use ark_std::{test_rng, UniformRand};
 
-    use crate::test_helpers::{random_bitmask, random_bits};
+    use crate::test_helpers::{_random_bitmask, _random_bits};
     use crate::utils;
     use crate::utils::lagrange_evaluations;
 
@@ -193,7 +193,7 @@ mod tests {
     fn test_partial_counts_register() {
         let rng = &mut test_rng();
         let n = 16;
-        let bitmask = random_bitmask(n, rng);
+        let bitmask = _random_bitmask(n, rng);
         let partial_counts = BitCountingRegisters::build_partial_counts_register(&bitmask);
 
         assert_eq!(partial_counts.len(), 16);
@@ -209,7 +209,7 @@ mod tests {
         let n = 16;
         let domains = Domains::new(n);
 
-        let bitmask = Bitmask::from_bits(&random_bits(n, 2.0 / 3.0, rng));
+        let bitmask = Bitmask::from_bits(&_random_bits(n, 2.0 / 3.0, rng));
         let count = Fr::from(bitmask.count_ones() as u8);
         let registers = BitCountingRegisters::new(domains.clone(), &bitmask);
 
@@ -239,7 +239,7 @@ mod tests {
         let domains = Domains::new(n);
         let domain = domains.domain;
 
-        let bits = random_bits(n, 2.0 / 3.0, rng);
+        let bits = _random_bits(n, 2.0 / 3.0, rng);
 
         let mut good_bitmask = bits.clone();
         good_bitmask[n-1] = false;

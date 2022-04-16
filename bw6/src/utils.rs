@@ -159,7 +159,7 @@ mod tests {
     use ark_poly::{Evaluations, Polynomial};
     use ark_std::{UniformRand, test_rng};
     use ark_std::convert::TryInto;
-    use crate::test_helpers::random_bits;
+    use crate::test_helpers::_random_bits;
 
     #[test]
     pub fn test_barycentric_eval() {
@@ -173,7 +173,7 @@ mod tests {
         let poly_at_z = poly.evaluate(&z);
         assert_eq!(barycentric_eval_at(z, &evals, domain), poly_at_z);
 
-        let bitmask = Bitmask::from_bits(&random_bits(n.try_into().unwrap(), 1.0 / 2.0, rng));
+        let bitmask = Bitmask::from_bits(&_random_bits(n.try_into().unwrap(), 1.0 / 2.0, rng));
         let bits_as_field_elements = bitmask.to_bits().iter()
             .map(|b| if *b { ark_bw6_761::Fr::one() } else { ark_bw6_761::Fr::zero() })
             .collect::<Vec<_>>();
