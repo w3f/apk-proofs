@@ -58,8 +58,11 @@ impl Keyset {
     pub fn new(pks: Vec<G1Projective>) -> Self {
         let min_domain_size = pks.len() + 1; // extra 1 accounts apk accumulator initial value
         let domain = Radix2EvaluationDomain::<Fr>::new(min_domain_size).unwrap();
+
         let mut padded_pks = pks.clone();
-        padded_pks.resize_with(domain.size(), || hash_to_curve::<ark_bls12_377::G1Projective>(b"apk-proofs"));
+        // a point with unknown discrete log
+        let padding_pk = hash_to_curve::<ark_bls12_377::G1Projective>(b"apk-proofs");
+        padded_pks.resize(domain.size(), padding_pk);
 
         // convert into affine coordinates to commit
         let (pks_x, pks_y) = G1Projective::batch_normalization_into_affine(&padded_pks).iter()
