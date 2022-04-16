@@ -1,6 +1,5 @@
 use ark_bw6_761::{Fr, G1Projective};
 use ark_ec::AffineCurve;
-use ark_poly::Polynomial;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
@@ -106,10 +105,10 @@ impl ProverProtocol for CountingScheme {
 
     fn evaluate_register_polynomials(&mut self, point: Fr) -> Self::E {
         let affine_addition_evaluations = self.affine_addition_registers.evaluate_register_polynomials(point);
-        let partial_counts_evaluation = self.bit_counting_registers.get_partial_counts_polynomial().evaluate(&point);
+        let partial_counts_evaluation = self.bit_counting_registers.evaluate_partial_counts_register(point);
         let evals = CountingEvaluations {
             affine_addition_evaluations,
-            partial_counts_evaluation: BitCountingEvaluation(partial_counts_evaluation),
+            partial_counts_evaluation,
         };
         self.register_evaluations = Some(evals.clone());
         evals
