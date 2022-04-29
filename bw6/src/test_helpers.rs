@@ -38,13 +38,13 @@ fn _test_prove_verify<P, V, PI, E, C, AC>(prove: P, verify: V, log_domain_size: 
 {
     let rng = &mut test_rng();
 
-    let keyset_size = 200;
-    let keyset = Keyset::new(random_pks(keyset_size, rng));
-
     let t_setup = start_timer!(|| "setup");
     // let kzg_params = setup::generate_for_keyset(keyset_size, rng);
     let kzg_params = setup::generate_for_domain(log_domain_size, rng);
     end_timer!(t_setup);
+
+    let keyset_size = 2usize.pow(log_domain_size) - 1;
+    let keyset = Keyset::new(random_pks(keyset_size, rng));
 
     let pks_commitment_ = start_timer!(|| "signer set commitment");
     let pks_comm = keyset.commit(&kzg_params.ck());
