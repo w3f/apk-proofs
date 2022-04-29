@@ -210,7 +210,7 @@ mod tests {
         let domains = Domains::new(n);
 
         let bitmask = Bitmask::from_bits(&_random_bits(n, 2.0 / 3.0, rng));
-        let count = Fr::from(bitmask.count_ones() as u8);
+        let count = Fr::from(bitmask.count_ones() as u32);
         let registers = BitCountingRegisters::new(domains.clone(), &bitmask);
 
         let z = Fr::rand(rng);
