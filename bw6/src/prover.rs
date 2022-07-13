@@ -17,13 +17,17 @@ use fflonk::pcs::kzg::urs::URS;
 use fflonk::pcs::kzg::params::KzgCommitterKey;
 
 
+//~ Prover is responsible to generate APK proofs. The `Prover` struct encapsultes this tasks. It contains the following fields:
 pub struct Prover {
+    //~ - `Domains`: ???
     domains: Domains,
-    keyset: Keyset,
+    //~ - `Keyset`: ???
+    keyset: Keyset, 
+    //~ - `KzgCommitterKey`: the set points in G1 corresponding to $\tau^n G_1$.
     kzg_pk: KzgCommitterKey<ark_bw6_761::G1Affine>,
-    preprocessed_transcript: Transcript,
+    //~ - `Transcript`: Representing the statement which purportedly has been signed by the aggregated public key.
+    preprocessed_transcript: Transcript, 
 }
-
 
 impl Prover {
 

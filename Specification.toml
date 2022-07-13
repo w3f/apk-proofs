@@ -1,0 +1,20 @@
+[metadata]
+name = "APK Proofs"
+description = "The specification of APK proof systems"
+version = "0.0.1"
+authors = ["Oana, Syed, Alistair, Sergay"]
+
+[config]
+template = "specification_template.md"
+
+[sections]
+# bw6
+
+## prover
+bw6-prover = "bw6/src/prover.rs"
+
+## bw6 examples
+bw6-example= "bw6/examples/recursive.rs"
+
+# mipp
+

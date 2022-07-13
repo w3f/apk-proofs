@@ -9,3 +9,15 @@ This repo contains PoC implementations of succinct proofs of correctness of the 
 given the verifier knows the commitment to the list of public keys of all the eligible signers.
 
 See [a code example](bw6/examples/recursive.rs) for a sketch of a blockchain light client design exploiting such proofs.
+
+## Building the Specification document
+
+The specification is built by means of [Cargo spec](https://crates.io/crates/cargo-spec) crate. To build the specification document, one can simply invoke:
+```
+$ cargo spec build
+```
+[`specification.md`](./specification.md) then shall contains the newly built specification. The specification could be easily converted to HTML by the help of `pandoc` if desired:
+
+```
+pandoc -f commonmark specification.md --standalone  --output specification.html 
+```
