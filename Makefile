@@ -1,4 +1,4 @@
-.PHONY: build watch
+.PHONY: spec-build spec-watch
 
 OUT_MD_FILE := ./specification.md
 OUT_HTML_FILE := ./specification.html
