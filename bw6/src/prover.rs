@@ -31,10 +31,11 @@ pub struct Prover {
 
 impl Prover {
 
+    // ~ Prover::new constructs a new prover. 
     pub fn new(
         mut keyset: Keyset,
         keyset_comm: &KeysetCommitment,
-        // prover needs both KZG pk and vk, as it commits to the latter to bind the srs
+        // ~ The Prover needs both KZG public keys and vk???, as it commits to the latter to bind the srs
         kzg_params: URS<BW6_761>,
         mut empty_transcript: Transcript,
     ) -> Self {

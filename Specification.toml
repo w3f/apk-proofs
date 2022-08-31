@@ -10,10 +10,13 @@ template = "specification_template.md"
 [sections]
 # bw6
 
+## keyset
+bw6-keyset = "bw6/src/keyset.rs"
+
 ## prover
 bw6-prover = "bw6/src/prover.rs"
 
-## bw6 examples
+## BW6 examples
 bw6-example= "bw6/examples/recursive.rs"
 
 # mipp
