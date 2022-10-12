@@ -16,7 +16,7 @@ The specification is built by means of [Cargo spec](https://crates.io/crates/car
 ```
 $ cargo spec build
 ```
-[`specification.md`](./specification.md) then shall contains the newly built specification. The specification could be easily converted to HTML by the help of `pandoc` if desired:
+[`specification.md`](./specification.md) then shall contain the newly built specification. The specification could be easily converted to HTML by the help of `pandoc` if desired:
 
 ```
 pandoc -f commonmark specification.md --standalone  --output specification.html 

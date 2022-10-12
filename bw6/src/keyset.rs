@@ -12,28 +12,46 @@ use fflonk::pcs::kzg::params::KzgCommitterKey;
 use fflonk::pcs::{PCS, CommitterKey};
 
 
-//~ APK proof provides polynomial commitment to the vector of public keys. As such the fundamental structure used is the set of public //~ keys which prover has to commit to. The `Keyset` struct represent that set. Whereas `KeysetCommitment` struct is used to store
-//~ prover's commitment to the key set.
-
-
-//~ Let 'pks' be such a vector that commit(pks) == KeysetCommitment::pks_comm, also let
-//~ domain_size := KeysetCommitment::domain.size and
-//~ keyset_size := KeysetCommitment::keyset_size
-//~ Then the verifier needs to trust that:
-//~ 1.a. pks.len() == KeysetCommitment::domain.size
-//~   b. pks[i] lie in BLS12-377 G1 for i=0,...,domain_size-2
-//~   c. for the 'real' keys pks[i], i=0,...,keyset_size-1, there exist proofs of possession
-//~      for the padding, pks[i], i=keyset_size,...,domain_size-2, dlog is not known,
-//~      e.g. pks[i] = hash_to_g1("something").
-//~   pks[domain_size-1] is not a part of the relation (not constrained) and can be anything,
-//~   we set pks[domain_size-1] = (0,0), not even a curve point.
-//~ 2. KeysetCommitment::domain is the domain used to interpolate pks
-//
-//~ In light client protocols the commitment is to the upcoming validator set, signed by the current validator set.
+//~ In short, APK proof provides polynomial commitment to the vector of public keys.
+//~
+//~ In light client protocols, such commitment is used to commit to the upcoming validator set, signed by the current validator set.
+//~ > **_TOOD:_**  This is to any bls signature really, no?
 //~ Honest validator checks the proofs of possession, interpolates with the right padding over the right domain,
+//~ > **_TOOD:_**  Do you mean honest prover
 //~ computes the commitment using the right parameters, and then sign it.
 //~ Verifier checks the signatures and can trust that the properties hold under some "2/3 honest validators" assumption.
 //~ As every honest validator generates the same commitment, verifier needs to check only the aggregate signature.
+
+//~ As such the fundamental structure used is the set of public
+//~ keys which prover has to commit to. The `Keyset` struct represent that set. Whereas `KeysetCommitment` struct is used to store
+//~ prover's commitment to the key set.
+//~
+
+
+//~ Let 'pks' be such a vector that
+//~
+//~  commit(pks) == KeysetCommitment::pks_comm,
+//~
+//~  also let:
+//~
+//~ `domain_size := KeysetCommitment::domain.size`
+//~
+//~  and
+//~
+//~ `keyset_size := KeysetCommitment::keyset_size`
+//~
+//~  Then the verifier needs to trust that:
+//~
+//~ 1. The following:
+//~     - `pks.len() == KeysetCommitment::domain.size`
+//~     - `pks[i]` lie in BLS12-377 G1 for `i=0,...,domain_size-2`
+//~     - For the 'real' `keys pks[i]`, `i=0,...,keyset_size-1`, there exist proofs of possession
+//~     - For the padding, `pks[i], i=keyset_size,...,domain_size-2`, `dlog is not known,
+//~       e.g. pks[i] = hash_to_g1("something").
+//~      - `pks[domain_size-1]` is not a part of the relation (not constrained) and can be anything,
+//~   we set pks[domain_size-1] = (0,0), not even a curve point.
+//~ 2. `KeysetCommitment::domain` is the domain used to interpolate pks
+//~
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct KeysetCommitment {
     // Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.

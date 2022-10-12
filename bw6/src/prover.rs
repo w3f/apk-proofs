@@ -17,7 +17,7 @@ use fflonk::pcs::kzg::urs::URS;
 use fflonk::pcs::kzg::params::KzgCommitterKey;
 
 
-//~ Prover is responsible to generate APK proofs. The `Prover` struct encapsultes this tasks. It contains the following fields:
+//~ Prover is responsible to generate APK proofs. The `Prover` struct encapsultes this task. It contains the following fields:
 pub struct Prover {
     //~ - `Domains`: ???
     domains: Domains,
