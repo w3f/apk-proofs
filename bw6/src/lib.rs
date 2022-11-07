@@ -29,7 +29,6 @@ pub mod bls;
 
 mod transcript;
 
-pub mod kzg;
 mod fsrng;
 pub mod domains;
 mod piop;
