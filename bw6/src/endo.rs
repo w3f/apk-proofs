@@ -1,8 +1,10 @@
 use ark_ff::{MontFp, Zero, BitIteratorBE};
-use ark_ec::ProjectiveCurve;
+use ark_ec::CurveGroup;
 use ark_ec::bls12::Bls12Parameters;
 use ark_bw6_761::{Fq, G1Projective};
 use std::ops::AddAssign;
+use ark_ec::Group;
+
 
 // See https://github.com/celo-org/zexe/blob/master/algebra/src/bw6_761/curves/g1.rs#L37-L71
 // and also https://github.com/celo-org/zexe/blob/master/scripts/glv_lattice_basis/src/lib.rs
@@ -12,7 +14,6 @@ use std::ops::AddAssign;
 /// 26ee4a737f73b6f952ab5e57926fa701848e0a235a0a398300c65759fc4518315
 /// 1f2f082d4dcb5e37cb6290012d96f8819c547ba8a4000002f962140000000002a
 const OMEGA: Fq = MontFp!(
-        Fq,
         "196898582409020929727861073970057715139766638230382572845074161156680037021882725775086501\
         3421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868\
         639090213645505120388400344940985710520836292650"
@@ -33,7 +34,7 @@ fn mul_by_u(p: &G1Projective) -> G1Projective {
 }
 
 fn glv_endomorphism_proj(p: &G1Projective) -> G1Projective {
-    G1Projective::new(p.x * OMEGA, p.y, p.z)
+    G1Projective::new_unchecked(p.x * OMEGA, p.y, p.z)
 }
 
 // See https://eprint.iacr.org/2020/351.pdf, section 3.1
@@ -50,7 +51,7 @@ pub fn subgroup_check(p: &G1Projective) -> bool {
 mod tests {
     use super::*;
     use ark_ff::{Field, One, PrimeField};
-    use ark_ec::AffineCurve;
+    use ark_ec::AffineRepr;
     use ark_bw6_761::{Fr, G1Affine};
     use ark_std::{UniformRand, test_rng};
 
@@ -58,7 +59,6 @@ mod tests {
     /// lambda in Z s.t. phi(P) = lambda*P for all P
     /// \lambda = 0x9b3af05dd14f6ec619aaf7d34594aabc5ed1347970dec00452217cc900000008508c00000000001
     const LAMBDA: Fr = MontFp!(
-        Fr,
         "809496482649127194085583631406374772648452947207104994781372872627125359383014618798134594\
         10945"
     );
@@ -86,9 +86,9 @@ mod tests {
         let p1 = ark_bw6_761::G1Projective::rand(rng).into_affine();
         let mut p2 = p1.clone();
 
-        assert_eq!(glv_endomorphism(&p1), p1.mul(LAMBDA));
+        assert_eq!(glv_endomorphism(&p1), p1 * LAMBDA);
         glv_endomorphism_in_place(&mut p2);
-        assert_eq!(p2, p1.mul(LAMBDA));
+        assert_eq!(p2, p1 * LAMBDA);
     }
 
     #[test]
@@ -97,7 +97,7 @@ mod tests {
 
         let p = ark_bw6_761::G1Projective::rand(rng);
 
-        assert_eq!(glv_endomorphism_proj(&p), p.mul(LAMBDA.into_bigint()));
+        assert_eq!(glv_endomorphism_proj(&p), p * LAMBDA);
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
 
         let point_not_in_g1 = loop {
             let x = Fq::rand(rng);
-            let p = G1Affine::get_point_from_x(x, false);
+            let p = G1Affine::get_point_from_x_unchecked(x, false);
             if p.is_some() && !p.unwrap().is_in_correct_subgroup_assuming_on_curve() {
                 break p.unwrap();
             }
@@ -118,6 +118,6 @@ mod tests {
 
         assert!(point_not_in_g1.is_on_curve());
         assert!(!point_not_in_g1.is_in_correct_subgroup_assuming_on_curve());
-        assert!(!subgroup_check(&point_not_in_g1.into_projective()));
+        assert!(!subgroup_check(&point_not_in_g1.into_group()));
     }
 }

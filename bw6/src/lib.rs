@@ -2,7 +2,7 @@
 
 use ark_bls12_377::G1Affine;
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::ProjectiveCurve;
+use ark_ec::CurveGroup;
 use ark_ff::MontFp;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
@@ -99,14 +99,14 @@ pub type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSums
 pub type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
 
 
-const H_X: Fr = MontFp!(Fr, "0");
-const H_Y: Fr = MontFp!(Fr, "1");
+const H_X: Fr = MontFp!("0");
+const H_Y: Fr = MontFp!("1");
 fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
-    ark_bls12_377::G1Affine::new(H_X, H_Y, false)
+    ark_bls12_377::G1Affine::new_unchecked(H_X, H_Y)
 }
 
 // TODO: switch to better hash to curve when available
-pub fn hash_to_curve<G: ProjectiveCurve>(message: &[u8]) -> G {
+pub fn hash_to_curve<G: CurveGroup>(message: &[u8]) -> G {
     use blake2::Digest;
     use ark_std::rand::SeedableRng;
 

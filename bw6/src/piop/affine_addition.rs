@@ -2,9 +2,9 @@ use std::iter;
 
 use ark_bls12_377::G1Projective;
 use ark_bw6_761::{Fr, G1Affine};
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{Field, One, Zero};
-use ark_poly::{EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain, UVPolynomial};
+use ark_poly::{EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain, DenseUVPolynomial};
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
@@ -139,8 +139,8 @@ impl VerifierProtocol for AffineAdditionEvaluations {
         // X3 term = b(x1-x2)^2 + b(y1-y2)phi + (1-b)phi
         // Y3 term = (1-b) + b(x1-x2)phi
         // ...and both multiplied by (\zeta - \omega^{n-1}) // = zeta_minus_omega_inv
-        r_comm += commitments.0.mul(zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
-        r_comm += commitments.1.mul(zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
+        r_comm += commitments.0 * (zeta_minus_omega_inv * (b * (x1 - x2) * (x1 - x2) + b * (y1 - y2) * phi + (Fr::one() - b) * phi));
+        r_comm += commitments.1 * (zeta_minus_omega_inv * ((Fr::one() - b) + b * (x1 - x2) * phi));
         r_comm
     }
 }
@@ -182,7 +182,7 @@ impl AffineAdditionRegisters {
         assert_eq!(bitmask.len(), keyset.size());
         let domain_size = keyset.domain.size();
 
-        let h = point_in_g1_complement().into_projective();
+        let h = point_in_g1_complement().into_group();
         let apk_acc = bitmask.iter().zip(keyset.pks.iter())
             .scan(h, |acc, (b, pk)| {
                 if *b {
@@ -193,7 +193,7 @@ impl AffineAdditionRegisters {
         let apk_acc: Vec<_> = iter::once(h)
             .chain(apk_acc)
             .collect();
-        let mut apk_acc = G1Projective::batch_normalization_into_affine(&apk_acc);
+        let mut apk_acc = G1Projective::normalize_batch(&apk_acc);
 
         apk_acc.resize(domain_size, apk_acc.last().cloned().unwrap());
         let apk_acc = apk_acc.iter()
@@ -440,7 +440,7 @@ impl Constraints {
         y1: Fr,
     ) -> (Fr, Fr) {
         let h = point_in_g1_complement();
-        let apk_plus_h = h + apk;
+        let apk_plus_h = (h + apk).into_affine();
         let c1 = (x1 - h.x) * evals_at_zeta.l_first + (x1 - apk_plus_h.x) * evals_at_zeta.l_last;
         let c2 = (y1 - h.y) * evals_at_zeta.l_first + (y1 - apk_plus_h.y) * evals_at_zeta.l_last;
         (c1, c2)
@@ -457,7 +457,7 @@ fn mul_by_x<F: Field>(p: &DensePolynomial<F>) -> DensePolynomial<F> {
 
 #[cfg(test)]
 mod tests {
-    use ark_ec::ProjectiveCurve;
+    use ark_ec::CurveGroup;
     use ark_poly::Polynomial;
     use ark_std::{test_rng, UniformRand};
 

@@ -1,6 +1,6 @@
 use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::{ProjectiveCurve, AffineCurve};
+use ark_ec::{CurveGroup, AffineRepr};
 use ark_std::{end_timer, start_timer};
 use merlin::{Transcript, TranscriptRng};
 
@@ -13,6 +13,7 @@ use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitm
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
 use crate::utils::LagrangeEvaluations;
 use crate::piop::counting::{CountingEvaluations, CountingCommitments};
+use fflonk::pcs::RawVerifierKey;
 use fflonk::aggregation::single::aggregate_claims_multiexp;
 use fflonk::pcs::kzg::KzgOpening;
 use fflonk::pcs::kzg::params::{KzgVerifierKey, RawKzgVerifierKey};
@@ -173,12 +174,12 @@ impl Verifier {
         let openings = vec![opening_at_zeta, opening_at_zeta_omega];
         let coeffs = [Fr::one(), u128::rand(fsrng).into()];
         let acc_opening = NewKzgBw6::accumulate(openings, &coeffs, &self.kzg_pvk);
-        // assert!(NewKzgBw6::verify_accumulated(acc_opening.clone(), &self.kzg_pvk), "KZG verification");
+        assert!(NewKzgBw6::verify_accumulated(acc_opening.clone(), &self.kzg_pvk), "KZG verification");
         end_timer!(t_kzg_batch_opening);
 
         let t_lazy_subgroup_checks = start_timer!(|| "lazy subgroup check");
-        assert!(endo::subgroup_check(&acc_opening.acc.into_projective()));
-        assert!(endo::subgroup_check(&acc_opening.proof.into_projective()));
+        assert!(endo::subgroup_check(&acc_opening.acc.into_group()));
+        assert!(endo::subgroup_check(&acc_opening.proof.into_group()));
         end_timer!(t_lazy_subgroup_checks);
 
         end_timer!(t_kzg);

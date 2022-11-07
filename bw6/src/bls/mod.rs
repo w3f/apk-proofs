@@ -2,8 +2,9 @@ use rand::Rng;
 use std::borrow::Borrow;
 use std::ops::Neg;
 
-use ark_ff::{One, UniformRand, PrimeField};
-use ark_ec::{AffineCurve, ProjectiveCurve, PairingEngine};
+use ark_ff::{One, UniformRand, PrimeField, Zero};
+use ark_ec::{AffineRepr, CurveGroup, Group};
+use ark_ec::pairing::Pairing;
 use ark_bls12_377::{G2Projective, Fr, G1Projective, Bls12_377, G1Affine, Fq12};
 use ark_serialize::*;
 
@@ -57,7 +58,7 @@ impl SecretKey {
     }
 
     pub fn sign(&self, message: &G2Projective) -> Signature {
-        message.mul(self.as_ref().into_bigint()).into()
+        (*message * self.as_ref()).into()
     }
 }
 
@@ -74,7 +75,7 @@ impl From<G1Projective> for PublicKey {
 
 impl From<&SecretKey> for PublicKey {
     fn from(sk: &SecretKey) -> PublicKey {
-        G1Projective::prime_subgroup_generator().mul(sk.as_ref().into_bigint()).into()
+        (G1Projective::generator() * sk.as_ref()).into()
     }
 }
 
@@ -88,16 +89,10 @@ impl PublicKey {
     }
 
     pub fn verify(&self, signature: &Signature, message: &G2Projective) -> bool {
-        Bls12_377::product_of_pairings(&vec![
-            (
-                G1Affine::prime_subgroup_generator().neg().into(),
-                signature.as_ref().into_affine().into(),
-            ),
-            (
-                self.0.into_affine().into(),
-                message.into_affine().into(),
-            ),
-        ]) == Fq12::one()
+        Bls12_377::multi_pairing(
+            [G1Affine::generator().neg(), self.0.into_affine()],
+            [signature.as_ref().into_affine(), message.into_affine()]
+        ).is_zero()
     }
 }
 

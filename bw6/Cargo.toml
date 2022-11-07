@@ -9,10 +9,10 @@ categories = ["cryptography"]
 
 [dependencies]
 ark-std = { git = "https://github.com/arkworks-rs/std", default-features = false }
-ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
-ark-serialize = { git = "https://github.com/arkworks-rs/algebra", default-features = false, features = ["derive"] }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false, rev = "402e7f9" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false, rev = "402e7f9" }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra", default-features = false, rev = "402e7f9" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra", default-features = false, features = ["derive"], rev = "402e7f9" }
 
 ark-bw6-761 = { git = "https://github.com/arkworks-rs/curves", default-features = false }
 ark-bls12-377 = { git = "https://github.com/arkworks-rs/curves", default-features = false, features = ["curve"] }

@@ -1,5 +1,5 @@
 use ark_bw6_761::{Fr, G1Projective};
-use ark_ec::AffineCurve;
+use ark_ec::AffineRepr;
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::io::{Read, Write};
@@ -135,7 +135,7 @@ impl VerifierProtocol for CountingEvaluations {
         let powers_of_phi = utils::powers(phi, 6);
         let partial_sums_commitments = &commitments.affine_addition_commitments.partial_sums;
         let mut r_comm = self.affine_addition_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, partial_sums_commitments, &());
-        r_comm += commitments.partial_counts_commitment.mul(powers_of_phi[5]);
+        r_comm += commitments.partial_counts_commitment * powers_of_phi[5];
         r_comm
     }
 }

@@ -68,11 +68,11 @@ fn _test_prove_verify<P, V, PI, E, C, AC>(prove: P, verify: V, log_domain_size: 
     let (proof, public_input) = prove(prover, b.clone());
     end_timer!(prove_);
 
-    let mut serialized_proof = vec![0; proof.serialized_size()];
-    proof.serialize(&mut serialized_proof[..]).unwrap();
-    let proof = Proof::<E, C, AC>::deserialize(&serialized_proof[..]).unwrap();
+    let mut serialized_proof = vec![0; proof.compressed_size()];
+    proof.serialize_compressed(&mut serialized_proof[..]).unwrap();
+    let proof = Proof::<E, C, AC>::deserialize_compressed(&serialized_proof[..]).unwrap();
 
-    assert_eq!(proof.serialized_size(), proof_size);
+    assert_eq!(proof.compressed_size(), proof_size);
 
     let verify_ = start_timer!(|| "BW6 verify");
     let valid = verify(verifier, proof, public_input);

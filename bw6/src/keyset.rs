@@ -3,7 +3,7 @@ use ark_poly::{Radix2EvaluationDomain, EvaluationDomain, Evaluations};
 use ark_bls12_377::G1Projective;
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
-use ark_ec::ProjectiveCurve;
+use ark_ec::CurveGroup;
 use crate::domains::Domains;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
@@ -65,7 +65,7 @@ impl Keyset {
         padded_pks.resize(domain.size(), padding_pk);
 
         // convert into affine coordinates to commit
-        let (pks_x, pks_y) = G1Projective::batch_normalization_into_affine(&padded_pks).iter()
+        let (pks_x, pks_y) = G1Projective::normalize_batch(&padded_pks).iter()
             .map(|p| (p.x, p.y))
             .unzip();
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();

@@ -1,11 +1,13 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
 use ark_ff::{Field, PrimeField, One, FftField};
 use ark_std::{UniformRand, test_rng};
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::{AffineRepr, CurveGroup};
 use apk_proofs::{Keyset, setup};
 use ark_bw6_761::Fr;
-use ark_poly::{Evaluations, EvaluationDomain, UVPolynomial, Radix2EvaluationDomain};
+use ark_poly::{Evaluations, EvaluationDomain, DenseUVPolynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
+use ark_ec::VariableBaseMSM;
+use fflonk::pcs::PcsParams;
 
 extern crate apk_proofs;
 
@@ -34,17 +36,17 @@ fn barycentric_evaluation<F: Field>(c: &mut Criterion, n: u32) {
 }
 
 
-fn msm<G: AffineCurve>(c: &mut Criterion, n: usize) {
+fn msm<G: AffineRepr>(c: &mut Criterion, n: usize) {
     let rng = &mut test_rng();
 
     let nu = G::ScalarField::rand(rng);
-    let scalars = (0..n).map(|i| nu.pow([i as u64]).into_bigint()).collect::<Vec<_>>();
-    let bases = (0..n).map(|_| G::Projective::rand(rng).into_affine()).collect::<Vec<_>>();
+    let scalars = (0..n).map(|i| nu.pow([i as u64])).collect::<Vec<_>>();
+    let bases = (0..n).map(|_| G::Group::rand(rng).into_affine()).collect::<Vec<_>>();
 
     {
         let (scalars, bases) = (scalars.clone(), bases.clone());
         c.bench_function("ark_ec::msm::VariableBaseMSM", move |b| {
-            b.iter(|| ark_ec::msm::VariableBaseMSM::multi_scalar_mul(black_box(&bases), black_box(&scalars)))
+            b.iter(|| <G::Group as VariableBaseMSM>::msm(black_box(&bases), black_box(&scalars)))
         });
     }
 
@@ -81,7 +83,7 @@ fn bw6_subgroup_check(c: &mut Criterion) {
 }
 
 fn amplification(c: &mut Criterion) {
-    use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, UVPolynomial};
+    use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, DenseUVPolynomial};
     use apk_proofs::domains::Domains;
 
     let mut group = c.benchmark_group("amplification");
@@ -147,7 +149,7 @@ fn verification(c: &mut Criterion) {
         let keyset = (0..keyset_size).map(|_| ark_bls12_377::G1Projective::rand(rng)).collect();
         let keyset = Keyset::new(keyset);
         let kzg_params = setup::generate_for_keyset(keyset_size, rng);
-        let pks_comm = keyset.commit(&kzg_params.get_pk());
+        let pks_comm = keyset.commit(&kzg_params.ck());
 
         let bitmask = Bitmask::from_bits(&vec![true; keyset_size]);
 
@@ -163,7 +165,7 @@ fn verification(c: &mut Criterion) {
 
         let create_verifier = || {
             Verifier::new(
-                kzg_params.get_vk(),
+                kzg_params.raw_vk(),
                 pks_comm.clone(),
                 Transcript::new(b"apk_proof"),
             )

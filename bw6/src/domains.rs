@@ -1,4 +1,4 @@
-use ark_poly::{Radix2EvaluationDomain, Evaluations, EvaluationDomain, UVPolynomial};
+use ark_poly::{Radix2EvaluationDomain, Evaluations, EvaluationDomain, DenseUVPolynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{Zero, One, Field};
 use ark_bw6_761::Fr;
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_coset_amplify() {
-        use ark_poly::UVPolynomial;
+        use ark_poly::DenseUVPolynomial;
 
         let rng = &mut test_rng();
         let n = 64;

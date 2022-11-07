@@ -2,7 +2,7 @@ use ark_poly::{Evaluations, Radix2EvaluationDomain, Polynomial};
 use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_ff::{One, Zero, Field};
 use ark_bw6_761::Fr;
-use ark_ec::AffineCurve;
+use ark_ec::AffineRepr;
 
 use ark_std::io::{Read, Write};
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
@@ -164,8 +164,8 @@ impl VerifierProtocol for SuccinctAccountableRegisterEvaluations {
     ) -> ark_bw6_761::G1Projective {
         let powers_of_phi = utils::powers(phi, 6);
         let mut r_comm = self.basic_evaluations.restore_commitment_to_linearization_polynomial(phi, zeta_minus_omega_inv, &commitments.partial_sums, &());
-        r_comm += extra_commitments.acc_comm.mul(powers_of_phi[5]);
-        r_comm += extra_commitments.c_comm.mul(powers_of_phi[6]);
+        r_comm += extra_commitments.acc_comm * powers_of_phi[5];
+        r_comm += extra_commitments.c_comm * powers_of_phi[6];
         r_comm
     }
 }

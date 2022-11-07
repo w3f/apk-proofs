@@ -9,7 +9,7 @@ use ark_std::test_rng;
 use rand::Rng;
 use std::collections::HashSet;
 use merlin::Transcript;
-use ark_ec::AffineCurve;
+use ark_ec::AffineRepr;
 use fflonk::pcs::PcsParams;
 use fflonk::pcs::kzg::params::{KzgCommitterKey, RawKzgVerifierKey};
 use fflonk::pcs::kzg::urs::URS;
@@ -204,7 +204,7 @@ impl LightClient {
         end_timer!(t_apk);
 
         let t_bls = start_timer!(|| "aggregate BLS signature verification");
-        let aggregate_public_key = PublicKey(public_input.apk.into_projective());
+        let aggregate_public_key = PublicKey(public_input.apk.into_group());
         let message = hash_commitment(&new_validator_set_commitment);
         assert!(aggregate_public_key.verify(&aggregate_signature, &message));
         end_timer!(t_bls);
@@ -270,8 +270,8 @@ impl TrustlessHelper {
 }
 
 fn hash_commitment(commitment: &KeysetCommitment) -> G2Projective {
-    let mut buf = vec![0u8; commitment.serialized_size()];
-    commitment.serialize(&mut buf[..]).unwrap();
+    let mut buf = vec![0u8; commitment.compressed_size()];
+    commitment.serialize_compressed(&mut buf[..]).unwrap();
     hash_to_curve(&buf)
 }
 

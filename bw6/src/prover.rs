@@ -10,7 +10,7 @@ use crate::piop::packed::PackedRegisterBuilder;
 use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
 use crate::keyset::Keyset;
-use ark_ec::ProjectiveCurve;
+use ark_ec::CurveGroup;
 use crate::domains::Domains;
 use fflonk::pcs::{PCS, PcsParams};
 use fflonk::pcs::kzg::urs::URS;

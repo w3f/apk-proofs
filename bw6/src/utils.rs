@@ -89,23 +89,22 @@ pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>
 
 
 use ark_ff::{Field, PrimeField, Zero};
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::{AffineRepr, CurveGroup};
 use crate::Bitmask;
 
-pub fn mul_then_add<G: AffineCurve>(
+pub fn mul_then_add<G: AffineRepr>(
     bases: &[G],
-    scalars: &[<G::ScalarField as PrimeField>::BigInt],
-) -> G::Projective {
-    bases.iter().zip(scalars).map(|(b, s)| b.mul(*s)).sum()
+    scalars: &[G::ScalarField],
+) -> G::Group {
+    bases.iter().zip(scalars).map(|(&b, s)| b * s).sum()
 }
 
-pub fn horner<G: AffineCurve>(
+pub fn horner<G: AffineRepr>(
     bases: &[G],
     nu: G::ScalarField,
 ) -> G {
-    let nu = nu.into_bigint();
-    bases.iter().rev().fold(G::Projective::zero(), |acc, b|
-        acc.mul(nu).add_mixed(b)
+    bases.iter().rev().fold(G::Group::zero(), |acc, b|
+        (acc * nu) + b
     ).into_affine()
 }
 
@@ -192,7 +191,7 @@ mod tests {
         let nu = ark_bw6_761::Fr::rand(rng);
         let bases = (0..n).map(|_| ark_bw6_761::G1Projective::rand(rng).into_affine()).collect::<Vec<_>>();
 
-        let powers = (0..n).map(|i| nu.pow([i as u64]).into_bigint()).collect::<Vec<_>>();
+        let powers = (0..n).map(|i| nu.pow([i as u64])).collect::<Vec<_>>();
 
         assert_eq!(horner(&bases, nu), mul_then_add(&bases, &powers));
     }

@@ -7,7 +7,7 @@ members = [
 
 [patch.crates-io]
 ark-std = { git = "https://github.com/arkworks-rs/std" }
-ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
-ark-poly = { git = "https://github.com/arkworks-rs/algebra" }
-ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
