@@ -1,10 +1,10 @@
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ff::FftField;
-use crate::NewKzgBw6;
-use rand::Rng;
-use fflonk::pcs::PCS;
 use fflonk::pcs::kzg::urs::URS;
+use fflonk::pcs::PCS;
+use rand::Rng;
 
+use crate::NewKzgBw6;
 
 pub fn generate_for_keyset<R: Rng>(keyset_size: usize, rng: &mut R) -> URS<BW6_761> {
     let required_domain_size = keyset_size + 1; // additional slot is occupied by affine addition accumulator initial value

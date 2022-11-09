@@ -1,15 +1,13 @@
 use ark_bls12_377::{Fq as Fr, G1Projective};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_std::{One, test_rng, Zero};
+use ark_std::{end_timer, start_timer, UniformRand};
 use ark_std::rand::Rng;
-use ark_std::{test_rng, Zero, One};
 use fflonk::pcs::PcsParams;
 use merlin::Transcript;
 
 use crate::{Bitmask, Keyset, Proof, Prover, PublicInput, setup, Verifier};
 use crate::piop::{RegisterCommitments, RegisterEvaluations};
-
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-
-use ark_std::{end_timer, start_timer, UniformRand};
 
 pub(crate) fn _random_bits<R: Rng>(n: usize, density: f64, rng: &mut R) -> Vec<bool> {
     (0..n).map(|_| rng.gen_bool(density)).collect()

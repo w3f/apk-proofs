@@ -1,8 +1,6 @@
-use ark_ff::{PrimeField, BitIteratorLE};
-use ark_std::convert::{TryInto, TryFrom};
-
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_ff::{BitIteratorLE, PrimeField};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_std::convert::{TryFrom, TryInto};
 
 const BITS_IN_LIMB: usize = 64;
 
@@ -97,10 +95,12 @@ fn limbs_to_field_elements<F: PrimeField>(limbs: &[u64]) -> F {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_bw6_761::Fr;
     use ark_std::test_rng;
+
     use crate::test_helpers::_random_bits;
+
+    use super::*;
 
     pub fn _test_from_bits_to_bits(size: usize) {
         let bits = _random_bits(size, 1.0 / 2.0, &mut test_rng());

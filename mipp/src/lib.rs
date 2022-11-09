@@ -1,20 +1,19 @@
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::{Bls12_381, Fr, G1Projective};
-    use ark_dh_commitments::DoublyHomomorphicCommitment;
-    use ark_dh_commitments::identity::{HomomorphicPlaceholderValue, IdentityOutput, IdentityCommitment};
-    use ark_ec::{ProjectiveCurve, PairingEngine};
-    use ark_ff::{One, Zero, PrimeField};
-    use ark_inner_products::{InnerProduct, PairingInnerProduct, MultiexponentiationInnerProduct};
     use ark_dh_commitments::afgho16::AFGHOCommitmentG1;
+    use ark_dh_commitments::DoublyHomomorphicCommitment;
+    use ark_dh_commitments::identity::{HomomorphicPlaceholderValue, IdentityCommitment, IdentityOutput};
     use ark_dh_commitments::pedersen::PedersenCommitment;
-    use ark_ip_proofs::tipa::TIPA;
+    use ark_ec::{PairingEngine, ProjectiveCurve};
+    use ark_ff::{One, Zero};
+    use ark_inner_products::{InnerProduct, MultiexponentiationInnerProduct, PairingInnerProduct};
     use ark_ip_proofs::tipa::structured_scalar_message::TIPAWithSSM;
-
+    use ark_ip_proofs::tipa::TIPA;
     use ark_std::{end_timer, start_timer};
-    use ark_std::{UniformRand, test_rng};
-    use rand::Rng;
+    use ark_std::{test_rng, UniformRand};
     use blake2::Blake2b;
+    use rand::Rng;
 
     type IP = MultiexponentiationInnerProduct<<Bls12_381 as PairingEngine>::G1Projective>;
     type GC1 = AFGHOCommitmentG1<Bls12_381>;

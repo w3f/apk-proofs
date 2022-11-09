@@ -1,5 +1,5 @@
-use rand::{RngCore, CryptoRng, Error};
 use merlin::{Transcript, TranscriptRng};
+use rand::{CryptoRng, Error, RngCore};
 
 struct DummyRng;
 

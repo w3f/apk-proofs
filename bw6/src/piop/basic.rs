@@ -1,12 +1,11 @@
-use crate::piop::{ProverProtocol, RegisterEvaluations};
 use ark_bw6_761::Fr;
 use ark_poly::univariate::DensePolynomial;
-use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
-use crate::piop::affine_addition::{AffineAdditionRegisters, AffineAdditionEvaluations, PartialSumsPolynomials};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use crate::{AccountablePublicInput, Bitmask, Keyset, utils};
 use crate::domains::Domains;
+use crate::piop::{ProverProtocol, RegisterEvaluations};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, AffineAdditionRegisters, PartialSumsPolynomials};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct AffineAdditionEvaluationsWithoutBitmask {

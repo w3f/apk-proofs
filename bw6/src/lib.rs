@@ -4,8 +4,7 @@ use ark_bls12_377::G1Affine;
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::CurveGroup;
 use ark_ff::MontFp;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fflonk::pcs::kzg::KZG;
 
 pub use bitmask::Bitmask;
@@ -117,8 +116,9 @@ pub fn hash_to_curve<G: CurveGroup>(message: &[u8]) -> G {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_helpers;
+
+    use super::*;
 
     #[test]
     fn h_is_not_in_g1() {

@@ -1,8 +1,8 @@
-use ark_poly::{Radix2EvaluationDomain, Evaluations, EvaluationDomain, DenseUVPolynomial};
-use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::{Zero, One, Field};
-use ark_bw6_761::Fr;
 use ark_bls12_377::Fq;
+use ark_bw6_761::Fr;
+use ark_ff::{Field, One, Zero};
+use ark_poly::{DenseUVPolynomial, EvaluationDomain, Evaluations, Radix2EvaluationDomain};
+use ark_poly::polynomial::univariate::DensePolynomial;
 use ark_std::convert::TryInto;
 
 #[derive(Clone)]
@@ -164,8 +164,9 @@ impl Domains {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_std::{test_rng, UniformRand};
+
+    use super::*;
 
     #[test]
     fn test_coset_amplify() {

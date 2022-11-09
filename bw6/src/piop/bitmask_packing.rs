@@ -1,19 +1,15 @@
-use ark_poly::{Evaluations, Radix2EvaluationDomain, Polynomial};
-use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_ff::{One, Zero, Field};
 use ark_bw6_761::Fr;
-use ark_ec::AffineRepr;
-
-use ark_std::io::{Read, Write};
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, SerializationError};
+use ark_ff::{Field, One, Zero};
+use ark_poly::{Evaluations, Polynomial, Radix2EvaluationDomain};
+use ark_poly::polynomial::univariate::DensePolynomial;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{end_timer, start_timer};
 
 use crate::{Bitmask, utils};
-use crate::utils::LagrangeEvaluations;
-use crate::piop::{VerifierProtocol, RegisterCommitments, RegisterPolynomials, RegisterEvaluations};
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
 use crate::domains::Domains;
-
+use crate::piop::{RegisterCommitments, RegisterEvaluations, RegisterPolynomials, VerifierProtocol};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments};
+use crate::utils::LagrangeEvaluations;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct BitmaskPackingCommitments {
@@ -374,13 +370,13 @@ impl BitmaskPackingRegisters {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use ark_std::{test_rng, UniformRand};
     use ark_poly::Polynomial;
+    use ark_std::{test_rng, UniformRand};
 
-    use crate::test_helpers::_random_bits;
     use crate::domains::Domains;
+    use crate::test_helpers::_random_bits;
+
+    use super::*;
 
     #[test]
     fn test_multipacking_mask_register() {

@@ -1,5 +1,9 @@
-use ark_ff::{FftField, batch_inversion};
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, Polynomial};
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::{batch_inversion, FftField};
+use ark_ff::{Field, Zero};
+use ark_poly::{EvaluationDomain, Polynomial, Radix2EvaluationDomain};
+
+use crate::Bitmask;
 
 // Evaluates a polynomial represented as evaluations over a radix-2 domain (aka in Lagrange basis) at a point.
 // f = sum(fi * Li), where Li is the i-th Lagrange basis polynomial, and fi = f(w^i)
@@ -88,10 +92,6 @@ pub fn lagrange_evaluations<F: FftField>(z: F, domain: Radix2EvaluationDomain<F>
 }
 
 
-use ark_ff::{Field, PrimeField, Zero};
-use ark_ec::{AffineRepr, CurveGroup};
-use crate::Bitmask;
-
 pub fn mul_then_add<G: AffineRepr>(
     bases: &[G],
     scalars: &[G::ScalarField],
@@ -153,12 +153,14 @@ pub fn randomize<P, F>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_ff::{Field, One};
     use ark_poly::{Evaluations, Polynomial};
-    use ark_std::{UniformRand, test_rng};
+    use ark_std::{test_rng, UniformRand};
     use ark_std::convert::TryInto;
+
     use crate::test_helpers::_random_bits;
+
+    use super::*;
 
     #[test]
     pub fn test_barycentric_eval() {

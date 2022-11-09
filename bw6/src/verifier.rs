@@ -1,24 +1,23 @@
-use ark_poly::Radix2EvaluationDomain;
 use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::{CurveGroup, AffineRepr};
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::{One, UniformRand};
+use ark_poly::Radix2EvaluationDomain;
 use ark_std::{end_timer, start_timer};
-use merlin::{Transcript, TranscriptRng};
-
-use crate::{endo, Proof, utils, RegisterCommitments, PublicInput, AccountablePublicInput, CountingPublicInput, SimpleProof, PackedProof, CountingProof, KeysetCommitment, NewKzgBw6};
-use crate::transcript::ApkTranscript;
-use crate::fsrng::fiat_shamir_rng;
-use crate::piop::bitmask_packing::{SuccinctAccountableRegisterEvaluations, BitmaskPackingCommitments};
-use crate::piop::{VerifierProtocol, RegisterEvaluations};
-use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsCommitments, PartialSumsAndBitmaskCommitments};
-use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
-use crate::utils::LagrangeEvaluations;
-use crate::piop::counting::{CountingEvaluations, CountingCommitments};
-use fflonk::pcs::RawVerifierKey;
 use fflonk::aggregation::single::aggregate_claims_multiexp;
 use fflonk::pcs::kzg::KzgOpening;
 use fflonk::pcs::kzg::params::{KzgVerifierKey, RawKzgVerifierKey};
-use ark_ff::{UniformRand, One};
+use fflonk::pcs::RawVerifierKey;
+use merlin::{Transcript, TranscriptRng};
 
+use crate::{AccountablePublicInput, CountingProof, CountingPublicInput, endo, KeysetCommitment, NewKzgBw6, PackedProof, Proof, PublicInput, RegisterCommitments, SimpleProof, utils};
+use crate::fsrng::fiat_shamir_rng;
+use crate::piop::{RegisterEvaluations, VerifierProtocol};
+use crate::piop::affine_addition::{AffineAdditionEvaluations, PartialSumsAndBitmaskCommitments, PartialSumsCommitments};
+use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
+use crate::piop::bitmask_packing::{BitmaskPackingCommitments, SuccinctAccountableRegisterEvaluations};
+use crate::piop::counting::{CountingCommitments, CountingEvaluations};
+use crate::transcript::ApkTranscript;
+use crate::utils::LagrangeEvaluations;
 
 pub struct Verifier {
     domain: Radix2EvaluationDomain<Fr>,

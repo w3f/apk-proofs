@@ -1,8 +1,6 @@
 use ark_bw6_761::{Fr, G1Projective};
-use ark_ec::AffineRepr;
 use ark_poly::polynomial::univariate::DensePolynomial;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::{Bitmask, CountingPublicInput, Keyset, utils};
 use crate::domains::Domains;
@@ -158,15 +156,14 @@ impl CountingEvaluations {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use ark_std::{test_rng, UniformRand};
     use ark_poly::Polynomial;
-
+    use ark_std::{test_rng, UniformRand};
     use fflonk::pcs::{PCS, PcsParams};
 
     use crate::NewKzgBw6;
     use crate::test_helpers::{_random_bits, random_pks};
+
+    use super::*;
 
     #[test]
     fn test_polynomial_ordering() {

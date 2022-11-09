@@ -1,15 +1,16 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use ark_ff::{Field, PrimeField, One, FftField};
-use ark_std::{UniformRand, test_rng};
-use ark_ec::{AffineRepr, CurveGroup};
-use apk_proofs::{Keyset, setup};
+extern crate apk_proofs;
+
 use ark_bw6_761::Fr;
-use ark_poly::{Evaluations, EvaluationDomain, DenseUVPolynomial, Radix2EvaluationDomain};
-use ark_poly::univariate::DensePolynomial;
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ec::VariableBaseMSM;
+use ark_ff::{FftField, Field};
+use ark_poly::{DenseUVPolynomial, EvaluationDomain, Evaluations, Radix2EvaluationDomain};
+use ark_poly::univariate::DensePolynomial;
+use ark_std::{test_rng, UniformRand};
+use criterion::{BenchmarkId, black_box, Criterion, criterion_group, criterion_main, Throughput};
 use fflonk::pcs::PcsParams;
 
-extern crate apk_proofs;
+use apk_proofs::{Keyset, setup};
 
 fn barycentric_evaluation<F: Field>(c: &mut Criterion, n: u32) {
     use ark_poly::{Evaluations, EvaluationDomain, Radix2EvaluationDomain, Polynomial};

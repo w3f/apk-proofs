@@ -1,21 +1,20 @@
-use apk_proofs::{Prover, Verifier, Bitmask, SimpleProof, AccountablePublicInput, hash_to_curve, Keyset, KeysetCommitment, setup};
-use apk_proofs::bls::{PublicKey, SecretKey, Signature};
-
-use ark_serialize::CanonicalSerialize;
-use ark_bls12_377::{G2Projective, G1Projective};
-use ark_bw6_761::BW6_761;
-use ark_std::test_rng;
-
-use rand::Rng;
+use std::cell::RefCell;
 use std::collections::HashSet;
-use merlin::Transcript;
+
+use ark_bls12_377::{G1Projective, G2Projective};
+use ark_bw6_761::BW6_761;
 use ark_ec::AffineRepr;
-use fflonk::pcs::PcsParams;
+use ark_serialize::CanonicalSerialize;
+use ark_std::{end_timer, start_timer};
+use ark_std::test_rng;
 use fflonk::pcs::kzg::params::{KzgCommitterKey, RawKzgVerifierKey};
 use fflonk::pcs::kzg::urs::URS;
-use std::cell::RefCell;
+use fflonk::pcs::PcsParams;
+use merlin::Transcript;
+use rand::Rng;
 
-use ark_std::{end_timer, start_timer};
+use apk_proofs::{AccountablePublicInput, Bitmask, hash_to_curve, Keyset, KeysetCommitment, Prover, setup, SimpleProof, Verifier};
+use apk_proofs::bls::{PublicKey, SecretKey, Signature};
 
 // This example sketches the primary intended use case of the crate functionality:
 // building communication-efficient light clients for blockchains.

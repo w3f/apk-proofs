@@ -1,10 +1,11 @@
-use crate::piop::bitmask_packing::{BitmaskPackingRegisters, SuccinctAccountableRegisterEvaluations, BitmaskPackingPolynomials};
-use crate::piop::ProverProtocol;
-use ark_poly::polynomial::univariate::DensePolynomial;
-use crate::{Bitmask, utils, AccountablePublicInput, Keyset};
 use ark_bw6_761::Fr;
-use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials};
+use ark_poly::polynomial::univariate::DensePolynomial;
+
+use crate::{AccountablePublicInput, Bitmask, Keyset, utils};
 use crate::domains::Domains;
+use crate::piop::affine_addition::{AffineAdditionRegisters, PartialSumsAndBitmaskPolynomials};
+use crate::piop::bitmask_packing::{BitmaskPackingPolynomials, BitmaskPackingRegisters, SuccinctAccountableRegisterEvaluations};
+use crate::piop::ProverProtocol;
 
 pub struct PackedRegisterBuilder {
     bitmask: Bitmask,

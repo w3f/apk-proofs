@@ -1,10 +1,9 @@
-use ark_ff::{MontFp, Zero, BitIteratorBE};
-use ark_ec::CurveGroup;
-use ark_ec::bls12::Bls12Parameters;
-use ark_bw6_761::{Fq, G1Projective};
 use std::ops::AddAssign;
-use ark_ec::Group;
 
+use ark_bw6_761::{Fq, G1Projective};
+use ark_ec::bls12::Bls12Parameters;
+use ark_ec::Group;
+use ark_ff::{BitIteratorBE, MontFp, Zero};
 
 // See https://github.com/celo-org/zexe/blob/master/algebra/src/bw6_761/curves/g1.rs#L37-L71
 // and also https://github.com/celo-org/zexe/blob/master/scripts/glv_lattice_basis/src/lib.rs
@@ -49,12 +48,12 @@ pub fn subgroup_check(p: &G1Projective) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ark_ff::{Field, One, PrimeField};
-    use ark_ec::AffineRepr;
     use ark_bw6_761::{Fr, G1Affine};
-    use ark_std::{UniformRand, test_rng};
+    use ark_ec::{AffineRepr, CurveGroup};
+    use ark_ff::{Field, One};
+    use ark_std::{test_rng, UniformRand};
 
+    use super::*;
 
     /// lambda in Z s.t. phi(P) = lambda*P for all P
     /// \lambda = 0x9b3af05dd14f6ec619aaf7d34594aabc5ed1347970dec00452217cc900000008508c00000000001

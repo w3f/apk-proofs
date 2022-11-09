@@ -1,16 +1,14 @@
-use crate::{hash_to_curve, NewKzgBw6};
-use ark_poly::{Radix2EvaluationDomain, EvaluationDomain, Evaluations};
 use ark_bls12_377::G1Projective;
 use ark_bw6_761::Fr;
-use ark_poly::univariate::DensePolynomial;
 use ark_ec::CurveGroup;
-use crate::domains::Domains;
-
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_poly::{EvaluationDomain, Evaluations, Radix2EvaluationDomain};
+use ark_poly::univariate::DensePolynomial;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use fflonk::pcs::{CommitterKey, PCS};
 use fflonk::pcs::kzg::params::KzgCommitterKey;
-use fflonk::pcs::{PCS, CommitterKey};
 
+use crate::{hash_to_curve, NewKzgBw6};
+use crate::domains::Domains;
 
 // Polynomial commitment to the vector of public keys.
 // Let 'pks' be such a vector that commit(pks) == KeysetCommitment::pks_comm, also let

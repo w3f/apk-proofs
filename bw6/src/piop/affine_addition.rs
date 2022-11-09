@@ -4,10 +4,9 @@ use ark_bls12_377::G1Projective;
 use ark_bw6_761::{Fr, G1Affine};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{Field, One, Zero};
-use ark_poly::{EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain, DenseUVPolynomial};
+use ark_poly::{DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::{Keyset, point_in_g1_complement};
 use crate::domains::Domains;

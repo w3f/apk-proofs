@@ -1,21 +1,20 @@
 use ark_bw6_761::BW6_761;
-use ark_poly::{Polynomial, EvaluationDomain};
+use ark_ec::CurveGroup;
+use ark_poly::{EvaluationDomain, Polynomial};
+use fflonk::pcs::{PCS, PcsParams};
+use fflonk::pcs::kzg::params::KzgCommitterKey;
+use fflonk::pcs::kzg::urs::URS;
 use merlin::Transcript;
 
-use crate::{Proof, Bitmask, PublicInput, SimpleProof, PackedProof, CountingProof, AccountablePublicInput, CountingPublicInput, KeysetCommitment, NewKzgBw6};
-use crate::transcript::ApkTranscript;
-use crate::piop::ProverProtocol;
-use crate::piop::RegisterPolynomials;
-use crate::piop::packed::PackedRegisterBuilder;
+use crate::{AccountablePublicInput, Bitmask, CountingProof, CountingPublicInput, KeysetCommitment, NewKzgBw6, PackedProof, Proof, PublicInput, SimpleProof};
+use crate::domains::Domains;
+use crate::keyset::Keyset;
 use crate::piop::basic::BasicRegisterBuilder;
 use crate::piop::counting::CountingScheme;
-use crate::keyset::Keyset;
-use ark_ec::CurveGroup;
-use crate::domains::Domains;
-use fflonk::pcs::{PCS, PcsParams};
-use fflonk::pcs::kzg::urs::URS;
-use fflonk::pcs::kzg::params::KzgCommitterKey;
-
+use crate::piop::packed::PackedRegisterBuilder;
+use crate::piop::ProverProtocol;
+use crate::piop::RegisterPolynomials;
+use crate::transcript::ApkTranscript;
 
 pub struct Prover {
     domains: Domains,

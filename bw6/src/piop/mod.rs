@@ -1,12 +1,11 @@
 use ark_bw6_761::{Fr, G1Affine};
 use ark_ff::Zero;
+use ark_poly::Radix2EvaluationDomain;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{Bitmask, utils, PublicInput, Keyset};
-use ark_poly::Radix2EvaluationDomain;
+use crate::{Bitmask, Keyset, PublicInput, utils};
 use crate::domains::Domains;
-
 
 pub mod affine_addition;
 pub mod bitmask_packing;

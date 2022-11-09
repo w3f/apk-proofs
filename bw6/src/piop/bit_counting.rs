@@ -2,8 +2,7 @@ use ark_bw6_761::Fr;
 use ark_ff::{One, Zero};
 use ark_poly::{Evaluations, Polynomial};
 use ark_poly::univariate::DensePolynomial;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::io::{Read, Write};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::iter::once;
 
 use crate::Bitmask;

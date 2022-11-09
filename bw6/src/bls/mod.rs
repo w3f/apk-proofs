@@ -1,14 +1,12 @@
-use rand::Rng;
 use std::borrow::Borrow;
 use std::ops::Neg;
 
-use ark_ff::{One, UniformRand, PrimeField, Zero};
+use ark_bls12_377::{Bls12_377, Fr, G1Affine, G1Projective, G2Projective};
 use ark_ec::{AffineRepr, CurveGroup, Group};
 use ark_ec::pairing::Pairing;
-use ark_bls12_377::{G2Projective, Fr, G1Projective, Bls12_377, G1Affine, Fq12};
+use ark_ff::{UniformRand, Zero};
 use ark_serialize::*;
-
-
+use rand::Rng;
 
 #[derive(Clone, Debug)]
 pub struct Signature(G2Projective);
@@ -100,8 +98,9 @@ impl PublicKey {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_std::test_rng;
+
+    use super::*;
 
     #[test]
     fn test_apk() {

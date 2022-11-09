@@ -1,12 +1,12 @@
-use merlin::Transcript;
-use ark_serialize::CanonicalSerialize;
+use ark_bw6_761::{BW6_761, Fr, G1Affine};
 use ark_ff::Field;
-use crate::{PublicInput, KeysetCommitment};
-use crate::piop::{RegisterCommitments, RegisterEvaluations};
 use ark_poly::Radix2EvaluationDomain;
-use ark_bw6_761::{Fr, BW6_761, G1Affine};
+use ark_serialize::CanonicalSerialize;
 use fflonk::pcs::kzg::params::RawKzgVerifierKey;
+use merlin::Transcript;
 
+use crate::{KeysetCommitment, PublicInput};
+use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub(crate) trait ApkTranscript {
 
