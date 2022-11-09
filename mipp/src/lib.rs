@@ -6,7 +6,7 @@ mod tests {
     use ark_dh_commitments::identity::{HomomorphicPlaceholderValue, IdentityCommitment, IdentityOutput};
     use ark_dh_commitments::pedersen::PedersenCommitment;
     use ark_ec::{PairingEngine, ProjectiveCurve};
-    use ark_ff::{One, Zero};
+    use ark_ff::{One, PrimeField, Zero};
     use ark_inner_products::{InnerProduct, MultiexponentiationInnerProduct, PairingInnerProduct};
     use ark_ip_proofs::tipa::structured_scalar_message::TIPAWithSSM;
     use ark_ip_proofs::tipa::TIPA;
@@ -33,7 +33,7 @@ mod tests {
         let rng = &mut test_rng();
 
         let pks = (0..n)
-            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_bigint()))
+            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_repr()))
             .collect::<Vec<_>>();
         let bitmask = (0..n)
             .map(|_| if rng.gen::<bool>() { Fr::one() } else { Fr::zero() } )
@@ -77,7 +77,7 @@ mod tests {
         let rng = &mut test_rng();
 
         let pks = (0..n)
-            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_bigint()))
+            .map(|_| G1Projective::prime_subgroup_generator().mul(Fr::rand(rng).into_repr()))
             .collect::<Vec<_>>();
         let bitmask = (0..n)
             .map(|_| if rng.gen::<bool>() { Fr::one() } else { Fr::zero() } )
