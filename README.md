@@ -10,8 +10,8 @@ given the verifier knows the commitment to the list of public keys of all the el
 
 See [a code example](bw6/examples/recursive.rs) for a sketch of a blockchain light client design exploiting such proofs.
 
-## Formal Write-up
+# Formal Write-up
 The formal description and security model for our succinct proofs as well as their application to accountable light clients can be found [here](https://github.com/w3f/apk-proofs/blob/main/Light%20Client.pdf).
 
-## Video Presentation
+# Video Presentation
 A video presentation of this work as part of ZK Summit 7 is available [here](https://www.youtube.com/watch?v=UaPdDYarKGY&list=PLj80z0cJm8QFnY6VLVa84nr-21DNvjWH7&index=19).    
