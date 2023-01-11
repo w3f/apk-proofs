@@ -4,10 +4,3 @@ members = [
     "bw6",
     "mipp",
 ]
-
-[patch.crates-io]
-ark-std = { git = "https://github.com/arkworks-rs/std" }
-ark-ff = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
-ark-poly = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }
-ark-serialize = { git = "https://github.com/arkworks-rs/algebra", rev = "402e7f9" }

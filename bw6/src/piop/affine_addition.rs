@@ -466,7 +466,7 @@ mod tests {
     use super::*;
 
     fn dummy_registers(n: usize) -> [Vec<Fr>; 2] {
-        [vec![Fr::zero(); n], vec![Fr::zero(); n]]
+        [vec![Fr::one(); n], vec![Fr::one(); n]]
     }
 
     #[test]

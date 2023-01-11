@@ -1,7 +1,7 @@
 use std::ops::AddAssign;
 
 use ark_bw6_761::{Fq, G1Projective};
-use ark_ec::bls12::Bls12Parameters;
+use ark_ec::bls12::Bls12Config;
 use ark_ec::Group;
 use ark_ff::{BitIteratorBE, MontFp, Zero};
 
@@ -19,7 +19,7 @@ const OMEGA: Fq = MontFp!(
 );
 
 
-const U: &'static [u64] = ark_bls12_377::Parameters::X;
+const U: &'static [u64] = ark_bls12_377::Config::X;
 
 fn mul_by_u(p: &G1Projective) -> G1Projective {
     let mut res = G1Projective::zero();
