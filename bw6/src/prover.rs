@@ -21,7 +21,7 @@ use fflonk::pcs::kzg::params::KzgCommitterKey;
 pub struct Prover {
     //~ - `Domains`: ???
     domains: Domains,
-    //~ - `Keyset`: ???
+    //~ - `Keyset`: set of all committe public keys (?)
     keyset: Keyset, 
     //~ - `KzgCommitterKey`: the set points in G1 corresponding to $\tau^n G_1$.
     kzg_pk: KzgCommitterKey<ark_bw6_761::G1Affine>,
@@ -31,7 +31,8 @@ pub struct Prover {
 
 impl Prover {
 
-    // ~ Prover::new constructs a new prover. 
+    //~ Prover::new give the set of committees key, commitment to the set and the set of kzg points used for the
+    //~ commitment, constructs a new prover. 
     pub fn new(
         mut keyset: Keyset,
         keyset_comm: &KeysetCommitment,

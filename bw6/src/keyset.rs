@@ -13,15 +13,18 @@ use fflonk::pcs::{PCS, CommitterKey};
 
 
 //~ In short, APK proof provides polynomial commitment to the vector of public keys.
+//~ Furthermore, it offers the mean to use this commitment to verify BLS signatures signed
+//~ by the subset of those public keys. As a result, the verifier does not need to know the
+//~ public keys to verify aggregated BLS signature signed by them.
 //~
 //~ In light client protocols, such commitment is used to commit to the upcoming validator set, signed by the current validator set.
-//~ > **_TOOD:_**  This is to any bls signature really, no?
-//~ Honest validator checks the proofs of possession, interpolates with the right padding over the right domain,
-//~ > **_TOOD:_**  Do you mean honest prover
-//~ computes the commitment using the right parameters, and then sign it.
+//~ Honest validator should check the proofs of possession of each public key belong to an upcoming validator and arrange them in a
+//~ sequence with a determistic order. They then should deterministically pad the sequence to get a vector of consistent length
+//~ of the right domain which they use to interpolate the polynomial and to compute the commitment using the right parameters, and then sign it.
+//~
 //~ Verifier checks the signatures and can trust that the properties hold under some "2/3 honest validators" assumption.
 //~ As every honest validator generates the same commitment, verifier needs to check only the aggregate signature.
-
+//~
 //~ As such the fundamental structure used is the set of public
 //~ keys which prover has to commit to. The `Keyset` struct represent that set. Whereas `KeysetCommitment` struct is used to store
 //~ prover's commitment to the key set.
@@ -54,19 +57,24 @@ use fflonk::pcs::{PCS, CommitterKey};
 //~
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct KeysetCommitment {
-    // Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
+    //~ *pks_comm*: Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
+    //~ $$([pkx]({\tau}), [pky]({\tau})$$ where:
+    //~
+    //~ $$pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X).$$
+    //~ $$pky(X) = \sum_{i=0}^{n-1} pky_i \cdot L_i(X).$$
     pub pks_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
-    // Domain used to interpolate the vectors above.
+    //~ Domain used to interpolate the vectors above. Radix2 Domain Works only for fields
+    //~ that have a large multiplicative subgroup of size that is a power-of-2.
     pub domain: Radix2EvaluationDomain<Fr>, // could be defined by it's generator
-    // Number of 'real' public keys in the vector ( = number of possible signers).
+    //~ The actual size of keyset i.e. the number of possible signers in contrast to the size of keyset vector after padding
     pub keyset_size: usize
 }
 
 #[derive(Clone)]
 pub struct Keyset {
-    //~ Actual public keys, no padding.
+    //~ Actual public keys in form of Projective Points on G1, no padding.
     pub pks: Vec<G1Projective>,
-    //~ Interpolations of the coordinate vectors of the public key vector WITH padding.
+    //~ Interpolations of the coordinate vectors of the public key vector which includes dummy padded keys 
     pub pks_polys: [DensePolynomial<Fr>; 2],
     //~ Domain used to compute the interpolations above.
     pub domain: Radix2EvaluationDomain<Fr>,
