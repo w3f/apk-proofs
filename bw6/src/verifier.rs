@@ -1,7 +1,7 @@
 use ark_bw6_761::{BW6_761, Fr};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{One, UniformRand};
-use ark_poly::Radix2EvaluationDomain;
+use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::{end_timer, start_timer};
 use fflonk::aggregation::single::aggregate_claims_multiexp;
 use fflonk::pcs::kzg::KzgOpening;
@@ -208,12 +208,15 @@ impl Verifier {
         pks_comm: KeysetCommitment,
         mut empty_transcript: Transcript,
     ) -> Self {
-        empty_transcript.set_protocol_params(&pks_comm.domain, &kzg_vk);
+        let domain_size = 2usize.pow(pks_comm.log_domain_size);
+        let domain = Radix2EvaluationDomain::<Fr>::new(domain_size).unwrap();
+        assert_eq!(domain.size(), domain_size);
+        empty_transcript.set_protocol_params(&domain, &kzg_vk);
         empty_transcript.set_keyset_commitment(&pks_comm);
 
         let kzg_pvk = kzg_vk.prepare();
         Self {
-            domain: pks_comm.domain,
+            domain,
             kzg_pvk,
             pks_comm,
             preprocessed_transcript: empty_transcript,

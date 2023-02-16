@@ -33,8 +33,8 @@ use crate::domains::Domains;
 pub struct KeysetCommitment {
     // Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
     pub pks_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
-    // Domain used to interpolate the vectors above.
-    pub domain: Radix2EvaluationDomain<Fr>, // could be defined by it's generator
+    // Determines domain used to interpolate the vectors above.
+    pub log_domain_size: u32,
     // Number of 'real' public keys in the vector ( = number of possible signers).
     pub keyset_size: usize
 }
@@ -93,7 +93,7 @@ impl Keyset {
         let pks_y_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[1]).0;
         KeysetCommitment {
             pks_comm: (pks_x_comm, pks_y_comm),
-            domain: self.domain,
+            log_domain_size: self.domain.log_size_of_group,
             keyset_size: self.pks.len(),
         }
     }
