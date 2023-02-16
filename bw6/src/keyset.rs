@@ -35,8 +35,6 @@ pub struct KeysetCommitment {
     pub pks_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
     // Determines domain used to interpolate the vectors above.
     pub log_domain_size: u32,
-    // Number of 'real' public keys in the vector ( = number of possible signers).
-    pub keyset_size: usize
 }
 
 #[derive(Clone)]
@@ -94,7 +92,6 @@ impl Keyset {
         KeysetCommitment {
             pks_comm: (pks_x_comm, pks_y_comm),
             log_domain_size: self.domain.log_size_of_group,
-            keyset_size: self.pks.len(),
         }
     }
 

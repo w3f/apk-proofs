@@ -40,7 +40,6 @@ impl Verifier {
         public_input: &AccountablePublicInput,
         proof: &SimpleProof,
     ) -> bool {
-        assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
         let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, AffineAdditionEvaluations::POLYS_OPENED_AT_ZETA);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
@@ -72,7 +71,6 @@ impl Verifier {
         public_input: &AccountablePublicInput,
         proof: &PackedProof,
     ) -> bool {
-        assert_eq!(public_input.bitmask.size(), self.pks_comm.keyset_size);
         let (challenges, mut fsrng) = self.restore_challenges(public_input, proof, SuccinctAccountableRegisterEvaluations::POLYS_OPENED_AT_ZETA);
         let evals_at_zeta = utils::lagrange_evaluations(challenges.zeta, self.domain);
 
