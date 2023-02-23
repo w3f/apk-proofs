@@ -49,10 +49,10 @@ Let 'pks' be such a vector that
 2. `KeysetCommitment::domain` is the domain used to interpolate pks
 
 *pks_comm*: Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
-$$([pkx]({\tau}), [pky]({\tau})$$ where:
+latexmath:[([pkx]({\tau}), [pky]({\tau})] where:
 
-$$ pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X). $$
-$$ pky(X) = \sum_{i=0}^{n-1} pky_i \cdot L_i(X). $$
+latexmath:[pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X)],
+$$pky(X) = \sum_{i=0}^{n-1} pky_i \cdot L_i(X)$$.
 Domain used to interpolate the vectors above. Radix2 Domain Works only for fields
 that have a large multiplicative subgroup of size that is a power-of-2.
 The actual size of keyset i.e. the number of possible signers in contrast to the size of keyset vector after padding

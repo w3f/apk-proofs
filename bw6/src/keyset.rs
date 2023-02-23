@@ -58,10 +58,10 @@ use fflonk::pcs::{PCS, CommitterKey};
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct KeysetCommitment {
     //~ *pks_comm*: Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
-    //~ $$([pkx]({\tau}), [pky]({\tau})$$ where:
+    //~ latexmath:[([pkx]({\tau}), [pky]({\tau})] where:
     //~
-    //~ $$pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X).$$
-    //~ $$pky(X) = \sum_{i=0}^{n-1} pky_i \cdot L_i(X).$$
+    //~ latexmath:[pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X)],
+    //~ $$pky(X) = \sum_{i=0}^{n-1} pky_i \cdot L_i(X)$$.
     pub pks_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
     //~ Domain used to interpolate the vectors above. Radix2 Domain Works only for fields
     //~ that have a large multiplicative subgroup of size that is a power-of-2.
