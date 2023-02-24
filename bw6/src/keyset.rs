@@ -29,7 +29,7 @@ use crate::domains::Domains;
 // computes the commitment using the right parameters, and then sign it.
 // Verifier checks the signatures and can trust that the properties hold under some "2/3 honest validators" assumption.
 // As every honest validator generates the same commitment, verifier needs to check only the aggregate signature.
-#[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct KeysetCommitment {
     // Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
     pub pks_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
