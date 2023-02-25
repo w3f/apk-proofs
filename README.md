@@ -11,7 +11,7 @@ given the verifier knows the commitment to the list of public keys of all the el
 See [a code example](bw6/examples/recursive.rs) for a sketch of a blockchain light client design exploiting such proofs.
 
 # Formal Write-up
-The formal description and security model for our succinct proofs as well as their application to accountable light clients can be found [here](https://github.com/w3f/apk-proofs/blob/main/Light%20Client.pdf). A summary of our work can be found [here](https://research.web3.foundation/en/latest/polkadot/LightClientsBridges/index.html)
+The formal description and security model for our succinct proofs as well as their application to accountable light clients can be found [here](https://github.com/w3f/apk-proofs/blob/main/Light%20Client.pdf). A high-level summary of our work can be found [here](https://research.web3.foundation/en/latest/polkadot/LightClientsBridges/index.html).
 
 # Video Presentations
 A video presentation of this work at sub0 2022 is [available here](https://www.youtube.com/watch?v=MCvX9ZZhO4I&list=PLOyWqupZ-WGvywLqJDsMIYdCn8QEa2ShQ&index=19) ([slides](https://docs.google.com/presentation/d/16LlsXWY2Q6_6QGZxkg84evaJqWNk6szX)), and at ZK Summit 7 is [available here](https://www.youtube.com/watch?v=UaPdDYarKGY&list=PLj80z0cJm8QFnY6VLVa84nr-21DNvjWH7&index=19).    
