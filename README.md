@@ -5,13 +5,13 @@ that can be verified in constant time, given the verifier knows the aggregate pu
 However, computing the aggregate public key is linear in the number of the actual signers
 and requires the verifier to know the individual public keys.
 
-This repo contains PoC implementations as well as formalisations for succinct proofs of correctness of the aggregate public key,
-given the verifier knows the commitment to the list of public keys of all the eligible signers.
+This repo contains PoC implementations as well as formalisations for custom succinct arguments of correctness of the aggregate public key,
+given the verifier knows a commitment to the list of public keys of all the eligible signers.
 
 See [a code example](bw6/examples/recursive.rs) for a sketch of a blockchain light client design exploiting such proofs.
 
 # Formal Write-up
-The formal description and security model for our succinct proofs as well as their application to accountable light clients can be found [here/stable version](https://eprint.iacr.org/2022/1205) and [here/on-going updates](https://github.com/w3f/apk-proofs/blob/main/Light%20Client.pdf). A high-level summary of our work can be found [here](https://research.web3.foundation/en/latest/polkadot/LightClientsBridges/index.html).
+The formal description and security model for our custom succinct arguments as well as their application to accountable light clients for PoS blockchains can be found [here/stable version](https://eprint.iacr.org/2022/1205) and [here/on-going updates](https://github.com/w3f/apk-proofs/blob/main/Light%20Client.pdf). A high-level summary of our work can be found [here](https://research.web3.foundation/en/latest/polkadot/LightClientsBridges/index.html).
 
 # Video Presentations
 A video presentation of this work at sub0 2022 is [available here](https://www.youtube.com/watch?v=MCvX9ZZhO4I&list=PLOyWqupZ-WGvywLqJDsMIYdCn8QEa2ShQ&index=19) ([slides](https://docs.google.com/presentation/d/16LlsXWY2Q6_6QGZxkg84evaJqWNk6szX)), and at ZK Summit 7 is [available here](https://www.youtube.com/watch?v=UaPdDYarKGY&list=PLj80z0cJm8QFnY6VLVa84nr-21DNvjWH7&index=19).    
