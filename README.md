@@ -2,11 +2,9 @@
 
 Individual BLS signatures on the same message can be aggregated into a single signature
 that can be verified in constant time, given the verifier knows the aggregate public key of the set of the actual signers [[1]](https://eprint.iacr.org/2018/483). 
-However, computing the aggregate public key is linear in the number of the actual signers
-and requires the verifier to know the individual public keys.
+However, computing the aggregate public key is linear in the number of the actual signers and requires the verifier to know the individual public keys.
 
-This repo contains PoC implementations as well as formalisations for custom succinct arguments of correctness of the aggregate public key,
-given the verifier knows a commitment to the list of public keys of all the eligible signers.
+We avoid such heavy computation for verifiers that are constrained resource-wise and computation-wise (e.g., mobile phones, smart contracts on  blockchains) by desining custom non-interactive succinct arguments of knowledge (SNARKs) that compute and ensure the correctness of an apk, i.e., an aggregated public key of actual signers. This repo contains PoC implementations as well as formalisations for our custom SNARKs for apk, given the verifier knows only a commitment to the list of public keys of all the eligible signers and a bitmask identifying the actuall sigers of a message. 
 
 See [a code example](bw6/examples/recursive.rs) for a sketch of a blockchain light client design exploiting such proofs.
 
