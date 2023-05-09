@@ -1,29 +1,31 @@
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
-use ark_ff::{CyclotomicMultSubgroup, Field, PrimeField};
+use ark_ff::{batch_inversion, CyclotomicMultSubgroup, Field, PrimeField};
 use ark_std::{test_rng, UniformRand};
 use crate::{fold_msm, fold_scalars};
 
 pub struct ProverKey<E: Pairing> {
+    log_m: u32,
     v: Vec<E::G2Affine>,
     w: Vec<E::G1Affine>,
 }
 
 pub struct VerifierKey<E: Pairing> {
+    log_m: u32,
     v: Vec<E::G2Affine>,
     w: Vec<E::G1Affine>,
 }
 
 pub struct Proof<E: Pairing> {
-    a_comm_l: E::TargetField,
-    a_comm_r: E::TargetField,
-    b_comm_l: E::G1,
-    b_comm_r: E::G1,
-    c_l: E::G1,
-    c_r: E::G1,
+    a_comm_ls: Vec<E::TargetField>,
+    a_comm_rs: Vec<E::TargetField>,
+    b_comm_ls: Vec<E::G1>,
+    b_comm_rs: Vec<E::G1>,
+    c_ls: Vec<E::G1>,
+    c_rs: Vec<E::G1>,
     a: E::G1,
     b: E::ScalarField,
-    x: E::ScalarField,
+    xs: Vec<E::ScalarField>,
 }
 
 fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
@@ -35,10 +37,12 @@ fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
     let w: Vec<E::G1Affine> = (0..m).map(|_| E::G1Affine::rand(rng)).collect();
 
     let pk = ProverKey {
+        log_m,
         v: v.clone(),
         w: w.clone(),
     };
     let vk = VerifierKey {
+        log_m,
         v,
         w,
     };
@@ -48,78 +52,125 @@ fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
 pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarField]) -> Proof<E> {
     let rng = &mut test_rng();
 
-    let m = a.len();
+    let log_m = pk.log_m as usize;
+    let m = 2usize.pow(log_m as u32);
+    assert_eq!(a.len(), m);
     assert_eq!(b.len(), m);
 
-    let v = &pk.v;
-    let w = &pk.w;
+    let xs: Vec<E::ScalarField> = (0..log_m).map(|_| E::ScalarField::rand(rng)).collect();
 
-    let m1 = m / 2;
+    let mut m1 = m;
+    let mut a = a.to_vec();
+    let mut b = b.to_vec();
+    let mut v = pk.v.to_vec();
+    let mut w = pk.w.to_vec();
 
-    let a_l = &a[..m1];
-    let a_r = &a[m1..];
-    let b_l = &b[..m1];
-    let b_r = &b[m1..];
+    let mut a_comm_ls: Vec<E::TargetField> = Vec::with_capacity(log_m);
+    let mut a_comm_rs: Vec<E::TargetField> = Vec::with_capacity(log_m);
+    let mut b_comm_ls: Vec<E::G1> = Vec::with_capacity(log_m);
+    let mut b_comm_rs: Vec<E::G1> = Vec::with_capacity(log_m);
+    let mut c_ls: Vec<E::G1> = Vec::with_capacity(log_m);
+    let mut c_rs: Vec<E::G1> = Vec::with_capacity(log_m);
 
-    let v_l = &v[..m1];
-    let v_r = &v[m1..];
-    let w_l = &w[..m1];
-    let w_r = &w[m1..];
+    for x in xs.iter() {
+        m1 /= 2;
 
-    let a_comm_l: E::TargetField = E::multi_pairing(a_r, v_l).0;
-    let a_comm_r: E::TargetField = E::multi_pairing(a_l, v_r).0;
-    let b_comm_l: E::G1 = VariableBaseMSM::msm(&w_r, &b_l).unwrap();
-    let b_comm_r: E::G1 = VariableBaseMSM::msm(&w_l, &b_r).unwrap();
-    let c_l: E::G1 = VariableBaseMSM::msm(&a_r, &b_l).unwrap();
-    let c_r: E::G1 = VariableBaseMSM::msm(&a_l, &b_r).unwrap();
+        let a_l = &a[..m1];
+        let a_r = &a[m1..];
+        let b_l = &b[..m1];
+        let b_r = &b[m1..];
 
-    let x = E::ScalarField::rand(rng);
-    let x_inv = x.inverse().unwrap();
+        let v_l = &v[..m1];
+        let v_r = &v[m1..];
+        let w_l = &w[..m1];
+        let w_r = &w[m1..];
 
-    let a1 = fold_msm(&a, &x);
-    let b1 = fold_scalars(&b, &x_inv);
-    // let v1 = fold_msm(&v, &x_inv);
-    // let w1 = fold_msm(&w, &x);
-    Proof{
-        a_comm_l,
-        a_comm_r,
-        b_comm_l,
-        b_comm_r,
-        c_l,
-        c_r,
-        a: a1[0].into(),
-        b: b1[0],
-        x,
+        let a_comm_l = E::multi_pairing(a_r, v_l).0;
+        let a_comm_r = E::multi_pairing(a_l, v_r).0;
+        let b_comm_l = VariableBaseMSM::msm(&w_r, &b_l).unwrap();
+        let b_comm_r = VariableBaseMSM::msm(&w_l, &b_r).unwrap();
+        let c_l = VariableBaseMSM::msm(&a_r, &b_l).unwrap();
+        let c_r = VariableBaseMSM::msm(&a_l, &b_r).unwrap();
+
+        a_comm_ls.push(a_comm_l);
+        a_comm_rs.push(a_comm_r);
+        b_comm_ls.push(b_comm_l);
+        b_comm_rs.push(b_comm_r);
+        c_ls.push(c_l);
+        c_rs.push(c_r);
+
+        let x_inv = x.inverse().unwrap();
+
+        a = fold_msm(&a, &x);
+        b = fold_scalars(&b, &x_inv);
+        v = fold_msm(&v, &x_inv);
+        w = fold_msm(&w, &x);
+    }
+
+    Proof {
+        a_comm_ls,
+        a_comm_rs,
+        b_comm_ls,
+        b_comm_rs,
+        c_ls,
+        c_rs,
+        a: a[0].into(),
+        b: b[0],
+        xs,
     }
 }
 
 pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::TargetField, b_comm: &E::G1, c: &E::G1) {
-    let v = &vk.v;
-    let w = &vk.w;
+    let a = proof.a;
+    let b = proof.b;
+    let a_comm_ls = proof.a_comm_ls.to_vec();
+    let a_comm_rs = proof.a_comm_rs.to_vec();
+    let b_comm_ls = proof.b_comm_ls.to_vec();
+    let b_comm_rs = proof.b_comm_rs.to_vec();
+    let c_ls = proof.c_ls.to_vec();
+    let c_rs = proof.c_rs.to_vec();
 
-    let a_comm_l = proof.a_comm_l;
-    let a_comm_r = proof.a_comm_r;
-    let b_comm_l = proof.b_comm_l;
-    let b_comm_r = proof.b_comm_r;
-    let c_l = proof.c_l;
-    let c_r = proof.c_r;
-    let a1 = proof.a;
-    let b1 = proof.b;
-    let x = proof.x;
+    let xs = proof.xs.to_vec();
+    let mut xs_inv = xs.clone();
+    batch_inversion(xs_inv.as_mut_slice());
 
-    let x_inv = x.inverse().unwrap();
+    let mut v = vk.v.to_vec();
+    let mut w = vk.w.to_vec();
 
-    let v1 = fold_msm(&v, &x_inv)[0];
-    let w1 = fold_msm(&w, &x)[0];
+    for (x, x_inv) in xs.iter().zip(xs_inv.iter()) {
+        v = fold_msm(&v, &x_inv);
+        w = fold_msm(&w, &x);
+    }
 
-    let a_comm_1 = a_comm_l.cyclotomic_exp(<E as Pairing>::ScalarField::into_bigint(x))
-        * a_comm
-        * a_comm_r.cyclotomic_exp(x_inv.into_bigint());
-    assert_eq!(a_comm_1, E::pairing(&a1, &v1).0);
-    let b_comm_1 = b_comm_l * x + b_comm + b_comm_r * x_inv;
-    assert_eq!(b_comm_1, w1 * b1);
-    let c_1 = c_l * x + c + c_r * x_inv;
-    assert_eq!(c_1, a1 * b1);
+    let mut a_comm = a_comm.clone();
+    for (((x, x_inv), a_comm_l), a_comm_r) in xs.iter()
+        .zip(xs_inv.iter())
+        .zip(a_comm_ls)
+        .zip(a_comm_rs) {
+        a_comm = a_comm_l.cyclotomic_exp(x.into_bigint())
+            * a_comm
+            * a_comm_r.cyclotomic_exp(x_inv.into_bigint());
+    }
+    assert_eq!(a_comm, E::pairing(&a, &v[0]).0);
+
+    let mut b_comm = b_comm.clone();
+    for (((x, x_inv), b_comm_l), b_comm_r) in xs.iter()
+        .zip(xs_inv.iter())
+        .zip(b_comm_ls)
+        .zip(b_comm_rs) {
+        b_comm = b_comm_l * x + b_comm + b_comm_r * x_inv;
+    }
+    assert_eq!(b_comm, w[0] * b);
+
+    let mut c = c.clone();
+    for (((x, x_inv), c_l),c_r) in xs.iter()
+        .zip(xs_inv.iter())
+        .zip(c_ls)
+        .zip(c_rs) {
+        c = c_l * x + c + c_r * x_inv;
+    }
+
+    assert_eq!(c, a * b);
 }
 
 #[cfg(test)]
@@ -133,7 +184,7 @@ mod tests {
     fn _test_mipp<E: Pairing>() {
         let rng = &mut test_rng();
 
-        let log_m = 1;
+        let log_m = 10;
         let m = 2usize.pow(log_m);
 
         let (pk, vk) = setup::<E>(log_m);
