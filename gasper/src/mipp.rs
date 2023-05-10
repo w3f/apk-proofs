@@ -27,6 +27,9 @@ pub struct Proof<E: Pairing> {
     comm_rs: Vec<E::TargetField>,
     a: E::G1,
     b: E::ScalarField,
+    v: E::G2Affine,
+    w: E::G1Affine,
+
     xs: Vec<E::ScalarField>,
     c1: E::ScalarField,
     c2: E::ScalarField,
@@ -124,11 +127,18 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         w = fold_msm(&w, &x);
     }
 
+    assert_eq!(a.len(), 1);
+    assert_eq!(b.len(), 1);
+    assert_eq!(v.len(), 1);
+    assert_eq!(w.len(), 1);
+
     Proof {
         comm_ls,
         comm_rs,
         a: a[0].into(),
         b: b[0],
+        v: v[0],
+        w: w[0],
         xs,
         c1,
         c2,
@@ -155,6 +165,9 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
         v = fold_msm(&v, &x_inv);
         w = fold_msm(&w, &x);
     }
+
+    assert_eq!(v[0], proof.v);
+    assert_eq!(w[0], proof.w);
 
     let extra = E::multi_pairing([b_comm, c], [h1, h2]).0;
 
