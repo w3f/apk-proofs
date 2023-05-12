@@ -12,5 +12,7 @@ ark-ec = { version = "0.4", default-features = false }
 ark-poly = { version = "0.4", default-features = false }
 ark-serialize = { version = "0.4", default-features = false, features = ["derive"] }
 
+fflonk = { git = "https://github.com/w3f/fflonk" }
+
 [dev-dependencies]
 ark-bls12-381 = { version = "0.4", default-features = false, features = ["curve"] }

@@ -2,22 +2,22 @@ use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use ark_ff::{batch_inversion, CyclotomicMultSubgroup, Field, PrimeField};
+use ark_poly::Polynomial;
 use ark_std::{test_rng, UniformRand};
 
-use crate::{fold_msm, fold_scalars};
+use crate::{final_ck_polynomial, fold_msm, fold_scalars, kzg};
 
 pub struct ProverKey<E: Pairing> {
     log_m: u32,
-    v: Vec<E::G2Affine>,
-    w: Vec<E::G1Affine>,
+    ck_g1: Vec<E::G1Affine>,
+    ck_g2: Vec<E::G2Affine>,
     h1: E::G2Affine,
     h2: E::G2Affine,
 }
 
 pub struct VerifierKey<E: Pairing> {
-    log_m: u32,
-    v: Vec<E::G2Affine>,
-    w: Vec<E::G1Affine>,
+    vk_g1: kzg::VerifierKeyG1<E>,
+    vk_g2: kzg::VerifierKeyG2<E>,
     h1: E::G2Affine,
     h2: E::G2Affine,
 }
@@ -29,33 +29,38 @@ pub struct Proof<E: Pairing> {
     b: E::ScalarField,
     v: E::G2Affine,
     w: E::G1Affine,
+    kzg_g1: E::G1Affine,
+    kzg_g2: E::G2Affine,
 
     xs: Vec<E::ScalarField>,
     c1: E::ScalarField,
     c2: E::ScalarField,
+    z: E::ScalarField,
 }
 
-fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
+pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
     let rng = &mut test_rng();
 
     let m = 2usize.pow(log_m);
+    let g = E::G1::rand(rng);
+    let h = E::G2::rand(rng);
 
-    let v: Vec<E::G2Affine> = (0..m).map(|_| E::G2Affine::rand(rng)).collect();
-    let w: Vec<E::G1Affine> = (0..m).map(|_| E::G1Affine::rand(rng)).collect();
+    let (ck_g1, vk_g1) = kzg::setup_g1::<E>(2 * m - 1, g, h);
+    let (ck_g2, vk_g2) = kzg::setup_g2::<E>(2 * m - 1, g, h);
+
     let h1 = E::G2Affine::rand(rng);
     let h2 = E::G2Affine::rand(rng);
 
     let pk = ProverKey {
         log_m,
-        v: v.clone(),
-        w: w.clone(),
+        ck_g1,
+        ck_g2,
         h1,
         h2,
     };
     let vk = VerifierKey {
-        log_m,
-        v,
-        w,
+        vk_g1,
+        vk_g2,
         h1,
         h2,
     };
@@ -73,14 +78,16 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let xs: Vec<E::ScalarField> = (0..log_m).map(|_| E::ScalarField::rand(rng)).collect();
     let c1 = E::ScalarField::rand(rng);
     let c2 = E::ScalarField::rand(rng);
+    let z = E::ScalarField::rand(rng);
+
     let h1 = (pk.h1 * c1).into_affine();
     let h2 = (pk.h2 * c2).into_affine();
 
     let mut m1 = m;
     let mut a = a.to_vec();
     let mut b = b.to_vec();
-    let mut v = pk.v.to_vec();
-    let mut w = pk.w.to_vec();
+    let mut v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
+    let mut w: Vec<E::G1Affine> = pk.ck_g1.iter().cloned().step_by(2).collect();
 
     let mut comm_ls: Vec<E::TargetField> = Vec::with_capacity(log_m);
     let mut comm_rs: Vec<E::TargetField> = Vec::with_capacity(log_m);
@@ -132,6 +139,16 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     assert_eq!(v.len(), 1);
     assert_eq!(w.len(), 1);
 
+    let mut xs_inv = xs.clone();
+    batch_inversion(xs_inv.as_mut_slice());
+
+    let f_v = final_ck_polynomial(&xs_inv);
+    let f_w = final_ck_polynomial(&xs);
+    assert_eq!(kzg::commit_g2::<E>(&pk.ck_g2, &f_v), v[0]);
+    assert_eq!(kzg::commit_g1::<E>(&pk.ck_g1, &f_w), w[0]);
+    let kzg_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, z);
+    let kzg_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, z);
+
     Proof {
         comm_ls,
         comm_rs,
@@ -139,9 +156,12 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         b: b[0],
         v: v[0],
         w: w[0],
+        kzg_g1,
+        kzg_g2,
         xs,
         c1,
         c2,
+        z,
     }
 }
 
@@ -155,19 +175,18 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
     let mut xs_inv = xs.clone();
     batch_inversion(xs_inv.as_mut_slice());
 
-    let mut v = vk.v.to_vec();
-    let mut w = vk.w.to_vec();
-
     let h1 = (vk.h1 * proof.c1).into_affine();
     let h2 = (vk.h2 * proof.c2).into_affine();
 
-    for (x, x_inv) in xs.iter().zip(xs_inv.iter()) {
-        v = fold_msm(&v, &x_inv);
-        w = fold_msm(&w, &x);
-    }
+    let z = proof.z;
+    let v = proof.v;
+    let w = proof.w;
 
-    assert_eq!(v[0], proof.v);
-    assert_eq!(w[0], proof.w);
+    let f_v_z = final_ck_polynomial(&xs_inv).evaluate(&z);
+    let f_w_z = final_ck_polynomial(&xs).evaluate(&z);
+
+    assert!(kzg::verify_g2(&vk.vk_g2, v, proof.z, f_v_z, proof.kzg_g2));
+    assert!(kzg::verify_g1(&vk.vk_g1, w, proof.z, f_w_z, proof.kzg_g1));
 
     let extra = E::multi_pairing([b_comm, c], [h1, h2]).0;
 
@@ -180,7 +199,7 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
             * comm
             * a_comm_r.cyclotomic_exp(x_inv.into_bigint());
     }
-    assert_eq!(comm, E::multi_pairing([a, w[0] * b, a * b], [v[0], h1, h2]).0);
+    assert_eq!(comm, E::multi_pairing([a, w * b, a * b], [v, h1, h2]).0);
 }
 
 #[cfg(test)]
@@ -205,13 +224,13 @@ mod tests {
         let b: Vec<E::ScalarField> = (0..m).map(|_| E::ScalarField::rand(rng)).collect();
         let c: E::G1 = VariableBaseMSM::msm(&a, &b).unwrap();
 
-        let v = &pk.v;
-        let w = &pk.w;
+        let v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
+        let w: Vec<E::G1Affine> = pk.ck_g1.iter().cloned().step_by(2).collect();
 
         // A_comm = <A, V> = e(A1, V1) * ... * e(Am, Vm)
         let a_comm: E::TargetField = E::multi_pairing(&a, v).0;
         // b_comm = <b, W> = b1W1 * ... + bmWm
-        let b_comm: E::G1 = VariableBaseMSM::msm(w, &b).unwrap();
+        let b_comm: E::G1 = VariableBaseMSM::msm(&w, &b).unwrap();
 
         let proof = prove(&pk, &a, &b);
 
