@@ -2,10 +2,11 @@ use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use ark_ff::{batch_inversion, CyclotomicMultSubgroup, Field, PrimeField};
-use ark_poly::Polynomial;
+use ark_poly::{DenseUVPolynomial, Polynomial};
+use ark_poly::univariate::DensePolynomial;
 use ark_std::{test_rng, UniformRand};
 
-use crate::{final_ck_polynomial, fold_msm, fold_scalars, kzg};
+use crate::{final_folding_exponents, fold_msm, fold_scalars, kzg};
 
 pub struct ProverKey<E: Pairing> {
     log_m: u32,
@@ -202,14 +203,23 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
     assert_eq!(comm, E::multi_pairing([a, w * b, a * b], [v, h1, h2]).0);
 }
 
+fn final_ck_polynomial<F: Field>(xs: &[F]) -> DensePolynomial<F> {
+    let exps = final_folding_exponents(xs);
+    // interleave with 0s
+    let coeffs = exps.into_iter()
+        .flat_map(|exp| [exp, F::zero()])
+        .collect();
+    DensePolynomial::from_coefficients_vec(coeffs)
+}
+
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Bls12_381;
-    use ark_ec::pairing::Pairing;
-    use ark_ec::VariableBaseMSM;
+    use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective};
+    use ark_poly::univariate::SparsePolynomial;
     use ark_std::{test_rng, UniformRand};
+    use fflonk::pcs::kzg::urs::URS;
 
-    use crate::mipp::{prove, setup, verify};
+    use super::*;
 
     fn _test_mipp<E: Pairing>() {
         let rng = &mut test_rng();
@@ -240,5 +250,58 @@ mod tests {
     #[test]
     fn test_mipp() {
         _test_mipp::<Bls12_381>();
+    }
+
+    // Computes final commitment key polynomial using the formula from
+    // https://eprint.iacr.org/2019/1177.pdf, section 5.2
+    fn naive_final_ck_polynomial<F: Field>(xs: &[F]) -> DensePolynomial<F> {
+        let mut f = DensePolynomial::from_coefficients_vec(vec![F::one()]);
+        for (i, &x) in xs.into_iter().rev().enumerate() {
+            let n = 2usize.pow((i + 1) as u32);
+            let fi = SparsePolynomial::from_coefficients_vec(vec![(0, F::one()), (n, x)]);
+            f = f.naive_mul(&fi.into());
+        }
+        f
+    }
+
+    #[test]
+    fn test_final_ck_polynomial() {
+        let rng = &mut test_rng();
+
+        let log_m = 2;
+        let m = 2usize.pow(log_m);
+
+        let xs: Vec<Fr> = (0..m).map(|_| Fr::rand(rng)).collect();
+
+        let res = final_ck_polynomial(&xs);
+        let expected = naive_final_ck_polynomial(&xs);
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn final_commitment_keys() {
+        let rng = &mut test_rng();
+
+        let log_m = 10;
+        let m = 2usize.pow(log_m);
+        let gts = URS::<Bls12_381>::generate(2 * m - 1, 0, rng).powers_in_g1;
+
+        let ck: Vec<G1Affine> = gts.iter().cloned().step_by(2).collect();
+        let xs: Vec<Fr> = (0..log_m).map(|_| Fr::rand(rng)).collect();
+
+        let mut ck_folded = ck;
+        for x in xs.iter() {
+            ck_folded = fold_msm(&ck_folded, x);
+        }
+        assert_eq!(ck_folded.len(), 1);
+        let final_ck = ck_folded[0];
+
+        let final_ck_poly = final_ck_polynomial(&xs);
+        assert_eq!(final_ck_poly.degree(), 2 * m - 2);
+
+        let final_ck_poly_comm: G1Projective = VariableBaseMSM::msm(&gts, &final_ck_poly.coeffs).unwrap();
+        let final_ck_poly_comm = final_ck_poly_comm.into_affine();
+
+        assert_eq!(final_ck, final_ck_poly_comm);
     }
 }

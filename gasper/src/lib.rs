@@ -1,7 +1,5 @@
 use ark_ec::AffineRepr;
-use ark_ff::{FftField, Field};
-use ark_poly::DenseUVPolynomial;
-use ark_poly::univariate::{DensePolynomial, SparsePolynomial};
+use ark_ff::Field;
 
 pub mod mipp;
 mod kzg;
@@ -19,53 +17,52 @@ fn fold_scalars<A: Field>(a: &[A], x: &A) -> Vec<A> {
     l.iter().zip(r).map(|(&l, &r)| (l + r * x)).collect()
 }
 
-// TODO: no need in ffts for that
-fn final_ck_polynomial<F: FftField>(xs: &[F]) -> DensePolynomial<F> {
-    let mut f = DensePolynomial::from_coefficients_vec(vec![F::one()]);
-    for (i, &x) in xs.into_iter().rev().enumerate() {
-        let n = 2usize.pow((i + 1) as u32);
-        let fi = SparsePolynomial::from_coefficients_vec(vec![(0, F::one()), (n, x)]);
-        let fi: DensePolynomial<F> = fi.into();
-        f = &f * &fi;
+// n = 2^m
+// Folding elements V = [A1, ..., An] with scalars [x1, ..., xm] recursively m times using formula
+// V = VL || VR, Vi = VL + xi * VR pointwise, V := Vi, i = 1,...,m
+// results in V = Vm = [c1A1 + ... + cnAn], where ci = prod({xj | if j-th bit of i-1 is set}).
+// This function computes these ci-s.
+fn final_folding_exponents<F: Field>(xs: &[F]) -> Vec<F> {
+    let m = xs.len();
+    let mut n = 2usize.pow(m as u32);
+    let mut res = vec![F::one(); n];
+    for x in xs {
+        n = n / 2;
+        for chunk in res.rchunks_mut(n).step_by(2) {
+            for elem in chunk.iter_mut() {
+                *elem *= x;
+            }
+        }
     }
-    f
+    res
 }
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective};
-    use ark_ec::{CurveGroup, VariableBaseMSM};
-    use ark_poly::Polynomial;
-    use ark_std::test_rng;
-    use ark_std::UniformRand;
-    use fflonk::pcs::kzg::urs::URS;
+    use ark_bls12_381::Fr;
+    use ark_std::{test_rng, UniformRand};
 
-    use crate::{final_ck_polynomial, fold_msm};
+    use super::*;
 
     #[test]
-    fn final_commitment_keys() {
+    fn test_final_folding_exponents() {
         let rng = &mut test_rng();
 
-        let log_m = 10;
-        let m = 2usize.pow(log_m);
-        let gts= URS::<Bls12_381>::generate(2 * m - 1, 0, rng).powers_in_g1;
+        let m = 10;
+        let n = 2usize.pow(m);
 
-        let ck: Vec<G1Affine> = gts.iter().cloned().step_by(2).collect();
-        let xs: Vec<Fr> = (0..log_m).map(|_| Fr::rand(rng)).collect();
+        let xs: Vec<Fr> = (0..m).map(|_| Fr::rand(rng)).collect();
+        let v: Vec<Fr> = (0..n).map(|_| Fr::rand(rng)).collect();
 
-        let mut ck_folded = ck;
+        let mut vi = v.clone();
         for x in xs.iter() {
-            ck_folded = fold_msm(&ck_folded, x);
+            vi = fold_scalars(&vi, x);
         }
-        assert_eq!(ck_folded.len(), 1);
-        let final_ck = ck_folded[0];
+        let final_v = vi[0];
 
-        let final_ck_poly = final_ck_polynomial(&xs);
-        assert_eq!(final_ck_poly.degree(), 2 * m - 2);
+        let cs = final_folding_exponents(&xs);
+        let multi_exp: Fr = v.iter().zip(cs.iter()).map(|(x, y)| x * y).sum();
 
-        let final_ck_poly_comm: G1Projective = VariableBaseMSM::msm(&gts, &final_ck_poly.coeffs).unwrap();
-        let final_ck_poly_comm = final_ck_poly_comm.into_affine();
-
-        assert_eq!(final_ck, final_ck_poly_comm);
+        assert_eq!(final_v, multi_exp);
     }
 }
