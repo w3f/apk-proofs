@@ -1,7 +1,7 @@
 use ark_ec::CurveGroup;
-use ark_ec::pairing::Pairing;
+use ark_ec::pairing::{Pairing, PairingOutput};
 use ark_ec::VariableBaseMSM;
-use ark_ff::{batch_inversion, CyclotomicMultSubgroup, Field, PrimeField};
+use ark_ff::{batch_inversion, Field};
 use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
 use ark_std::{test_rng, UniformRand};
@@ -26,8 +26,8 @@ pub struct VerifierKey<E: Pairing> {
 }
 
 pub struct Proof<E: Pairing> {
-    comm_ls: Vec<E::TargetField>,
-    comm_rs: Vec<E::TargetField>,
+    comm_ls: Vec<PairingOutput<E>>,
+    comm_rs: Vec<PairingOutput<E>>,
     a: E::G1,
     b: E::ScalarField,
     v: E::G2Affine,
@@ -94,8 +94,8 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     assert_eq!(v.len(), m);
     assert_eq!(w.len(), m);
 
-    let mut comm_ls: Vec<E::TargetField> = Vec::with_capacity(log_m);
-    let mut comm_rs: Vec<E::TargetField> = Vec::with_capacity(log_m);
+    let mut comm_ls: Vec<PairingOutput<E>> = Vec::with_capacity(log_m);
+    let mut comm_rs: Vec<PairingOutput<E>> = Vec::with_capacity(log_m);
 
     for x in xs.iter() {
         m1 /= 2;
@@ -125,8 +125,8 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         let keys_l = [v_l, &[h1, h2]].concat();
         let keys_r = [v_r, &[h1, h2]].concat();
 
-        let comm_l = E::multi_pairing(vals_l, keys_l).0;
-        let comm_r = E::multi_pairing(vals_r, keys_r).0;
+        let comm_l = E::multi_pairing(vals_l, keys_l);
+        let comm_r = E::multi_pairing(vals_r, keys_r);
 
         comm_ls.push(comm_l);
         comm_rs.push(comm_r);
@@ -168,7 +168,7 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     }
 }
 
-pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::TargetField, b_comm: &E::G1, c: &E::G1) {
+pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &PairingOutput<E>, b_comm: &E::G1, c: &E::G1) {
     let a = proof.a;
     let b = proof.b;
     let comm_ls = proof.comm_ls.to_vec();
@@ -191,18 +191,13 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
     assert!(kzg::verify_g2(&vk.vk_g2, v, proof.z, fv_at_z, proof.kzg_g2));
     assert!(kzg::verify_g1(&vk.vk_g1, w, proof.z, fw_at_z, proof.kzg_g1));
 
-    let extra = E::multi_pairing([b_comm, c], [h1, h2]).0;
-
-    let mut comm = extra * a_comm;
-    for (((x, x_inv), a_comm_l), a_comm_r) in xs.iter()
-        .zip(xs_inv.iter())
-        .zip(comm_ls)
-        .zip(comm_rs) {
-        comm = a_comm_l.cyclotomic_exp(x.into_bigint())
-            * comm
-            * a_comm_r.cyclotomic_exp(x_inv.into_bigint());
-    }
-    assert_eq!(comm, E::multi_pairing([a, w * b, a * b], [v, h1, h2]).0);
+    let exps = [xs, xs_inv].concat();
+    let bases = [comm_ls, comm_rs].concat();
+    assert_eq!(exps.len(), bases.len());
+    let comm = PairingOutput::msm(&bases, &exps).unwrap();
+    let extra = E::multi_pairing([b_comm, c], [h1, h2]);
+    let comm = comm + a_comm + extra;
+    assert_eq!(comm, E::multi_pairing([a, w * b, a * b], [v, h1, h2]));
 }
 
 // Computes the final commitment key polynomial for the contiguous SRS (in G1).
@@ -274,7 +269,7 @@ mod tests {
         let w: Vec<E::G1Affine> = pk.ck_g1.clone();
 
         // A_comm = <A, V> = e(A1, V1) * ... * e(Am, Vm)
-        let a_comm: E::TargetField = E::multi_pairing(&a, v).0;
+        let a_comm: PairingOutput<E> = E::multi_pairing(&a, v);
         // b_comm = <b, W> = b1W1 * ... + bmWm
         let b_comm: E::G1 = VariableBaseMSM::msm(&w, &b).unwrap();
 
