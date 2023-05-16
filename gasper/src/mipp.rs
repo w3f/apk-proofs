@@ -2,7 +2,7 @@ use ark_ec::CurveGroup;
 use ark_ec::pairing::Pairing;
 use ark_ec::VariableBaseMSM;
 use ark_ff::{batch_inversion, CyclotomicMultSubgroup, Field, PrimeField};
-use ark_poly::{DenseUVPolynomial, Polynomial};
+use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
 use ark_std::{test_rng, UniformRand};
 
@@ -10,7 +10,9 @@ use crate::{final_folding_exponents, fold_msm, fold_scalars, kzg};
 
 pub struct ProverKey<E: Pairing> {
     log_m: u32,
+    // m points in G1: G, tG, ..., t^(m-1)G
     ck_g1: Vec<E::G1Affine>,
+    // 2m-1 points in G2: H, sH, ..., s^(2m-2)H
     ck_g2: Vec<E::G2Affine>,
     h1: E::G2Affine,
     h2: E::G2Affine,
@@ -46,7 +48,7 @@ pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
     let g = E::G1::rand(rng);
     let h = E::G2::rand(rng);
 
-    let (ck_g1, vk_g1) = kzg::setup_g1::<E>(2 * m - 1, g, h);
+    let (ck_g1, vk_g1) = kzg::setup_g1::<E>(m, g, h);
     let (ck_g2, vk_g2) = kzg::setup_g2::<E>(2 * m - 1, g, h);
 
     let h1 = E::G2Affine::rand(rng);
@@ -88,7 +90,9 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let mut a = a.to_vec();
     let mut b = b.to_vec();
     let mut v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
-    let mut w: Vec<E::G1Affine> = pk.ck_g1.iter().cloned().step_by(2).collect();
+    let mut w: Vec<E::G1Affine> = pk.ck_g1.clone();
+    assert_eq!(v.len(), m);
+    assert_eq!(w.len(), m);
 
     let mut comm_ls: Vec<E::TargetField> = Vec::with_capacity(log_m);
     let mut comm_rs: Vec<E::TargetField> = Vec::with_capacity(log_m);
@@ -143,12 +147,10 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let mut xs_inv = xs.clone();
     batch_inversion(xs_inv.as_mut_slice());
 
-    let f_v = final_ck_polynomial(&xs_inv);
-    let f_w = final_ck_polynomial(&xs);
-    assert_eq!(kzg::commit_g2::<E>(&pk.ck_g2, &f_v), v[0]);
-    assert_eq!(kzg::commit_g1::<E>(&pk.ck_g1, &f_w), w[0]);
-    let kzg_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, z);
+    let f_w = compute_final_poly_for_g1(&xs);
+    let f_v = compute_final_poly_for_g2(&xs_inv);
     let kzg_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, z);
+    let kzg_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, z);
 
     Proof {
         comm_ls,
@@ -183,11 +185,11 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
     let v = proof.v;
     let w = proof.w;
 
-    let f_v_z = final_ck_polynomial(&xs_inv).evaluate(&z);
-    let f_w_z = final_ck_polynomial(&xs).evaluate(&z);
+    let fv_at_z = evaluate_final_poly_for_g2(&xs_inv, &z);
+    let fw_at_z = evaluate_final_poly_for_g1(&xs, &z);
 
-    assert!(kzg::verify_g2(&vk.vk_g2, v, proof.z, f_v_z, proof.kzg_g2));
-    assert!(kzg::verify_g1(&vk.vk_g1, w, proof.z, f_w_z, proof.kzg_g1));
+    assert!(kzg::verify_g2(&vk.vk_g2, v, proof.z, fv_at_z, proof.kzg_g2));
+    assert!(kzg::verify_g1(&vk.vk_g1, w, proof.z, fw_at_z, proof.kzg_g1));
 
     let extra = E::multi_pairing([b_comm, c], [h1, h2]).0;
 
@@ -203,7 +205,25 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &E::Tar
     assert_eq!(comm, E::multi_pairing([a, w * b, a * b], [v, h1, h2]).0);
 }
 
-fn final_ck_polynomial<F: Field>(xs: &[F]) -> DensePolynomial<F> {
+// Computes the final commitment key polynomial for the contiguous SRS (in G1).
+// n = 2^m, xs = [x1, ..., xm]
+// fw(X) = (1 + x_m X) (1 + x_{m-1} X^2) ... (1 + x_1 X^{2^{m-1}})
+// deg(fw) = n - 1
+fn compute_final_poly_for_g1<F: Field>(xs: &[F]) -> DensePolynomial<F> {
+    let coeffs = final_folding_exponents(xs);
+    DensePolynomial::from_coefficients_vec(coeffs)
+}
+
+fn evaluate_final_poly_for_g1<F: Field>(xs: &[F], z: &F) -> F {
+    evaluate_final_poly(xs, z)
+}
+
+// Computes the final commitment key polynomial for the gapped SRS (in G2).
+// n = 2^m, xs = [x1, ..., xm]
+// fv(X) = (1 + x_m X^2) (1 + x_{m-1} X^4) ... (1 + x_1 X^{2^m})
+// deg(fv) = 2n - 2
+// fv(X) = fw(X^2)
+fn compute_final_poly_for_g2<F: Field>(xs: &[F]) -> DensePolynomial<F> {
     let exps = final_folding_exponents(xs);
     // interleave with 0s
     let coeffs = exps.into_iter()
@@ -212,12 +232,28 @@ fn final_ck_polynomial<F: Field>(xs: &[F]) -> DensePolynomial<F> {
     DensePolynomial::from_coefficients_vec(coeffs)
 }
 
+fn evaluate_final_poly_for_g2<F: Field>(xs: &[F], z: &F) -> F {
+    let z2 = z.square();
+    evaluate_final_poly(xs, &z2)
+}
+
+// Computes (1 + x_m z)(1 + x_{m-1} z^2) ... (1 + x_1 z^{2^{m-1}}).
+fn evaluate_final_poly<F: Field>(xs: &[F], z: &F) -> F {
+    let mut res = F::one();
+    let mut z_i = z.clone();
+    for x in xs.iter().rev() {
+        res *= z_i * x + F::one();
+        z_i = z_i.square(); //TODO: remove extra squaring
+    }
+    res
+}
+
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective};
-    use ark_poly::univariate::SparsePolynomial;
+    use ark_bls12_381::{Bls12_381, Fr, G1Projective, G2Projective};
+    use ark_ec::AffineRepr;
+    use ark_poly::Polynomial;
     use ark_std::{test_rng, UniformRand};
-    use fflonk::pcs::kzg::urs::URS;
 
     use super::*;
 
@@ -235,7 +271,7 @@ mod tests {
         let c: E::G1 = VariableBaseMSM::msm(&a, &b).unwrap();
 
         let v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
-        let w: Vec<E::G1Affine> = pk.ck_g1.iter().cloned().step_by(2).collect();
+        let w: Vec<E::G1Affine> = pk.ck_g1.clone();
 
         // A_comm = <A, V> = e(A1, V1) * ... * e(Am, Vm)
         let a_comm: E::TargetField = E::multi_pairing(&a, v).0;
@@ -252,56 +288,68 @@ mod tests {
         _test_mipp::<Bls12_381>();
     }
 
-    // Computes final commitment key polynomial using the formula from
-    // https://eprint.iacr.org/2019/1177.pdf, section 5.2
-    fn naive_final_ck_polynomial<F: Field>(xs: &[F]) -> DensePolynomial<F> {
-        let mut f = DensePolynomial::from_coefficients_vec(vec![F::one()]);
-        for (i, &x) in xs.into_iter().rev().enumerate() {
-            let n = 2usize.pow((i + 1) as u32);
-            let fi = SparsePolynomial::from_coefficients_vec(vec![(0, F::one()), (n, x)]);
-            f = f.naive_mul(&fi.into());
+    fn fold_key<A: AffineRepr>(a: Vec<A>, xs: &[A::ScalarField]) -> A {
+        let mut a = a;
+        for x in xs.iter() {
+            a = fold_msm(&a, x);
         }
-        f
+        assert_eq!(a.len(), 1);
+        a[0]
     }
 
     #[test]
-    fn test_final_ck_polynomial() {
+    fn test_final_ck_polynomial_for_g1() {
         let rng = &mut test_rng();
 
-        let log_m = 2;
+        let log_m = 8;
         let m = 2usize.pow(log_m);
-
-        let xs: Vec<Fr> = (0..m).map(|_| Fr::rand(rng)).collect();
-
-        let res = final_ck_polynomial(&xs);
-        let expected = naive_final_ck_polynomial(&xs);
-        assert_eq!(res, expected);
-    }
-
-    #[test]
-    fn final_commitment_keys() {
-        let rng = &mut test_rng();
-
-        let log_m = 10;
-        let m = 2usize.pow(log_m);
-        let gts = URS::<Bls12_381>::generate(2 * m - 1, 0, rng).powers_in_g1;
-
-        let ck: Vec<G1Affine> = gts.iter().cloned().step_by(2).collect();
         let xs: Vec<Fr> = (0..log_m).map(|_| Fr::rand(rng)).collect();
 
-        let mut ck_folded = ck;
-        for x in xs.iter() {
-            ck_folded = fold_msm(&ck_folded, x);
-        }
-        assert_eq!(ck_folded.len(), 1);
-        let final_ck = ck_folded[0];
+        let fw = compute_final_poly_for_g1(&xs);
+        assert_eq!(fw.degree(), m - 1);
 
-        let final_ck_poly = final_ck_polynomial(&xs);
-        assert_eq!(final_ck_poly.degree(), 2 * m - 2);
+        let kzg_ck = {
+            let g = G1Projective::rand(rng);
+            let h = G2Projective::rand(rng);
+            let (kzg_ck, _) = kzg::setup_g1::<Bls12_381>(m, g, h);
+            kzg_ck
+        };
+        let w = kzg_ck.clone();
+        let final_w = fold_key(w, &xs);
+        let fw_comm = kzg::commit_g1::<Bls12_381>(&kzg_ck, &fw);
+        assert_eq!(fw_comm, final_w);
 
-        let final_ck_poly_comm: G1Projective = VariableBaseMSM::msm(&gts, &final_ck_poly.coeffs).unwrap();
-        let final_ck_poly_comm = final_ck_poly_comm.into_affine();
+        let z = Fr::rand(rng);
+        let fw_at_z_1 = fw.evaluate(&z);
+        let fw_at_z_2 = evaluate_final_poly_for_g1(&xs, &z);
+        assert_eq!(fw_at_z_1, fw_at_z_2);
+    }
 
-        assert_eq!(final_ck, final_ck_poly_comm);
+    #[test]
+    fn test_final_ck_polynomial_for_g2() {
+        let rng = &mut test_rng();
+
+        let log_m = 8;
+        let m = 2usize.pow(log_m);
+        let xs: Vec<Fr> = (0..log_m).map(|_| Fr::rand(rng)).collect();
+
+        let fv = compute_final_poly_for_g2(&xs);
+        assert_eq!(fv.degree(), 2 * m - 2);
+
+        let kzg_ck = {
+            let g = G1Projective::rand(rng);
+            let h = G2Projective::rand(rng);
+            let (kzg_ck, _) = kzg::setup_g2::<Bls12_381>(2 * m - 1, g, h);
+            kzg_ck
+        };
+        let v = kzg_ck.iter().cloned().step_by(2).collect();
+        let final_v = fold_key(v, &xs);
+        let fv_comm = kzg::commit_g2::<Bls12_381>(&kzg_ck, &fv);
+        assert_eq!(fv_comm, final_v);
+
+        let z = Fr::rand(rng);
+        let fv_at_z_1 = fv.evaluate(&z);
+        let fv_at_z_2 = evaluate_final_poly_for_g2(&xs, &z);
+        assert_eq!(fv_at_z_1, fv_at_z_2);
     }
 }
