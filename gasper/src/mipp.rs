@@ -35,10 +35,26 @@ pub struct Proof<E: Pairing> {
     kzg_g1: E::G1Affine,
     kzg_g2: E::G2Affine,
 
+    challenges: Challenges<E>,
+}
+
+struct Challenges<E: Pairing> {
     xs: Vec<E::ScalarField>,
     c1: E::ScalarField,
     c2: E::ScalarField,
     z: E::ScalarField,
+}
+
+impl<E: Pairing> Challenges<E> {
+    fn new(log_m: usize) -> Self {
+        let rng = &mut test_rng();
+        Challenges {
+            xs: (0..log_m).map(|_| E::ScalarField::rand(rng)).collect(),
+            c1: E::ScalarField::rand(rng),
+            c2: E::ScalarField::rand(rng),
+            z: E::ScalarField::rand(rng),
+        }
+    }
 }
 
 pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
@@ -71,20 +87,16 @@ pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
 }
 
 pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarField]) -> Proof<E> {
-    let rng = &mut test_rng();
-
     let log_m = pk.log_m as usize;
     let m = 2usize.pow(log_m as u32);
     assert_eq!(a.len(), m);
     assert_eq!(b.len(), m);
 
-    let xs: Vec<E::ScalarField> = (0..log_m).map(|_| E::ScalarField::rand(rng)).collect();
-    let c1 = E::ScalarField::rand(rng);
-    let c2 = E::ScalarField::rand(rng);
-    let z = E::ScalarField::rand(rng);
+    // TODO: Fiat-Shamir
+    let challenges = Challenges::<E>::new(log_m);
 
-    let h1 = (pk.h1 * c1).into_affine();
-    let h2 = (pk.h2 * c2).into_affine();
+    let h1 = (pk.h1 * challenges.c1).into_affine();
+    let h2 = (pk.h2 * challenges.c2).into_affine();
 
     let mut m1 = m;
     let mut a = a.to_vec();
@@ -97,7 +109,7 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let mut comm_ls: Vec<PairingOutput<E>> = Vec::with_capacity(log_m);
     let mut comm_rs: Vec<PairingOutput<E>> = Vec::with_capacity(log_m);
 
-    for x in xs.iter() {
+    for x in challenges.xs.iter() {
         m1 /= 2;
 
         let a_l = &a[..m1];
@@ -144,13 +156,13 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     assert_eq!(v.len(), 1);
     assert_eq!(w.len(), 1);
 
-    let mut xs_inv = xs.clone();
+    let mut xs_inv = challenges.xs.clone();
     batch_inversion(xs_inv.as_mut_slice());
 
-    let f_w = compute_final_poly_for_g1(&xs);
+    let f_w = compute_final_poly_for_g1(&challenges.xs);
     let f_v = compute_final_poly_for_g2(&xs_inv);
-    let kzg_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, z);
-    let kzg_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, z);
+    let kzg_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, challenges.z);
+    let kzg_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, challenges.z);
 
     Proof {
         comm_ls,
@@ -161,10 +173,8 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         w: w[0],
         kzg_g1,
         kzg_g2,
-        xs,
-        c1,
-        c2,
-        z,
+
+        challenges,
     }
 }
 
@@ -174,22 +184,23 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &Pairin
     let comm_ls = proof.comm_ls.to_vec();
     let comm_rs = proof.comm_rs.to_vec();
 
-    let xs = proof.xs.to_vec();
+    let challenges = &proof.challenges;
+
+    let xs = challenges.xs.to_vec();
     let mut xs_inv = xs.clone();
     batch_inversion(xs_inv.as_mut_slice());
 
-    let h1 = (vk.h1 * proof.c1).into_affine();
-    let h2 = (vk.h2 * proof.c2).into_affine();
+    let h1 = (vk.h1 * challenges.c1).into_affine();
+    let h2 = (vk.h2 * challenges.c2).into_affine();
 
-    let z = proof.z;
     let v = proof.v;
     let w = proof.w;
 
-    let fv_at_z = evaluate_final_poly_for_g2(&xs_inv, &z);
-    let fw_at_z = evaluate_final_poly_for_g1(&xs, &z);
+    let fv_at_z = evaluate_final_poly_for_g2(&xs_inv, &challenges.z);
+    let fw_at_z = evaluate_final_poly_for_g1(&xs, &challenges.z);
 
-    assert!(kzg::verify_g2(&vk.vk_g2, v, proof.z, fv_at_z, proof.kzg_g2));
-    assert!(kzg::verify_g1(&vk.vk_g1, w, proof.z, fw_at_z, proof.kzg_g1));
+    assert!(kzg::verify_g2(&vk.vk_g2, v, challenges.z, fv_at_z, proof.kzg_g2));
+    assert!(kzg::verify_g1(&vk.vk_g1, w, challenges.z, fw_at_z, proof.kzg_g1));
 
     let exps = [xs, xs_inv].concat();
     let bases = [comm_ls, comm_rs].concat();
