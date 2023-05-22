@@ -4,7 +4,7 @@ use ark_ec::VariableBaseMSM;
 use ark_ff::{batch_inversion, Field};
 use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
-use ark_std::{test_rng, UniformRand};
+use ark_std::{end_timer, start_timer, test_rng, UniformRand};
 
 use crate::{final_folding_exponents, fold_points, fold_scalars, kzg};
 
@@ -119,7 +119,9 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let mut l_comms = Vec::<PairingOutput<E>>::with_capacity(log_m);
     let mut r_comms = Vec::<PairingOutput<E>>::with_capacity(log_m);
 
+    let t_gipa = start_timer!(|| "GIPA");
     for x in challenges.xs.iter() {
+        let t_round = start_timer!(|| format!("ROUND: m = {}", m1));
         m1 /= 2;
 
         let al = &a_folded[..m1];
@@ -131,10 +133,12 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         let wl = &w_folded[..m1];
         let wr = &w_folded[m1..];
 
+        let t_msm = start_timer!(|| format!("4 x {}-msm in G1", m1));
         let bl_comm = E::G1::msm(wr, bl).unwrap();
         let br_comm = E::G1::msm(wl, br).unwrap();
         let cl = E::G1::msm(ar, bl).unwrap();
         let cr = E::G1::msm(al, br).unwrap();
+        end_timer!(t_msm);
 
         // TODO: batch conversion to affine
         let bl_comm = bl_comm.into_affine();
@@ -147,19 +151,25 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         let l_leys = [vl, &[h1, h2]].concat();
         let r_keys = [vr, &[h1, h2]].concat();
 
+        let t_multipairing = start_timer!(|| format!("2 x {}-multipairing", m1 + 2));
         let l_comm = E::multi_pairing(l_vals, l_leys);
         let r_comm = E::multi_pairing(r_vals, r_keys);
-
+        end_timer!(t_multipairing);
         l_comms.push(l_comm);
         r_comms.push(r_comm);
 
         let x_inv = x.inverse().unwrap();
 
+        let t_folding = start_timer!(|| format!("2 x {}-folding in G1 + {}-folding in G2", m1, m1));
         a_folded = fold_points(al, ar, &x);
         b_folded = fold_scalars(bl, br, &x_inv);
         v_folded = fold_points(vl, vr, &x_inv);
         w_folded = fold_points(wl, wr, &x);
+        end_timer!(t_folding);
+
+        end_timer!(t_round);
     }
+    end_timer!(t_gipa);
 
     assert_eq!(a_folded.len(), 1);
     assert_eq!(b_folded.len(), 1);
@@ -175,8 +185,10 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
 
     let f_w = compute_final_poly_for_g1(&challenges.xs);
     let f_v = compute_final_poly_for_g2(&xs_inv);
+    let t_kzg = start_timer!(|| format!("{}-msm in G1 + {}-msm in G2", m, 2 * m));
     let kzg_proof_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, challenges.z);
     let kzg_proof_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, challenges.z);
+    end_timer!(t_kzg);
 
     Proof {
         l_comms,
@@ -275,7 +287,7 @@ mod tests {
     fn _test_mipp<E: Pairing>() {
         let rng = &mut test_rng();
 
-        let log_m = 2;
+        let log_m = 10;
         let m = 2usize.pow(log_m);
 
         let (pk, vk) = setup::<E>(log_m);
