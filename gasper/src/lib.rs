@@ -1,4 +1,4 @@
-use ark_ec::AffineRepr;
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::Field;
 
 pub mod mipp;
@@ -7,8 +7,8 @@ mod kzg;
 // Computes `l + xr` pointwise.
 fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
     assert_eq!(l.len(), r.len());
-    // TODO: batch conversion to affine
-    l.iter().zip(r).map(|(&l, &r)| (l + r * x).into()).collect()
+    let proj: Vec<A::Group> = l.iter().zip(r).map(|(&l, &r)| (l + r * x)).collect();
+    A::Group::normalize_batch(&proj)
 }
 
 // Computes `l + xr` pointwise.
