@@ -4,16 +4,15 @@ use ark_ff::Field;
 pub mod mipp;
 mod kzg;
 
-// TODO: MSM
-fn fold_msm<A: AffineRepr>(a: &[A], x: &A::ScalarField) -> Vec<A> {
-    let m = a.len() / 2;
-    let (l, r) = a.split_at(m);
+// Computes `l + xr` pointwise.
+fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
+    assert_eq!(l.len(), r.len());
+    // TODO: batch conversion to affine
     l.iter().zip(r).map(|(&l, &r)| (l + r * x).into()).collect()
 }
 
-fn fold_scalars<A: Field>(a: &[A], x: &A) -> Vec<A> {
-    let m = a.len() / 2;
-    let (l, r) = a.split_at(m);
+// Computes `l + xr` pointwise.
+fn fold_scalars<A: Field>(l: &[A], r: &[A], x: &A) -> Vec<A> {
     l.iter().zip(r).map(|(&l, &r)| (l + r * x)).collect()
 }
 
@@ -55,8 +54,10 @@ mod tests {
         let v: Vec<Fr> = (0..n).map(|_| Fr::rand(rng)).collect();
 
         let mut vi = v.clone();
+        let mut mi = vi.len();
         for x in xs.iter() {
-            vi = fold_scalars(&vi, x);
+            mi /= 2;
+            vi = fold_scalars(&vi[..mi],&vi[mi..], x);
         }
         let final_v = vi[0];
 

@@ -6,7 +6,7 @@ use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
 use ark_std::{test_rng, UniformRand};
 
-use crate::{final_folding_exponents, fold_msm, fold_scalars, kzg};
+use crate::{final_folding_exponents, fold_points, fold_scalars, kzg};
 
 pub struct ProverKey<E: Pairing> {
     log_m: u32,
@@ -19,21 +19,29 @@ pub struct ProverKey<E: Pairing> {
 }
 
 pub struct VerifierKey<E: Pairing> {
-    vk_g1: kzg::VerifierKeyG1<E>,
-    vk_g2: kzg::VerifierKeyG2<E>,
+    kzg_vk_g1: kzg::VerifierKeyG1<E>,
+    kzg_vk_g2: kzg::VerifierKeyG2<E>,
     h1: E::G2Affine,
     h2: E::G2Affine,
 }
 
 pub struct Proof<E: Pairing> {
-    comm_ls: Vec<PairingOutput<E>>,
-    comm_rs: Vec<PairingOutput<E>>,
-    a: E::G1,
-    b: E::ScalarField,
-    v: E::G2Affine,
-    w: E::G1Affine,
-    kzg_g1: E::G1Affine,
-    kzg_g2: E::G2Affine,
+    // Left cross-commitments
+    l_comms: Vec<PairingOutput<E>>,
+    // Right cross-commitments
+    r_comms: Vec<PairingOutput<E>>,
+    // Final folded point
+    a_final: E::G1,
+    // Final folded scalar
+    b_final: E::ScalarField,
+    // Final commitment key in G2
+    v_final: E::G2Affine,
+    // Final commitment key in G1
+    w_final: E::G1Affine,
+    // Final commitment key argument proof for the key in G1
+    kzg_proof_g1: E::G1Affine,
+    // Final commitment key argument proof for the key in G2
+    kzg_proof_g2: E::G2Affine,
 
     challenges: Challenges<E>,
 }
@@ -64,8 +72,8 @@ pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
     let g = E::G1::rand(rng);
     let h = E::G2::rand(rng);
 
-    let (ck_g1, vk_g1) = kzg::setup_g1::<E>(m, g, h);
-    let (ck_g2, vk_g2) = kzg::setup_g2::<E>(2 * m - 1, g, h);
+    let (ck_g1, kzg_vk_g1) = kzg::setup_g1::<E>(m, g, h);
+    let (ck_g2, kzg_vk_g2) = kzg::setup_g2::<E>(2 * m - 1, g, h);
 
     let h1 = E::G2Affine::rand(rng);
     let h2 = E::G2Affine::rand(rng);
@@ -77,20 +85,20 @@ pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
         h1,
         h2,
     };
+
     let vk = VerifierKey {
-        vk_g1,
-        vk_g2,
+        kzg_vk_g1,
+        kzg_vk_g2,
         h1,
         h2,
     };
+
     (pk, vk)
 }
 
 pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarField]) -> Proof<E> {
     let log_m = pk.log_m as usize;
     let m = 2usize.pow(log_m as u32);
-    assert_eq!(a.len(), m);
-    assert_eq!(b.len(), m);
 
     // TODO: Fiat-Shamir
     let challenges = Challenges::<E>::new(log_m);
@@ -99,91 +107,91 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let h2 = (pk.h2 * challenges.c2).into_affine();
 
     let mut m1 = m;
-    let mut a = a.to_vec();
-    let mut b = b.to_vec();
-    let mut v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
-    let mut w: Vec<E::G1Affine> = pk.ck_g1.clone();
-    assert_eq!(v.len(), m);
-    assert_eq!(w.len(), m);
+    let mut a_folded = a.to_vec();
+    let mut b_folded = b.to_vec();
+    let mut v_folded: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
+    let mut w_folded: Vec<E::G1Affine> = pk.ck_g1.clone();
+    assert_eq!(a_folded.len(), m);
+    assert_eq!(b_folded.len(), m);
+    assert_eq!(v_folded.len(), m);
+    assert_eq!(w_folded.len(), m);
 
-    let mut comm_ls: Vec<PairingOutput<E>> = Vec::with_capacity(log_m);
-    let mut comm_rs: Vec<PairingOutput<E>> = Vec::with_capacity(log_m);
+    let mut l_comms = Vec::<PairingOutput<E>>::with_capacity(log_m);
+    let mut r_comms = Vec::<PairingOutput<E>>::with_capacity(log_m);
 
     for x in challenges.xs.iter() {
         m1 /= 2;
 
-        let a_l = &a[..m1];
-        let a_r = &a[m1..];
-        let b_l = &b[..m1];
-        let b_r = &b[m1..];
+        let al = &a_folded[..m1];
+        let ar = &a_folded[m1..];
+        let bl = &b_folded[..m1];
+        let br = &b_folded[m1..];
+        let vl = &v_folded[..m1];
+        let vr = &v_folded[m1..];
+        let wl = &w_folded[..m1];
+        let wr = &w_folded[m1..];
 
-        let v_l = &v[..m1];
-        let v_r = &v[m1..];
-        let w_l = &w[..m1];
-        let w_r = &w[m1..];
+        let bl_comm = E::G1::msm(wr, bl).unwrap();
+        let br_comm = E::G1::msm(wl, br).unwrap();
+        let cl = E::G1::msm(ar, bl).unwrap();
+        let cr = E::G1::msm(al, br).unwrap();
 
-        let b_comm_l: E::G1 = VariableBaseMSM::msm(&w_r, &b_l).unwrap();
-        let b_comm_r: E::G1 = VariableBaseMSM::msm(&w_l, &b_r).unwrap();
-        let c_l: E::G1 = VariableBaseMSM::msm(&a_r, &b_l).unwrap();
-        let c_r: E::G1 = VariableBaseMSM::msm(&a_l, &b_r).unwrap();
+        // TODO: batch conversion to affine
+        let bl_comm = bl_comm.into_affine();
+        let br_comm = br_comm.into_affine();
+        let cl = cl.into_affine();
+        let cr = cr.into_affine();
 
-        let b_comm_l = b_comm_l.into_affine();
-        let b_comm_r = b_comm_r.into_affine();
-        let c_l = c_l.into_affine();
-        let c_r = c_r.into_affine();
+        let l_vals = [ar, &[bl_comm, cl]].concat();
+        let r_vals = [al, &[br_comm, cr]].concat();
+        let l_leys = [vl, &[h1, h2]].concat();
+        let r_keys = [vr, &[h1, h2]].concat();
 
-        let vals_l = [a_r, &[b_comm_l, c_l]].concat();
-        let vals_r = [a_l, &[b_comm_r, c_r]].concat();
-        let keys_l = [v_l, &[h1, h2]].concat();
-        let keys_r = [v_r, &[h1, h2]].concat();
+        let l_comm = E::multi_pairing(l_vals, l_leys);
+        let r_comm = E::multi_pairing(r_vals, r_keys);
 
-        let comm_l = E::multi_pairing(vals_l, keys_l);
-        let comm_r = E::multi_pairing(vals_r, keys_r);
-
-        comm_ls.push(comm_l);
-        comm_rs.push(comm_r);
+        l_comms.push(l_comm);
+        r_comms.push(r_comm);
 
         let x_inv = x.inverse().unwrap();
 
-        a = fold_msm(&a, &x);
-        b = fold_scalars(&b, &x_inv);
-        v = fold_msm(&v, &x_inv);
-        w = fold_msm(&w, &x);
+        a_folded = fold_points(al, ar, &x);
+        b_folded = fold_scalars(bl, br, &x_inv);
+        v_folded = fold_points(vl, vr, &x_inv);
+        w_folded = fold_points(wl, wr, &x);
     }
 
-    assert_eq!(a.len(), 1);
-    assert_eq!(b.len(), 1);
-    assert_eq!(v.len(), 1);
-    assert_eq!(w.len(), 1);
+    assert_eq!(a_folded.len(), 1);
+    assert_eq!(b_folded.len(), 1);
+    assert_eq!(v_folded.len(), 1);
+    assert_eq!(w_folded.len(), 1);
+    let a_final = a_folded[0].into();
+    let b_final = b_folded[0];
+    let v_final = v_folded[0];
+    let w_final = w_folded[0];
 
     let mut xs_inv = challenges.xs.clone();
     batch_inversion(xs_inv.as_mut_slice());
 
     let f_w = compute_final_poly_for_g1(&challenges.xs);
     let f_v = compute_final_poly_for_g2(&xs_inv);
-    let kzg_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, challenges.z);
-    let kzg_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, challenges.z);
+    let kzg_proof_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, challenges.z);
+    let kzg_proof_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, challenges.z);
 
     Proof {
-        comm_ls,
-        comm_rs,
-        a: a[0].into(),
-        b: b[0],
-        v: v[0],
-        w: w[0],
-        kzg_g1,
-        kzg_g2,
-
+        l_comms,
+        r_comms,
+        a_final,
+        b_final,
+        v_final,
+        w_final,
+        kzg_proof_g1,
+        kzg_proof_g2,
         challenges,
     }
 }
 
 pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &PairingOutput<E>, b_comm: &E::G1, c: &E::G1) {
-    let a = proof.a;
-    let b = proof.b;
-    let comm_ls = proof.comm_ls.to_vec();
-    let comm_rs = proof.comm_rs.to_vec();
-
     let challenges = &proof.challenges;
 
     let xs = challenges.xs.to_vec();
@@ -193,22 +201,23 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &Pairin
     let h1 = (vk.h1 * challenges.c1).into_affine();
     let h2 = (vk.h2 * challenges.c2).into_affine();
 
-    let v = proof.v;
-    let w = proof.w;
-
-    let fv_at_z = evaluate_final_poly_for_g2(&xs_inv, &challenges.z);
-    let fw_at_z = evaluate_final_poly_for_g1(&xs, &challenges.z);
-
-    assert!(kzg::verify_g2(&vk.vk_g2, v, challenges.z, fv_at_z, proof.kzg_g2));
-    assert!(kzg::verify_g1(&vk.vk_g1, w, challenges.z, fw_at_z, proof.kzg_g1));
+    let z = challenges.z;
+    let fv_at_z = evaluate_final_poly_for_g2(&xs_inv, &z);
+    let fw_at_z = evaluate_final_poly_for_g1(&xs, &z);
+    assert!(kzg::verify_g2(&vk.kzg_vk_g2, proof.v_final, z, fv_at_z, proof.kzg_proof_g2));
+    assert!(kzg::verify_g1(&vk.kzg_vk_g1, proof.w_final, z, fw_at_z, proof.kzg_proof_g1));
 
     let exps = [xs, xs_inv].concat();
-    let bases = [comm_ls, comm_rs].concat();
+    let bases = [proof.l_comms.as_slice(), proof.r_comms.as_slice()].concat();
     assert_eq!(exps.len(), bases.len());
     let comm = PairingOutput::msm(&bases, &exps).unwrap();
+    // TODO: optimize pairings
     let extra = E::multi_pairing([b_comm, c], [h1, h2]);
     let comm = comm + a_comm + extra;
-    assert_eq!(comm, E::multi_pairing([a, w * b, a * b], [v, h1, h2]));
+    let b_comm_final = proof.w_final * proof.b_final;
+    let c_final = proof.a_final * proof.b_final;
+    assert_eq!(comm, E::multi_pairing([proof.a_final, b_comm_final, c_final],
+                                      [proof.v_final, h1, h2]));
 }
 
 // Computes the final commitment key polynomial for the contiguous SRS (in G1).
@@ -296,8 +305,10 @@ mod tests {
 
     fn fold_key<A: AffineRepr>(a: Vec<A>, xs: &[A::ScalarField]) -> A {
         let mut a = a;
+        let mut m1 = a.len();
         for x in xs.iter() {
-            a = fold_msm(&a, x);
+            m1 /= 2;
+            a = fold_points(&a[..m1], &a[m1..], x);
         }
         assert_eq!(a.len(), 1);
         a[0]
