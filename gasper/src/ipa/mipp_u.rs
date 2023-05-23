@@ -5,6 +5,7 @@ use ark_ff::{batch_inversion, Field};
 use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
 use ark_std::{end_timer, start_timer, test_rng, UniformRand};
+use ark_std::rand::Rng;
 
 use crate::ipa::{final_folding_exponents, fold_points, fold_scalars};
 use crate::kzg;
@@ -58,7 +59,7 @@ impl<E: Pairing> Challenges<E> {
     fn new(log_m: usize) -> Self {
         let rng = &mut test_rng();
         Challenges {
-            xs: (0..log_m).map(|_| E::ScalarField::rand(rng)).collect(),
+            xs: (0..log_m).map(|_| E::ScalarField::from(rng.gen::<u128>())).collect(),
             c1: E::ScalarField::rand(rng),
             c2: E::ScalarField::rand(rng),
             z: E::ScalarField::rand(rng),
@@ -162,10 +163,10 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         let x_inv = x.inverse().unwrap();
 
         let t_folding = start_timer!(|| format!("2 x {}-folding in G1 + {}-folding in G2", m1, m1));
-        a_folded = fold_points(al, ar, &x);
-        b_folded = fold_scalars(bl, br, &x_inv);
-        v_folded = fold_points(vl, vr, &x_inv);
-        w_folded = fold_points(wl, wr, &x);
+        a_folded = fold_points(al, ar, &x_inv);
+        b_folded = fold_scalars(bl, br, &x);
+        v_folded = fold_points(vl, vr, &x);
+        w_folded = fold_points(wl, wr, &x_inv);
         end_timer!(t_folding);
 
         end_timer!(t_round);
@@ -184,8 +185,8 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
     let mut xs_inv = challenges.xs.clone();
     batch_inversion(xs_inv.as_mut_slice());
 
-    let f_w = compute_final_poly_for_g1(&challenges.xs);
-    let f_v = compute_final_poly_for_g2(&xs_inv);
+    let f_w = compute_final_poly_for_g1(&xs_inv);
+    let f_v = compute_final_poly_for_g2(&challenges.xs);
     let t_kzg = start_timer!(|| format!("{}-msm in G1 + {}-msm in G2", m, 2 * m));
     let kzg_proof_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, challenges.z);
     let kzg_proof_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, challenges.z);
@@ -215,12 +216,12 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &Pairin
     let h2 = (vk.h2 * challenges.c2).into_affine();
 
     let z = challenges.z;
-    let fv_at_z = evaluate_final_poly_for_g2(&xs_inv, &z);
-    let fw_at_z = evaluate_final_poly_for_g1(&xs, &z);
+    let fv_at_z = evaluate_final_poly_for_g2(&xs, &z);
+    let fw_at_z = evaluate_final_poly_for_g1(&xs_inv, &z);
     assert!(kzg::verify_g2(&vk.kzg_vk_g2, proof.v_final, z, fv_at_z, proof.kzg_proof_g2));
     assert!(kzg::verify_g1(&vk.kzg_vk_g1, proof.w_final, z, fw_at_z, proof.kzg_proof_g1));
 
-    let exps = [xs, xs_inv].concat();
+    let exps = [xs_inv, xs].concat();
     let bases = [proof.l_comms.as_slice(), proof.r_comms.as_slice()].concat();
     assert_eq!(exps.len(), bases.len());
     let comm = PairingOutput::msm(&bases, &exps).unwrap();
