@@ -1,13 +1,19 @@
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::Field;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 pub mod mipp;
 mod kzg;
 
 // Computes `l + xr` pointwise.
 fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
     assert_eq!(l.len(), r.len());
-    let proj: Vec<A::Group> = l.iter().zip(r).map(|(&l, &r)| (l + r * x)).collect();
+    let proj: Vec<A::Group> = ark_std::cfg_iter!(l)
+        .zip(r)
+        .map(|(&l, &r)| (l + r * x))
+        .collect();
     A::Group::normalize_batch(&proj)
 }
 

@@ -305,7 +305,9 @@ mod tests {
         // b_comm = <b, W> = b1W1 * ... + bmWm
         let b_comm: E::G1 = VariableBaseMSM::msm(&w, &b).unwrap();
 
+        let t_prove = start_timer!(|| format!("MIPP-u, log(n) = {}", log_m));
         let proof = prove(&pk, &a, &b);
+        end_timer!(t_prove);
 
         verify(&vk, &proof, &a_comm, &b_comm, &c);
     }
