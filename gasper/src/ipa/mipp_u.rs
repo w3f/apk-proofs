@@ -6,7 +6,8 @@ use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
 use ark_std::{end_timer, start_timer, test_rng, UniformRand};
 
-use crate::{final_folding_exponents, fold_points, fold_scalars, kzg};
+use crate::ipa::{final_folding_exponents, fold_points, fold_scalars};
+use crate::kzg;
 
 pub struct ProverKey<E: Pairing> {
     log_m: u32,
@@ -287,7 +288,7 @@ mod tests {
     fn _test_mipp<E: Pairing>() {
         let rng = &mut test_rng();
 
-        let log_m = 10;
+        let log_m = 8;
         let m = 2usize.pow(log_m);
 
         let (pk, vk) = setup::<E>(log_m);
