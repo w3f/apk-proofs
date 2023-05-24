@@ -9,6 +9,16 @@ use crate::ipa::{compute_final_poly_for_g1, compute_final_poly_for_g2, evaluate_
                  evaluate_final_poly_for_g2, fold_points, fold_scalars};
 use crate::kzg;
 
+
+// Inner product argument for <A, b> = b1A1 + ... + bnAn = C, given the commitments:
+// A_comm = [A, V] = e(A1, V1) * ... * e(An, Vn)
+// b_comm = <b, W> = b1W1 + ... + bnWn, where
+// Vi = s^(2i-2)H in G2, and
+// Wi = t^(i-1)G in G1.
+
+// { (A_comm, b_comm, C; A, b) | C = <A, b>, A_comm = [A, V], b_comm = <b, W> }
+
+
 pub struct ProverKey<E: Pairing> {
     log_n: u32,
     // n points in G1: G, tG, ..., t^(n-1)G
