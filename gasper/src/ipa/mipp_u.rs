@@ -42,7 +42,7 @@ pub struct Proof<E: Pairing> {
     // Right cross-commitments
     r_comms: Vec<PairingOutput<E>>,
     // Final folded point
-    a_final: E::G1,
+    a_final: E::G1Affine,
     // Final folded scalar
     b_final: E::ScalarField,
     // Final commitment key in G2
@@ -239,7 +239,8 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &Pairin
     let comm = comm + a_comm + extra;
     let b_comm_final = proof.w_final * proof.b_final;
     let c_final = proof.a_final * proof.b_final;
-    assert_eq!(comm, E::multi_pairing([proof.a_final, b_comm_final, c_final],
+    // TODO: batch conversion
+    assert_eq!(comm, E::multi_pairing([proof.a_final, b_comm_final.into_affine(), c_final.into_affine()],
                                       [proof.v_final, h1, h2]));
 }
 
