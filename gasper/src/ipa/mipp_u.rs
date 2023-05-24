@@ -10,10 +10,10 @@ use crate::ipa::{compute_final_poly_for_g1, compute_final_poly_for_g2, evaluate_
 use crate::kzg;
 
 pub struct ProverKey<E: Pairing> {
-    log_m: u32,
-    // m points in G1: G, tG, ..., t^(m-1)G
+    log_n: u32,
+    // n points in G1: G, tG, ..., t^(n-1)G
     ck_g1: Vec<E::G1Affine>,
-    // 2m-1 points in G2: H, sH, ..., s^(2m-2)H
+    // 2n-1 points in G2: H, sH, ..., s^(2n-2)H
     ck_g2: Vec<E::G2Affine>,
     h1: E::G2Affine,
     h2: E::G2Affine,
@@ -55,10 +55,10 @@ struct Challenges<E: Pairing> {
 }
 
 impl<E: Pairing> Challenges<E> {
-    fn new(log_m: usize) -> Self {
+    fn new(log_n: usize) -> Self {
         let rng = &mut test_rng();
         Challenges {
-            xs: (0..log_m).map(|_| E::ScalarField::from(rng.gen::<u128>())).collect(),
+            xs: (0..log_n).map(|_| E::ScalarField::from(rng.gen::<u128>())).collect(),
             c1: E::ScalarField::rand(rng),
             c2: E::ScalarField::rand(rng),
             z: E::ScalarField::rand(rng),
@@ -66,21 +66,21 @@ impl<E: Pairing> Challenges<E> {
     }
 }
 
-pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
+pub fn setup<E: Pairing>(log_n: u32) -> (ProverKey<E>, VerifierKey<E>) {
     let rng = &mut test_rng();
 
-    let m = 2usize.pow(log_m);
+    let n = 2usize.pow(log_n);
     let g = E::G1::rand(rng);
     let h = E::G2::rand(rng);
 
-    let (ck_g1, kzg_vk_g1) = kzg::setup_g1::<E>(m, g, h);
-    let (ck_g2, kzg_vk_g2) = kzg::setup_g2::<E>(2 * m - 1, g, h);
+    let (ck_g1, kzg_vk_g1) = kzg::setup_g1::<E>(n, g, h);
+    let (ck_g2, kzg_vk_g2) = kzg::setup_g2::<E>(2 * n - 1, g, h);
 
     let h1 = E::G2Affine::rand(rng);
     let h2 = E::G2Affine::rand(rng);
 
     let pk = ProverKey {
-        log_m,
+        log_n,
         ck_g1,
         ck_g2,
         h1,
@@ -98,43 +98,43 @@ pub fn setup<E: Pairing>(log_m: u32) -> (ProverKey<E>, VerifierKey<E>) {
 }
 
 pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarField]) -> Proof<E> {
-    let log_m = pk.log_m as usize;
-    let m = 2usize.pow(log_m as u32);
+    let log_n = pk.log_n as usize;
+    let n = 2usize.pow(log_n as u32);
 
     // TODO: Fiat-Shamir
-    let challenges = Challenges::<E>::new(log_m);
+    let challenges = Challenges::<E>::new(log_n);
 
     let h1 = (pk.h1 * challenges.c1).into_affine();
     let h2 = (pk.h2 * challenges.c2).into_affine();
 
-    let mut m1 = m;
+    let mut n1 = n;
     let mut a_folded = a.to_vec();
     let mut b_folded = b.to_vec();
     let mut v_folded: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
     let mut w_folded: Vec<E::G1Affine> = pk.ck_g1.clone();
-    assert_eq!(a_folded.len(), m);
-    assert_eq!(b_folded.len(), m);
-    assert_eq!(v_folded.len(), m);
-    assert_eq!(w_folded.len(), m);
+    assert_eq!(a_folded.len(), n);
+    assert_eq!(b_folded.len(), n);
+    assert_eq!(v_folded.len(), n);
+    assert_eq!(w_folded.len(), n);
 
-    let mut l_comms = Vec::<PairingOutput<E>>::with_capacity(log_m);
-    let mut r_comms = Vec::<PairingOutput<E>>::with_capacity(log_m);
+    let mut l_comms = Vec::<PairingOutput<E>>::with_capacity(log_n);
+    let mut r_comms = Vec::<PairingOutput<E>>::with_capacity(log_n);
 
     let t_gipa = start_timer!(|| "GIPA");
     for x in challenges.xs.iter() {
-        let t_round = start_timer!(|| format!("ROUND: m = {}", m1));
-        m1 /= 2;
+        let t_round = start_timer!(|| format!("ROUND: m = {}", n1));
+        n1 /= 2;
 
-        let al = &a_folded[..m1];
-        let ar = &a_folded[m1..];
-        let bl = &b_folded[..m1];
-        let br = &b_folded[m1..];
-        let vl = &v_folded[..m1];
-        let vr = &v_folded[m1..];
-        let wl = &w_folded[..m1];
-        let wr = &w_folded[m1..];
+        let al = &a_folded[..n1];
+        let ar = &a_folded[n1..];
+        let bl = &b_folded[..n1];
+        let br = &b_folded[n1..];
+        let vl = &v_folded[..n1];
+        let vr = &v_folded[n1..];
+        let wl = &w_folded[..n1];
+        let wr = &w_folded[n1..];
 
-        let t_msm = start_timer!(|| format!("4 x {}-msm in G1", m1));
+        let t_msm = start_timer!(|| format!("4 x {}-msm in G1", n1));
         let bl_comm = E::G1::msm(wr, bl).unwrap();
         let br_comm = E::G1::msm(wl, br).unwrap();
         let cl = E::G1::msm(ar, bl).unwrap();
@@ -152,7 +152,7 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
         let l_leys = [vl, &[h1, h2]].concat();
         let r_keys = [vr, &[h1, h2]].concat();
 
-        let t_multipairing = start_timer!(|| format!("2 x {}-multipairing", m1 + 2));
+        let t_multipairing = start_timer!(|| format!("2 x {}-multipairing", n1 + 2));
         let l_comm = E::multi_pairing(l_vals, l_leys);
         let r_comm = E::multi_pairing(r_vals, r_keys);
         end_timer!(t_multipairing);
@@ -161,7 +161,7 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
 
         let x_inv = x.inverse().unwrap();
 
-        let t_folding = start_timer!(|| format!("2 x {}-folding in G1 + {}-folding in G2", m1, m1));
+        let t_folding = start_timer!(|| format!("2 x {}-folding in G1 + {}-folding in G2", n1, n1));
         a_folded = fold_points(al, ar, &x_inv);
         b_folded = fold_scalars(bl, br, &x);
         v_folded = fold_points(vl, vr, &x);
@@ -186,7 +186,7 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarFie
 
     let f_w = compute_final_poly_for_g1(&xs_inv);
     let f_v = compute_final_poly_for_g2(&challenges.xs);
-    let t_kzg = start_timer!(|| format!("{}-msm in G1 + {}-msm in G2", m, 2 * m));
+    let t_kzg = start_timer!(|| format!("{}-msm in G1 + {}-msm in G2", n, 2 * n));
     let kzg_proof_g1 = kzg::open_g1::<E>(&pk.ck_g1, &f_w, challenges.z);
     let kzg_proof_g2 = kzg::open_g2::<E>(&pk.ck_g2, &f_v, challenges.z);
     end_timer!(t_kzg);
@@ -244,25 +244,25 @@ mod tests {
     fn _test_mipp<E: Pairing>() {
         let rng = &mut test_rng();
 
-        let log_m = 8;
-        let m = 2usize.pow(log_m);
+        let log_n = 8;
+        let n = 2usize.pow(log_n);
 
-        let (pk, vk) = setup::<E>(log_m);
+        let (pk, vk) = setup::<E>(log_n);
 
-        // Want to prove <A, b> = b1A1 + ... + bmAm = C
-        let a: Vec<E::G1Affine> = (0..m).map(|_| E::G1Affine::rand(rng)).collect();
-        let b: Vec<E::ScalarField> = (0..m).map(|_| E::ScalarField::rand(rng)).collect();
+        // Want to prove <A, b> = b1A1 + ... + bnAn = C
+        let a: Vec<E::G1Affine> = (0..n).map(|_| E::G1Affine::rand(rng)).collect();
+        let b: Vec<E::ScalarField> = (0..n).map(|_| E::ScalarField::rand(rng)).collect();
         let c: E::G1 = VariableBaseMSM::msm(&a, &b).unwrap();
 
         let v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
         let w: Vec<E::G1Affine> = pk.ck_g1.clone();
 
-        // A_comm = <A, V> = e(A1, V1) * ... * e(Am, Vm)
+        // A_comm = <A, V> = e(A1, V1) * ... * e(An, Vn)
         let a_comm: PairingOutput<E> = E::multi_pairing(&a, v);
-        // b_comm = <b, W> = b1W1 * ... + bmWm
+        // b_comm = <b, W> = b1W1 * ... + bnWn
         let b_comm: E::G1 = VariableBaseMSM::msm(&w, &b).unwrap();
 
-        let t_prove = start_timer!(|| format!("MIPP-u, log(n) = {}", log_m));
+        let t_prove = start_timer!(|| format!("MIPP-u, log(n) = {}", log_n));
         let proof = prove(&pk, &a, &b);
         end_timer!(t_prove);
 
