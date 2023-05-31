@@ -20,7 +20,7 @@ use crate::{kzg, powers};
 pub struct ProverKey<E: Pairing> {
     log_n: u32,
     // 2n-1 points in G2: H, sH, ..., s^(2n-2)H
-    ck_g2: Vec<E::G2Affine>,
+    pub ck_g2: Vec<E::G2Affine>,
     h1: E::G2Affine,
 }
 

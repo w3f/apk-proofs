@@ -10,7 +10,7 @@ pub mod mipp_u;
 pub mod mipp_k;
 
 // Computes `l + xr` pointwise.
-fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
+pub(crate) fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
     assert_eq!(l.len(), r.len());
     let proj: Vec<A::Group> = ark_std::cfg_iter!(l)
         .zip(r)
@@ -21,7 +21,9 @@ fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
 
 // Computes `l + xr` pointwise.
 fn fold_scalars<A: Field>(l: &[A], r: &[A], x: &A) -> Vec<A> {
-    l.iter().zip(r).map(|(&l, &r)| (l + r * x)).collect()
+    ark_std::cfg_iter!(l)
+        .zip(r).map(|(&l, &r)| (l + r * x))
+        .collect()
 }
 
 // n = 2^m
