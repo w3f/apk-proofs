@@ -1,4 +1,3 @@
-use ark_ec::CurveGroup;
 use ark_ec::pairing::{Pairing, PairingOutput};
 use ark_ff::Field;
 
@@ -27,11 +26,12 @@ fn commit<E: Pairing>(ck_g1: &[E::G1Affine], ck_g2: &[E::G2Affine], bit_matrix: 
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective, G2Affine};
-    use ark_ec::VariableBaseMSM;
+    use ark_ec::{CurveGroup, VariableBaseMSM};
     use ark_ff::Zero;
     use ark_std::{end_timer, start_timer, test_rng, UniformRand};
     use ark_std::rand::distributions::{Bernoulli, Standard};
     use ark_std::rand::Rng;
+
     use crate::ipa::{fold_points, mipp_k, mipp_u};
 
     use super::*;
@@ -86,7 +86,7 @@ mod tests {
         // let mipp_k_proof_a = mipp_k::prove(&mipp_k_pk, &row_comms, lambda);
         // let mipp_k_proof_b = mipp_k::prove(&mipp_k_pk, &apks, lambda);
         let comms = fold_points(&row_comms, &apks, &mu);
-        let mipp_k_proof = mipp_k::prove(&mipp_k_pk, &comms, lambda);
+        let mipp_k_proof = mipp_k::prove_for_powers(&mipp_k_pk, &comms, lambda);
         end_timer!(t_mipp_k_proof);
 
         let t_mipp_u_proof = start_timer!(|| format!("MIPP-u, log(n) = {}", log_n));
@@ -105,7 +105,7 @@ mod tests {
         // mipp_k::verify(&mipp_k_vk, &mipp_k_proof_b, &apks_comm, &lambda, &b);
         let comm_gt = bit_matrix_comm + apks_comm * mu;
         let c = a + b * mu;
-        mipp_k::verify(&mipp_k_vk, &mipp_k_proof, &comm_gt, &lambda, &c);
+        mipp_k::verify_for_powers(&mipp_k_vk, &mipp_k_proof, &comm_gt, &lambda, &c);
         mipp_u::verify(&mipp_u_vk, &mipp_u_proof, &pks_comm, &a, &b);
         end_timer!(t_verify);
     }
