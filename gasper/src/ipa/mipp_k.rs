@@ -5,8 +5,7 @@ use ark_ff::{batch_inversion, Field};
 use ark_std::{end_timer, start_timer, test_rng, UniformRand};
 use ark_std::rand::Rng;
 
-use crate::ipa::{compute_final_poly_for_g2, evaluate_final_poly_for_g1,
-                 evaluate_final_poly_for_g2, fold_points, fold_scalars};
+use crate::ipa::{compute_final_poly_for_g2, evaluate_final_poly_for_g1, evaluate_final_poly_for_g2, final_folding_exponents, fold_points, fold_scalars};
 use crate::{kzg, powers};
 
 
@@ -86,7 +85,12 @@ pub fn setup<E: Pairing>(log_n: u32) -> (ProverKey<E>, VerifierKey<E>) {
     (pk, vk)
 }
 
-pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: E::ScalarField) -> Proof<E> {
+pub fn prove_for_powers<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: E::ScalarField) -> Proof<E> {
+    let powers = powers(b, a.len());
+    prove_unstructured(pk, a, &powers)
+}
+
+pub fn prove_unstructured<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: &[E::ScalarField]) -> Proof<E> {
     let log_n = pk.log_n as usize;
     let n = 2usize.pow(log_n as u32);
 
@@ -97,7 +101,7 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: E::ScalarField
 
     let mut n1 = n;
     let mut a_folded = a.to_vec();
-    let mut b_folded = powers(b, n);
+    let mut b_folded = b.to_vec();
     let mut v_folded: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
     assert_eq!(a_folded.len(), n);
     assert_eq!(b_folded.len(), n);
@@ -174,7 +178,18 @@ pub fn prove<E: Pairing>(pk: &ProverKey<E>, a: &[E::G1Affine], b: E::ScalarField
     }
 }
 
-pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &PairingOutput<E>, b: &E::ScalarField, c: &E::G1) {
+pub fn verify_for_powers<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &PairingOutput<E>, b: &E::ScalarField, c: &E::G1) {
+    let b_final = evaluate_final_poly_for_g1(&proof.challenges.xs, b);
+    verify_with_final_exponent(vk, proof, a_comm, &b_final, c)
+}
+
+pub fn verify_unstructured<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &PairingOutput<E>, b: &[E::ScalarField], c: &E::G1) {
+    let coeffs = final_folding_exponents(&proof.challenges.xs);
+    let b_final = coeffs.into_iter().zip(b).map(|(c, b)| c * b).sum();
+    verify_with_final_exponent(vk, proof, a_comm, &b_final, c)
+}
+
+fn verify_with_final_exponent<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &PairingOutput<E>, b_final: &E::ScalarField, c: &E::G1) {
     let challenges = &proof.challenges;
 
     let xs = challenges.xs.to_vec();
@@ -194,7 +209,6 @@ pub fn verify<E: Pairing>(vk: &VerifierKey<E>, proof: &Proof<E>, a_comm: &Pairin
     // TODO: optimize pairings
     let extra = E::pairing(c, h1);
     let comm = comm + a_comm + extra;
-    let b_final = evaluate_final_poly_for_g1(&xs, b);
     let c_final = proof.a_final * b_final;
     // TODO: batch conversion
     assert_eq!(comm, E::multi_pairing([proof.a_final, c_final.into_affine()],
@@ -209,7 +223,7 @@ mod tests {
 
     use super::*;
 
-    fn _test_mipp_k<E: Pairing>() {
+    fn _test_mipp_k_for_powers<E: Pairing>() {
         let rng = &mut test_rng();
 
         let log_n = 8;
@@ -227,15 +241,45 @@ mod tests {
         // A_comm = <A, V> = e(A1, V1) * ... * e(An, Vn)
         let a_comm: PairingOutput<E> = E::multi_pairing(&a, v);
 
-        let t_prove = start_timer!(|| format!("MIPP-k, log(n) = {}", log_n));
-        let proof = prove(&pk, &a, b);
+        let t_prove = start_timer!(|| format!("MIPP-k-for-powers, log(n) = {}", log_n));
+        let proof = prove_for_powers(&pk, &a, b);
         end_timer!(t_prove);
 
-        verify(&vk, &proof, &a_comm, &b, &c);
+        verify_for_powers(&vk, &proof, &a_comm, &b, &c);
+    }
+
+    fn _test_mipp_k_unstructured<E: Pairing>() {
+        let rng = &mut test_rng();
+
+        let log_n = 8;
+        let n = 2usize.pow(log_n);
+
+        let (pk, vk) = setup::<E>(log_n);
+
+        // Want to prove  <A, b> = b1A1 + b2bA2 + ... + bnAn = C
+        let a: Vec<E::G1Affine> = (0..n).map(|_| E::G1Affine::rand(rng)).collect();
+        let b: Vec<E::ScalarField> = (0..n).map(|_| E::ScalarField::rand(rng)).collect();
+        let c: E::G1 = VariableBaseMSM::msm(&a, &b).unwrap();
+
+        let v: Vec<E::G2Affine> = pk.ck_g2.iter().cloned().step_by(2).collect();
+
+        // A_comm = <A, V> = e(A1, V1) * ... * e(An, Vn)
+        let a_comm: PairingOutput<E> = E::multi_pairing(&a, v);
+
+        let t_prove = start_timer!(|| format!("MIPP-k-unstructured, log(n) = {}", log_n));
+        let proof = prove_unstructured(&pk, &a, &b);
+        end_timer!(t_prove);
+
+        verify_unstructured(&vk, &proof, &a_comm, &b, &c);
     }
 
     #[test]
-    fn test_mipp_k() {
-        _test_mipp_k::<Bls12_381>();
+    fn test_mipp_k_for_powers() {
+        _test_mipp_k_for_powers::<Bls12_381>();
+    }
+
+    #[test]
+    fn test_mipp_k_unstructured() {
+        _test_mipp_k_for_powers::<Bls12_381>();
     }
 }
