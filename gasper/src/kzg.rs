@@ -6,7 +6,7 @@ use ark_poly::univariate::DensePolynomial;
 use ark_std::{test_rng, UniformRand};
 use fflonk::utils::ec::single_base_msm;
 
-pub(crate) struct VerifierKeyG1<E: Pairing> {
+pub struct VerifierKeyG1<E: Pairing> {
     g1: E::G1Affine,
     g2: E::G2Prepared,
     tg2: E::G2Prepared,

@@ -30,7 +30,7 @@ pub struct ProverKey<E: Pairing> {
 }
 
 pub struct VerifierKey<E: Pairing> {
-    kzg_vk_g1: kzg::VerifierKeyG1<E>,
+    pub kzg_vk_g1: kzg::VerifierKeyG1<E>,
     kzg_vk_g2: kzg::VerifierKeyG2<E>,
     h1: E::G2Affine,
     h2: E::G2Affine,
