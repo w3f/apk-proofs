@@ -28,6 +28,8 @@ mod tests {
     use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective, G2Affine};
     use ark_ec::{CurveGroup, VariableBaseMSM};
     use ark_ff::Zero;
+    use ark_poly::{DenseUVPolynomial, Polynomial};
+    use ark_poly::univariate::DensePolynomial;
     use ark_std::{end_timer, start_timer, test_rng, UniformRand};
     use ark_std::rand::distributions::{Bernoulli, Standard};
     use ark_std::rand::Rng;
@@ -108,11 +110,49 @@ mod tests {
         mipp_k::verify_for_powers(&mipp_k_vk, &mipp_k_proof, &comm_gt, &lambda, &c);
         mipp_u::verify(&mipp_u_vk, &mipp_u_proof, &pks_comm, &a, &b);
         end_timer!(t_verify);
+
+        // slot proof
+        let start = 0;
+        let k = 4; // commitees per slot
+        let coeffs: Vec<Fr> = rng.sample_iter(Standard).take(k).collect();
+        let mut r = vec![Fr::zero(); m];
+        r[start..start + k].copy_from_slice(&coeffs);
+
+        let r_row_comms = G1Projective::msm(&row_comms, &r).unwrap();
+        let r_apks = G1Projective::msm(&apks, &r).unwrap();
+
+        let mipp_k_m = mipp_k::prove_unstructured(&mipp_k_pk, &row_comms, &r);
+        let mipp_k_apk = mipp_k::prove_unstructured(&mipp_k_pk, &apks, &r);
+        mipp_k::verify_unstructured(&mipp_k_vk, &mipp_k_m, &bit_matrix_comm, &r, &r_row_comms);
+        mipp_k::verify_unstructured(&mipp_k_vk, &mipp_k_apk, &apks_comm, &r, &r_apks);
+
+        let mut poly = vec![Fr::zero(); n];
+        for (row, r) in bit_matrix[start..start + k].iter().zip(coeffs.iter()) {
+            for index in row {
+                poly[*index] += r;
+            }
+        }
+        let poly = DensePolynomial::from_coefficients_vec(poly);
+        assert_eq!(kzg::commit_g1::<Bls12_381>(&mipp_u_pk.ck_g1, &poly), r_row_comms);
+
+        let lambda = Fr::rand(rng);
+        let lambdas = powers(lambda, n);
+
+        let eval: Fr = bit_matrix[start..start + k].iter().zip(coeffs).map(|(bit_vec, r)| {
+            let mut sum = Fr::zero();
+            for index in bit_vec {
+                sum += lambdas[*index];
+            }
+            sum * r
+        }).sum();
+
+        assert_eq!(poly.evaluate(&lambda), eval);
     }
 
     #[test]
     fn test_matrix_vector() {
-       _test_matrix_vector(10, 6);
+        // _test_matrix_vector(10, 6);
+        _test_matrix_vector(8, 5);
     }
 
     #[test]
