@@ -8,6 +8,7 @@ use rayon::prelude::*;
 
 pub mod mipp_u;
 pub mod mipp_k;
+pub mod sipp;
 
 // Computes `l + xr` pointwise.
 fn fold_points<A: AffineRepr>(l: &[A], r: &[A], x: &A::ScalarField) -> Vec<A> {
