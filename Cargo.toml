@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "gasper",
     "bw6",
     "mipp",
 ]
