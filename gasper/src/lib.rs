@@ -255,9 +255,9 @@ pub fn verify_slot<E: Pairing>(verifier: &SlotVerifier<E>, apks: &[E::G1Affine],
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Bls12_381, Fr, G1Affine, G2Affine};
-    use ark_poly::DenseUVPolynomial;
+    use ark_bls12_381::{Bls12_381, Fr, G2Affine, G1Projective, G2Projective};
     use ark_std::{end_timer, start_timer, test_rng, UniformRand};
+    use ark_std::iterable::Iterable;
     use ark_std::rand::distributions::{Bernoulli, Standard};
     use ark_std::rand::Rng;
 
@@ -283,7 +283,11 @@ mod tests {
 
         let ck_g2_u: Vec<G2Affine> = pk.mipp_u_pk.ck_g2.iter().cloned().step_by(2).collect();
 
-        let pks: Vec<G1Affine> = rng.sample_iter(Standard).take(n).collect();
+        let g = G1Projective::rand(rng);
+        let sks: Vec<Fr> = rng.sample_iter(Standard).take(n).collect();
+        // let pks: Vec<G1Affine> = rng.sample_iter(Standard).take(n).collect();
+        let pks: Vec<G1Projective> = sks.iter().map(|sk| g * sk).collect();
+        let pks = G1Projective::normalize_batch(&pks);
         let pks_comm = Bls12_381::multi_pairing(&pks, &ck_g2_u);
 
         let bit_matrix: Vec<Vec<usize>> = (0..m).map(|_| {
@@ -302,6 +306,29 @@ mod tests {
         verify_epoch(&vk, &pks_comm, &epoch_instance, &epoch_proof);
         end_timer!(t_verify);
 
+        // let's verify the 1st slot
+        // simulate data
+        let apks = &slot_prover.apks[..k];
+        let messages: Vec<G2Affine> = rng.sample_iter(Standard).take(k).collect();
+        let asigs: Vec<G2Projective> = bit_matrix[0..k].iter()
+            .zip(messages.iter())
+            .map(|(row, &m)| row.iter().map(|&index| m * sks[index]).sum())
+            .collect();
+        let asigs = G2Projective::normalize_batch(&asigs);
+        // verify data
+        // batch BLS verification equations
+        let rs: Vec<Fr> = rng.sample_iter(Standard).take(k).collect();
+        let rapks: Vec<G1Projective> = apks.iter()
+            .zip(rs.iter())
+            .map(|(&apk, r)| apk * r)
+            .collect();
+        let rapks = G1Projective::normalize_batch(&rapks);
+        let lhs = Bls12_381::multi_pairing(rapks, messages);
+        let rasigs = G2Projective::msm(&asigs, &rs).unwrap();
+        let rhs = Bls12_381::pairing(g, rasigs);
+        assert_eq!(lhs, rhs);
+
+
         let coeffs: Vec<Fr> = rng.sample_iter(Standard).take(k).collect();
         let slot_proof = prove_slot(&slot_prover, 0, &coeffs);
 
@@ -312,7 +339,7 @@ mod tests {
             epoch_instance,
         };
 
-        let apks = &slot_prover.apks[..k];
+
 
         verify_slot(&verifier, apks, &bit_matrix[..k], &coeffs, &slot_proof);
     }
