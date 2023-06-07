@@ -19,7 +19,8 @@ use fflonk::pcs::kzg::params::KzgCommitterKey;
 
 //~ Prover is responsible to generate APK proofs. The `Prover` struct encapsultes this task. It contains the following fields:
 pub struct Prover {
-    //~ - `Domains`: ???
+    //~ - `Domains`: is the set of labels we give to each committe member. It represent a multiplicative subgroup of the finite field (Field of the definition of the BLS curve). The subgroup order should be a power of 2.
+    //
     domains: Domains,
     //~ - `Keyset`: set of all committe public keys (?)
     keyset: Keyset, 

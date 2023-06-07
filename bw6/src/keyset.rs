@@ -55,21 +55,32 @@ use fflonk::pcs::{PCS, CommitterKey};
 //~   we set pks[domain_size-1] = (0,0), not even a curve point.
 //~ 2. `KeysetCommitment::domain` is the domain used to interpolate pks
 //~
+//~ *`KeysetCommitment`*: Represeting the commitment to the set of public keys of the committee members
+//~ the verifier needs to trust in its correctness in order to be able to believe in prover's proof.
 #[derive(Clone, CanonicalSerialize, CanonicalDeserialize)]
 pub struct KeysetCommitment {
     //~ *pks_comm*: Per-coordinate KZG commitments to a vector of BLS public keys on BLS12-377 represented in affine.
-    //~ latexmath:[([pkx]({\tau}), [pky]({\tau})] where:
+    //~ $$([pkx]({\tau}), [pky]({\tau})$$ where:
     //~
-    //~ latexmath:[pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X)],
+    //~ $$
+    //~ pkx(X) = \sum_{i=0}^{n-1} pkx_i \cdot L_i(X)
+    //~ $$,
     //~ $$pky(X) = \sum_{i=0}^{n-1} pky_i \cdot L_i(X)$$.
     pub pks_comm: (ark_bw6_761::G1Affine, ark_bw6_761::G1Affine),
-    //~ Domain used to interpolate the vectors above. Radix2 Domain Works only for fields
-    //~ that have a large multiplicative subgroup of size that is a power-of-2.
-    pub domain: Radix2EvaluationDomain<Fr>, // could be defined by it's generator
-    //~ The actual size of keyset i.e. the number of possible signers in contrast to the size of keyset vector after padding
+    //~ *domain*: Domain corresponds to a multiplicative subgroup of defining finite field of the BLS curve.
+    //~ It is used to represents each committe member. It is used to interpolate polynomials we
+    //~ ought to commit to. It is a Radix2 Domain and as such works only for fields that have a
+    //~ large multiplicative subgroup of size that is a power-of-2.
+    //~ it could be defined by it's generator
+    pub domain: Radix2EvaluationDomain<Fr>, 
+    //~ *keyset_size*: The actual size of keyset i.e. the number of possible signers in contrast to the size of
+    //~ keyset vector after padding. padding is done by adding dummy members with public key with
+    //~ unknown discrete logarithm to the set. the padded set has the same size as the size of the
+    //~ evaluation domain.
     pub keyset_size: usize
 }
 
+//~ *Keyset*: 
 #[derive(Clone)]
 pub struct Keyset {
     //~ Actual public keys in form of Projective Points on G1, no padding.
