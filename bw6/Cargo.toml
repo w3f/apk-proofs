@@ -21,7 +21,7 @@ fflonk = { git = "https://github.com/w3f/fflonk" }
 
 rand = "0.8"
 merlin = "3.0"
-blake2 = "0.9"
+sha2 = "0.10.6"
 rayon = { version = "1", optional = true }
 
 [dev-dependencies]

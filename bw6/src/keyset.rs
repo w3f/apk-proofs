@@ -1,14 +1,14 @@
 use ark_bls12_377::G1Projective;
 use ark_bw6_761::Fr;
 use ark_ec::CurveGroup;
-use ark_poly::{EvaluationDomain, Evaluations, Radix2EvaluationDomain};
 use ark_poly::univariate::DensePolynomial;
+use ark_poly::{EvaluationDomain, Evaluations, Radix2EvaluationDomain};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use fflonk::pcs::{CommitterKey, PCS};
 use fflonk::pcs::kzg::params::KzgCommitterKey;
+use fflonk::pcs::{CommitterKey, PCS};
 
-use crate::{hash_to_curve, NewKzgBw6};
 use crate::domains::Domains;
+use crate::{hash_to_curve_g1, NewKzgBw6};
 
 // Polynomial commitment to the vector of public keys.
 // Let 'pks' be such a vector that commit(pks) == KeysetCommitment::pks_comm, also let
@@ -57,11 +57,12 @@ impl Keyset {
 
         let mut padded_pks = pks.clone();
         // a point with unknown discrete log
-        let padding_pk = hash_to_curve::<ark_bls12_377::G1Projective>(b"apk-proofs");
+        let padding_pk = hash_to_curve_g1(b"apk-proofs");
         padded_pks.resize(domain.size(), padding_pk);
 
         // convert into affine coordinates to commit
-        let (pks_x, pks_y) = G1Projective::normalize_batch(&padded_pks).iter()
+        let (pks_x, pks_y) = G1Projective::normalize_batch(&padded_pks)
+            .iter()
             .map(|p| (p.x, p.y))
             .unzip();
         let pks_x_poly = Evaluations::from_vec_and_domain(pks_x, domain).interpolate();
@@ -81,14 +82,17 @@ impl Keyset {
 
     pub fn amplify(&mut self) {
         let domains = Domains::new(self.domain.size());
-        let pks_evals_x4 = self.pks_polys.clone().map(|z| domains.amplify_polynomial(&z));
+        let pks_evals_x4 = self
+            .pks_polys
+            .clone()
+            .map(|z| domains.amplify_polynomial(&z));
         self.pks_evals_x4 = Some(pks_evals_x4);
     }
 
     pub fn commit(&self, kzg_pk: &KzgCommitterKey<ark_bw6_761::G1Affine>) -> KeysetCommitment {
         assert!(self.domain.size() <= kzg_pk.max_degree() + 1);
-        let pks_x_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[0]).0;
-        let pks_y_comm= NewKzgBw6::commit(kzg_pk, &self.pks_polys[1]).0;
+        let pks_x_comm = NewKzgBw6::commit(kzg_pk, &self.pks_polys[0]).0;
+        let pks_y_comm = NewKzgBw6::commit(kzg_pk, &self.pks_polys[1]).0;
         KeysetCommitment {
             pks_comm: (pks_x_comm, pks_y_comm),
             log_domain_size: self.domain.log_size_of_group,
@@ -97,7 +101,8 @@ impl Keyset {
 
     pub fn aggregate(&self, bitmask: &[bool]) -> ark_bls12_377::G1Projective {
         assert_eq!(bitmask.len(), self.size());
-        bitmask.iter()
+        bitmask
+            .iter()
             .zip(self.pks.iter())
             .filter(|(b, _p)| **b)
             .map(|(_b, p)| p)

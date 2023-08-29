@@ -1,47 +1,58 @@
 //! Succinct proofs of a BLS public key being an aggregate key of a subset of signers given a commitment to the set of all signers' keys
 
-use ark_bls12_377::G1Affine;
-use ark_bw6_761::{BW6_761, Fr};
-use ark_ec::CurveGroup;
-use ark_ff::MontFp;
+use ark_bls12_377::{
+    g1::Config as G1Config, g2::Config as G2Config, G1Affine, G1Projective, G2Projective,
+};
+use ark_bw6_761::{Fr, BW6_761};
+use ark_ec::{
+    hashing::{curve_maps::wb::WBMap, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+    models::short_weierstrass::Projective,
+};
+use ark_ff::{field_hashers::DefaultFieldHasher, MontFp};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fflonk::pcs::kzg::KZG;
+use sha2::Sha256;
 
 pub use bitmask::Bitmask;
 pub use keyset::{Keyset, KeysetCommitment};
 
-use crate::piop::{RegisterCommitments, RegisterEvaluations};
 use crate::piop::affine_addition::{PartialSumsAndBitmaskCommitments, PartialSumsCommitments};
 use crate::piop::basic::AffineAdditionEvaluationsWithoutBitmask;
-use crate::piop::bitmask_packing::{BitmaskPackingCommitments, SuccinctAccountableRegisterEvaluations};
+use crate::piop::bitmask_packing::{
+    BitmaskPackingCommitments, SuccinctAccountableRegisterEvaluations,
+};
 use crate::piop::counting::{CountingCommitments, CountingEvaluations};
+use crate::piop::{RegisterCommitments, RegisterEvaluations};
 
 pub use self::prover::*;
 pub use self::verifier::*;
 
-mod prover;
-mod verifier;
 pub mod endo;
+mod prover;
 pub mod utils;
+mod verifier;
 
 pub mod bls;
 
 mod transcript;
 
-mod fsrng;
 pub mod domains;
+mod fsrng;
 mod piop;
 
-pub mod setup;
 mod bitmask;
 mod keyset;
+pub mod setup;
 pub mod test_helpers; //TODO: cfgtest
 
 type NewKzgBw6 = KZG<BW6_761>;
 
+pub const DST_G1: &[u8] = b"APK-PROOF-with-BLS12377G1_XMD:SHA-256_SSWU_RO_";
+pub const DST_G2: &[u8] = b"APK-PROOF-with-BLS12377G2_XMD:SHA-256_SSWU_RO_";
+
 // TODO: 1. From trait?
 // TODO: 2. remove refs/clones
-pub trait PublicInput : CanonicalSerialize + CanonicalDeserialize {
+pub trait PublicInput: CanonicalSerialize + CanonicalDeserialize {
     fn new(apk: &G1Affine, bitmask: &Bitmask) -> Self;
 }
 
@@ -94,9 +105,12 @@ pub struct Proof<E: RegisterEvaluations, C: RegisterCommitments, AC: RegisterCom
 }
 
 pub type SimpleProof = Proof<AffineAdditionEvaluationsWithoutBitmask, PartialSumsCommitments, ()>;
-pub type PackedProof = Proof<SuccinctAccountableRegisterEvaluations, PartialSumsAndBitmaskCommitments, BitmaskPackingCommitments>;
+pub type PackedProof = Proof<
+    SuccinctAccountableRegisterEvaluations,
+    PartialSumsAndBitmaskCommitments,
+    BitmaskPackingCommitments,
+>;
 pub type CountingProof = Proof<CountingEvaluations, CountingCommitments, ()>;
-
 
 const H_X: Fr = MontFp!("0");
 const H_Y: Fr = MontFp!("1");
@@ -104,14 +118,24 @@ fn point_in_g1_complement() -> ark_bls12_377::G1Affine {
     ark_bls12_377::G1Affine::new_unchecked(H_X, H_Y)
 }
 
-// TODO: switch to better hash to curve when available
-pub fn hash_to_curve<G: CurveGroup>(message: &[u8]) -> G {
-    use blake2::Digest;
-    use ark_std::rand::SeedableRng;
+pub fn hash_to_curve_g1(message: &[u8]) -> G1Projective {
+    let wb_to_curve_hasher = MapToCurveBasedHasher::<
+        Projective<G1Config>,
+        DefaultFieldHasher<Sha256>,
+        WBMap<G1Config>,
+    >::new(DST_G1)
+    .unwrap();
+    wb_to_curve_hasher.hash(message).unwrap().into()
+}
 
-    let seed = blake2::Blake2s::digest(message);
-    let rng = &mut rand::rngs::StdRng::from_seed(seed.into());
-    G::rand(rng)
+pub fn hash_to_curve_g2(message: &[u8]) -> G2Projective {
+    let wb_to_curve_hasher = MapToCurveBasedHasher::<
+        Projective<G2Config>,
+        DefaultFieldHasher<Sha256>,
+        WBMap<G2Config>,
+    >::new(DST_G2)
+    .unwrap();
+    wb_to_curve_hasher.hash(message).unwrap().into()
 }
 
 #[cfg(test)]
@@ -131,7 +155,6 @@ mod tests {
     fn test_simple_scheme() {
         test_helpers::test_simple_scheme(8);
     }
-
 
     #[test]
     fn test_packed_scheme() {
