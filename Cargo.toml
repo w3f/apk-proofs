@@ -3,4 +3,5 @@
 members = [
     "bw6",
     "mipp",
+    "interactive",
 ]
